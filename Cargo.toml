@@ -1,0 +1,6 @@
+[package]
+name = "parquet-rs"
+version = "0.1.0"
+authors = ["Chao Sun <sunchao@apache.org>"]
+
+[dependencies]
