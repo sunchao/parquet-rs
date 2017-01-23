@@ -2,7 +2,7 @@ use std::fmt;
 
 /// Mirrors parquet::Type
 #[derive(Debug)]
-enum Type {
+pub enum Type {
   BOOLEAN,
   INT32,
   INT64,
@@ -15,7 +15,7 @@ enum Type {
 
 /// Mirrors parquet::ConvertedType
 #[derive(Debug)]
-enum LogicalType {
+pub enum LogicalType {
   NONE,
   UTF8,
   MAP,
@@ -43,7 +43,7 @@ enum LogicalType {
 
 /// Mirrors parquet::FieldRepetitionType
 #[derive(Debug)]
-enum Repetition {
+pub enum Repetition {
   REQUIRED,
   OPTIONAL,
   REPEATED
@@ -51,7 +51,7 @@ enum Repetition {
 
 /// Mirrors parquet::Encoding
 #[derive(Debug)]
-enum Encoding {
+pub enum Encoding {
   PLAIN,
   PLAIN_DICTIONARY,
   RLE,
@@ -64,7 +64,7 @@ enum Encoding {
 
 /// Mirrors parquet::CompressionCodec
 #[derive(Debug)]
-enum Compression {
+pub enum Compression {
   UNCOMPRESSED,
   SNAPPY,
   GZIP,
@@ -74,7 +74,7 @@ enum Compression {
 
 /// Mirrors parquet::PageType
 #[derive(Debug)]
-enum PageType {
+pub enum PageType {
   DATA_PAGE,
   INDEX_PAGE,
   DICTIONARY_PAGE,
