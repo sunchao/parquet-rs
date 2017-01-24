@@ -76,32 +76,77 @@ impl PrimitiveType {
       kind: TypeKind::PRIMITIVE, name: name, repetition: repetition,
       logical_type: logical_type, id: id};
 
-    // TODO: more validity checks
     match logical_type {
       LogicalType::NONE => {
         decimal_metadata = Some(DecimalMetadata{precision, scale});
       },
       LogicalType::UTF8 | LogicalType::BSON | LogicalType::JSON => {
         if physical_type != PhysicalType::BYTE_ARRAY {
-          return Err(ParquetError::Schema(String::from("can only annotate BYTE_ARRAY fields")))
+          return Err(ParquetError::Schema(
+            format!("{} can only annotate BYTE_ARRAY fields", logical_type)))
         }
       },
       LogicalType::DECIMAL => {
+        match physical_type {
+          PhysicalType::INT32 | PhysicalType::INT64 | PhysicalType::BYTE_ARRAY |
+          PhysicalType::FIXED_LEN_BYTE_ARRAY => (),
+          _ => {
+            return Err(ParquetError::Schema(
+            format!("DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED")))
+          }
+        };
         if precision < 0 {
           // TODO: how can we make ParquetError::Schema to accept `&'static str`?
           return Err(ParquetError::Schema(
-            format!("Precision must be non-negative, but found {}", precision)))
+            format!("Invalid DECIMAL precision: {}", precision)))
         }
         if scale < 0 {
           return Err(ParquetError::Schema(
-            format!("Scale must be non-negative, but found {}", scale)))
+            format!("Invalid DECIMAL scale: {}", scale)))
+        }
+        if scale > precision {
+          return Err(ParquetError::Schema(
+            format!("Invalid DECIMAL: scale {} cannot be greater than precision {}",
+                    scale, precision)))
         }
         decimal_metadata = Some(DecimalMetadata{precision, scale})
       }
+      LogicalType::DATE | LogicalType::TIME_MILLIS | LogicalType::UINT_8 |
+      LogicalType::UINT_16 | LogicalType::UINT_32 |
+      LogicalType::INT_8 | LogicalType::INT_16 | LogicalType::INT_32 => {
+        if physical_type != PhysicalType::INT32 {
+          return Err(ParquetError::Schema(
+            format!("{} can only annotate INT32", logical_type)))
+        }
+      }
+      LogicalType::TIME_MICROS | LogicalType::TIMESTAMP_MILLIS |
+      LogicalType::TIMESTAMP_MICROS | LogicalType::UINT_64 | LogicalType::INT_64 => {
+        if physical_type != PhysicalType::INT64 {
+          return Err(ParquetError::Schema(
+            format!("{} can only annotate INT64", logical_type)))
+        }
+      }
+      LogicalType::INTERVAL => {
+        if physical_type != PhysicalType::FIXED_LEN_BYTE_ARRAY || length != 12 {
+          return Err(ParquetError::Schema(String::from("INTERVAL can only annotate FIXED(12)")))
+        }
+      }
+      LogicalType::ENUM => {
+        if physical_type != PhysicalType::BYTE_ARRAY {
+          return Err(ParquetError::Schema(
+            String::from("ENUM can only annotate BYTE_ARRAY fields")))
+        }
+      }
       _ => {
-        return Err(ParquetError::Schema(String::from("can only annotate BYTE_ARRAY fields")))
+        return Err(ParquetError::Schema(
+          format!("{} cannot be applied to a primitive type", logical_type)))
       }
     };
+    if physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY && length < 0 {
+      return Err(ParquetError::Schema(
+        format!("Invalid FIXED_LEN_BYTE_ARRAY length: {}", length)
+      ))
+    }
     Ok(PrimitiveType{
       basic_info: basic_info,
       physical_type: physical_type,
