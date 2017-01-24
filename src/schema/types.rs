@@ -135,6 +135,14 @@ impl GroupType {
       fields: fields
     })
   }
+
+  pub fn num_fields(&self) -> usize {
+    return self.fields.len()
+  }
+
+  pub fn field(&mut self, index: usize) -> &mut Box<Type> {
+    return &mut self.fields[index]
+  }
 }
 
 impl Type for GroupType {
