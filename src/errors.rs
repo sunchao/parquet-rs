@@ -1,4 +1,3 @@
-use std::error;
 use std::result;
 
 quick_error! {

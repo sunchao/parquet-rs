@@ -60,6 +60,7 @@ struct DecimalMetadata {
 }
 
 /// Representation of primitive types
+// TODO: add equality
 struct PrimitiveType {
   basic_info: BasicTypeInfo,
   physical_type: PhysicalType,
@@ -171,6 +172,7 @@ impl Type for PrimitiveType {
 }
 
 /// Representation of group types
+// TODO: add equality
 struct GroupType {
   basic_info: BasicTypeInfo,
   fields: Vec<Box<Type>>
@@ -201,5 +203,145 @@ impl GroupType {
 impl Type for GroupType {
   fn get_basic_info(&self) -> &BasicTypeInfo {
     return &self.basic_info;
+  }
+}
+
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use std::error::Error;
+
+  #[test]
+  fn test_primitive_type() {
+    let mut result = PrimitiveType::new(
+      "foo", Repetition::OPTIONAL, PhysicalType::INT32,
+      LogicalType::INT_32, 0, 0, 0, 0);
+    assert!(result.is_ok());
+
+    if let Ok(tp) = result {
+      assert!(tp.is_primitive());
+      assert!(!tp.is_group());
+      assert_eq!(tp.repetition(), Repetition::OPTIONAL);
+      assert_eq!(tp.logical_type(), LogicalType::INT_32);
+      assert_eq!(tp.physical_type(), PhysicalType::INT32);
+      assert_eq!(tp.id(), 0);
+      assert!(tp.decimal_metadata().is_none());
+    }
+
+    // Test illegal inputs
+    result = PrimitiveType::new(
+      "foo", Repetition::REPEATED, PhysicalType::INT64,
+      LogicalType::BSON, 0, 0, 0, 0);
+    assert!(result.is_err());
+    if let Err(e) = result {
+      assert_eq!(e.description(), "BSON can only annotate BYTE_ARRAY fields");
+    }
+
+    result = PrimitiveType::new(
+      "foo", Repetition::REQUIRED, PhysicalType::INT96,
+      LogicalType::DECIMAL, 0, -1, -1, 0);
+    assert!(result.is_err());
+    if let Err(e) = result {
+      assert_eq!(e.description(), "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED");
+    }
+
+    result = PrimitiveType::new(
+      "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
+      LogicalType::DECIMAL, 0, -1, -1, 0);
+    if let Err(e) = result {
+      assert_eq!(e.description(), "Invalid DECIMAL precision: -1");
+    }
+
+    result = PrimitiveType::new(
+      "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
+      LogicalType::DECIMAL, 0, 0, -1, 0);
+    if let Err(e) = result {
+      assert_eq!(e.description(), "Invalid DECIMAL scale: -1");
+    }
+
+    result = PrimitiveType::new(
+      "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
+      LogicalType::DECIMAL, 0, 1, 2, 0);
+    if let Err(e) = result {
+      assert_eq!(
+        e.description(),
+        "Invalid DECIMAL: scale (2) cannot be greater than precision (1)");
+    }
+
+    result = PrimitiveType::new(
+      "foo", Repetition::REQUIRED, PhysicalType::INT64,
+      LogicalType::UINT_8, 0, 0, 0, 0);
+    if let Err(e) = result {
+      assert_eq!(e.description(), "UINT_8 can only annotate INT32");
+    }
+
+    result = PrimitiveType::new(
+      "foo", Repetition::REQUIRED, PhysicalType::INT32,
+      LogicalType::TIME_MICROS, 0, 0, 0, 0);
+    if let Err(e) = result {
+      assert_eq!(e.description(), "TIME_MICROS can only annotate INT64");
+    }
+
+    result = PrimitiveType::new(
+      "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
+      LogicalType::INTERVAL, 0, 0, 0, 0);
+    if let Err(e) = result {
+      assert_eq!(e.description(), "INTERVAL can only annotate FIXED(12)");
+    }
+
+    result = PrimitiveType::new(
+      "foo", Repetition::REQUIRED, PhysicalType::FIXED_LEN_BYTE_ARRAY,
+      LogicalType::INTERVAL, 0, 0, 0, 0);
+    if let Err(e) = result {
+      assert_eq!(e.description(), "INTERVAL can only annotate FIXED(12)");
+    }
+
+    result = PrimitiveType::new(
+      "foo", Repetition::REQUIRED, PhysicalType::INT32,
+      LogicalType::ENUM, 0, 0, 0, 0);
+    if let Err(e) = result {
+      assert_eq!(e.description(), "ENUM can only annotate BYTE_ARRAY fields");
+    }
+
+    result = PrimitiveType::new(
+      "foo", Repetition::REQUIRED, PhysicalType::INT32,
+      LogicalType::MAP, 0, 0, 0, 0);
+    if let Err(e) = result {
+      assert_eq!(e.description(), "MAP cannot be applied to a primitive type");
+    }
+
+    result = PrimitiveType::new(
+      "foo", Repetition::REQUIRED, PhysicalType::FIXED_LEN_BYTE_ARRAY,
+      LogicalType::DECIMAL, -1, 0, 0, 0);
+    if let Err(e) = result {
+      assert_eq!(e.description(), "Invalid FIXED_LEN_BYTE_ARRAY length: -1");
+    }
+  }
+
+  #[test]
+  fn test_group_type() {
+    // TODO: why Rust require an explicit type annotation here?
+    let mut fields: Vec<Box<Type>> = Vec::new();
+    let f1 = PrimitiveType::new(
+      "f1", Repetition::OPTIONAL, PhysicalType::INT32,
+      LogicalType::INT_32, 0, 0, 0, 0);
+    let f2 = PrimitiveType::new(
+      "f1", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
+      LogicalType::UTF8, 0, 0, 0, 1);
+    assert!(f1.is_ok());
+    assert!(f2.is_ok());
+    fields.push(Box::new(f1.unwrap()));
+    fields.push(Box::new(f2.unwrap()));
+    let result = GroupType::new(
+      "foo", Repetition::REPEATED, LogicalType::NONE, fields, 1);
+    assert!(result.is_ok());
+    if let Ok(tp) = result {
+      assert_eq!(tp.repetition(), Repetition::REPEATED);
+      assert_eq!(tp.logical_type(), LogicalType::NONE);
+      assert_eq!(tp.id(), 1);
+      assert_eq!(tp.num_fields(), 2);
+      // TODO: test fields equality once that is implemented.
+    }
   }
 }
