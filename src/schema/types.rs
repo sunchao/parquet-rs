@@ -106,7 +106,7 @@ impl PrimitiveType {
         }
         if scale > precision {
           return Err(ParquetError::Schema(
-            format!("Invalid DECIMAL: scale {} cannot be greater than precision {}",
+            format!("Invalid DECIMAL: scale ({}) cannot be greater than precision ({})",
                     scale, precision)))
         }
         decimal_metadata = Some(DecimalMetadata{precision, scale})
@@ -154,6 +154,14 @@ impl PrimitiveType {
       decimal_metadata: decimal_metadata
     })
   }
+
+  pub fn physical_type(&self) -> PhysicalType {
+    self.physical_type
+  }
+
+  pub fn decimal_metadata(&self) -> &Option<DecimalMetadata> {
+    &self.decimal_metadata
+  }
 }
 
 impl Type for PrimitiveType {
@@ -169,11 +177,11 @@ struct GroupType {
 }
 
 impl GroupType {
-  pub fn new(name: &'static str, repetition: Repetition, physical_type: PhysicalType,
-             logical_type: LogicalType, length: i32,
+  pub fn new(name: &'static str, repetition: Repetition,
+             logical_type: LogicalType,
              fields: Vec<Box<Type>>, id: i32) -> Result<Self> {
     let basic_info = BasicTypeInfo{
-      kind: TypeKind::PRIMITIVE, name: name, repetition: repetition,
+      kind: TypeKind::GROUP, name: name, repetition: repetition,
       logical_type: logical_type, id: id};
     Ok(GroupType{
       basic_info: basic_info,
