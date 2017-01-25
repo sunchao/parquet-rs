@@ -3,8 +3,8 @@ use std::result;
 quick_error! {
   #[derive(Debug)]
   pub enum ParquetError {
-    Schema(msg: String) {
-      display("Schema init error: {}", msg)
+    LogicalTypeInit(msg: String) {
+      display("Logical type init error: {}", msg)
       description(msg)
     }
   }
