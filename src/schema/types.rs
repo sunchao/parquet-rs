@@ -9,7 +9,7 @@ enum TypeKind {
 
 /// A trait for a logical schema type. Structs who implement
 /// this needs to implement the `get_basic_info()` function.
-trait Type {
+pub trait Type {
   fn is_primitive(&self) -> bool {
     return match self.get_basic_info().kind {
       TypeKind::PRIMITIVE => true,
@@ -45,7 +45,7 @@ trait Type {
 
 /// Basic type info. This contains information such as the name of the type,
 /// the repetition level, the logical type and the kind of the type (group, primitive).
-struct BasicTypeInfo {
+pub struct BasicTypeInfo {
   kind: TypeKind,
   name: &'static str,
   repetition: Repetition,
