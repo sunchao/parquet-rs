@@ -11,3 +11,9 @@ quick_error! {
 }
 
 pub type Result<T> = result::Result<T, ParquetError>;
+
+/// A convenient macro to create Parquet errors
+macro_rules! err {
+  ($fmt:expr) => (Err(ParquetError::Error(format!($fmt))));
+  ($fmt:expr, $($args:tt),*) => (Err(ParquetError::Error(format!($fmt, $($args),*))));
+}

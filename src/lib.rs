@@ -6,15 +6,11 @@
 #[macro_use]
 extern crate quick_error;
 
+#[macro_use]
+pub mod errors;
+
 pub mod basic;
 
-pub mod errors;
 pub mod schema;
 pub mod file;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-    }
-}
