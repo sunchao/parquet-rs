@@ -3,9 +3,9 @@ use std::result;
 quick_error! {
   #[derive(Debug)]
   pub enum ParquetError {
-    LogicalTypeInit(msg: String) {
-      display("Logical type init error: {}", msg)
-      description(msg)
+    Error(message: String) {
+      display("{}", message)
+      description(message)
     }
   }
 }
