@@ -1,1 +1,2 @@
-mod metadata;
+pub mod metadata;
+pub mod reader;

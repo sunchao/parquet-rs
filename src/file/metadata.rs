@@ -1,16 +1,16 @@
 use basic::Encoding;
 use schema::types::Type;
 
-struct ParquetMetaData {
+pub struct ParquetMetaData {
   file_metadata: FileMetaData,
-  blocks: Vec<BlockMetaData>
+  row_groups: Vec<RowGroupMetaData>
 }
 
-struct FileMetaData {
+pub struct FileMetaData {
 
 }
 
-struct BlockMetaData {
+pub struct RowGroupMetaData {
   columns: Vec<Box<ColumnChunkMetaData>>,
   row_count: i64,
   total_byte_size: i64,
