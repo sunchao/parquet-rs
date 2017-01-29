@@ -1,10 +1,10 @@
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{Read, BufReader, Seek, SeekFrom};
 use file::metadata::{RowGroupMetaData, FileMetaData};
 
 pub trait ParquetFileInfo {
   /// Get the metadata about this file
-  fn metadata(&self) -> FileMetaData;
+  fn metadata(&mut self) -> FileMetaData;
 
   /// Get the `i`th row group. Note this doesn't do bound check.
   fn get_row_group(&self, i: usize) -> Box<ParquetRowGroupInfo>;
@@ -25,13 +25,26 @@ impl ParquetFileReader {
   }
 }
 
-static FOOTER_SIZE: u32 = 8;
+const FOOTER_SIZE: usize = 8;
+const PARQUET_MAGIC: [u8; 4] = ['P' as u8, 'A' as u8, 'R' as u8, '1' as u8];
 
 impl ParquetFileInfo for ParquetFileReader {
-  fn metadata(&self) -> FileMetaData {
+  fn metadata(&mut self) -> FileMetaData {
     let mut file_metadata = FileMetaData{};
-    if let Ok(file_info) = self.buf.get_ref().metadata() {
-      println!("File size: {}", file_info.len());
+    let file_size =
+      if let Ok(file_info) = self.buf.get_ref().metadata() {
+        file_info.len()
+      } else {
+        panic!("Fail to get metadata for file");
+      };
+    if file_size < FOOTER_SIZE as u64 {
+      panic!("Corrputed file, smaller than file footer");
+    }
+    let mut footer_buffer: [u8; FOOTER_SIZE] = [0; FOOTER_SIZE];
+    self.buf.seek(SeekFrom::End(-(FOOTER_SIZE as i64)));
+    self.buf.read_exact(&mut footer_buffer);
+    if footer_buffer[4..] != PARQUET_MAGIC {
+      panic!("Invalid parquet file. Corrupt footer.");
     }
     file_metadata
   }
@@ -40,4 +53,3 @@ impl ParquetFileInfo for ParquetFileReader {
     unimplemented!()
   }
 }
-
