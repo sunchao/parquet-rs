@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{Read, BufReader, Seek, SeekFrom};
 use file::metadata::{RowGroupMetaData, FileMetaData};
+use byteorder::{LittleEndian, ByteOrder};
 
 pub trait ParquetFileInfo {
   /// Get the metadata about this file
@@ -46,6 +47,10 @@ impl ParquetFileInfo for ParquetFileReader {
     if footer_buffer[4..] != PARQUET_MAGIC {
       panic!("Invalid parquet file. Corrupt footer.");
     }
+    let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]);
+    println!("Metadata length: {}", &metadata_len);
+    let mut metadata_buffer: Vec<u8> = Vec::new();
+    self.buf.seek(SeekFrom::Start(0));
     file_metadata
   }
 

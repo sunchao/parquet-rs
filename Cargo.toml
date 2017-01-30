@@ -5,3 +5,4 @@ authors = ["Chao Sun <sunchao@apache.org>"]
 
 [dependencies]
 quick-error = "1.1.0"
+byteorder = "1"

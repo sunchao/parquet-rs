@@ -5,6 +5,7 @@
 
 #[macro_use]
 extern crate quick_error;
+extern crate byteorder;
 
 #[macro_use]
 pub mod errors;
