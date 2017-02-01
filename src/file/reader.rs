@@ -5,6 +5,7 @@ use byteorder::{LittleEndian, ByteOrder};
 
 pub trait ParquetFileInfo {
   /// Get the metadata about this file
+  /// TODO: think about returning a Result type
   fn metadata(&mut self) -> FileMetaData;
 
   /// Get the `i`th row group. Note this doesn't do bound check.
@@ -48,9 +49,15 @@ impl ParquetFileInfo for ParquetFileReader {
       panic!("Invalid parquet file. Corrupt footer.");
     }
     let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]);
-    println!("Metadata length: {}", &metadata_len);
-    let mut metadata_buffer: Vec<u8> = Vec::new();
+    let mut metadata_buffer = vec![0; metadata_len as usize];
     self.buf.seek(SeekFrom::Start(0));
+    match self.buf.read_exact(metadata_buffer.as_mut_slice()) {
+      Ok(_) => (),
+      Err(e) => {
+        panic!("Failed to read metadata {}", e);
+      }
+    }
+    // TODO: read the metadata buffer and construct a meaningful metadata
     file_metadata
   }
 
