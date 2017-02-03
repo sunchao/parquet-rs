@@ -6,6 +6,8 @@ authors = ["Chao Sun <sunchao@apache.org>"]
 [dependencies]
 quick-error = "1.1.0"
 byteorder = "1"
+ordered-float = "0.4.0"
+try_from = "0.2.1"
 
 # TODO: remove this local dependency once crate once is available
 [dependencies.thrift]
