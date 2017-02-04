@@ -1,5 +1,6 @@
 use std::io;
 use std::result;
+use thrift;
 
 quick_error! {
   #[derive(Debug)]
@@ -9,16 +10,33 @@ quick_error! {
       display("{}", message)
       description(message)
     }
-    Io(err: io::Error) {
-      from()
+    Io(message: String, err: io::Error) {
+      from(err: io::Error) -> (format!("io error"), err)
+      display("{}, underlying IO error: {}", message, err)
+    }
+    Thrift(message: String, err: thrift::Error) {
+      from(err: thrift::Error) -> (format!("thrift error"), err)
+      display("{}, underlying Thrift error: {}", message, err)
     }
   }
 }
 
 pub type Result<T> = result::Result<T, ParquetError>;
 
-/// A convenient macro to create Parquet errors
-macro_rules! err {
+/// Convenient macros for different errors
+macro_rules! parse_err {
   ($fmt:expr) => (Err(ParquetError::Parse(format!($fmt))));
   ($fmt:expr, $($args:tt),*) => (Err(ParquetError::Parse(format!($fmt, $($args),*))));
+}
+
+macro_rules! io_err {
+  ($e:ident, $fmt:expr) => (Err(ParquetError::Io(format!($fmt), $e)));
+  ($e:ident, $fmt:expr, $($args:tt),*) => (
+    Err(ParquetError::Io(&format!($fmt, $($args),*), $e)));
+}
+
+macro_rules! thrift_err {
+  ($e:ident, $fmt:expr) => (Err(ParquetError::Thrift(format!($fmt), $e)));
+  ($e:ident, $fmt:expr, $($args:tt),*) => (
+    Err(ParquetError::Thrift(format!($fmt, $($args),*), $e)));
 }

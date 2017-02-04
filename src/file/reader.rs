@@ -44,28 +44,30 @@ impl ParquetFileInfo for ParquetFileReader {
       if let Ok(file_info) = self.buf.get_ref().metadata() {
         file_info.len() as usize
       } else {
-        return err!("Fail to get metadata for file");
+        return parse_err!("Fail to get metadata for file");
       };
     if file_size < FOOTER_SIZE {
-      return err!("Corrputed file, smaller than file footer");
+      return parse_err!("Corrputed file, smaller than file footer");
     }
     let mut footer_buffer: [u8; FOOTER_SIZE] = [0; FOOTER_SIZE];
     self.buf.seek(SeekFrom::End(-(FOOTER_SIZE as i64)))?;
     self.buf.read_exact(&mut footer_buffer)?;
     if footer_buffer[4..] != PARQUET_MAGIC {
-      return err!("Invalid parquet file. Corrupt footer.");
+      return parse_err!("Invalid parquet file. Corrupt footer.");
     }
     let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]) as usize;
     let mut metadata_buffer = vec![0; metadata_len];
     let metadata_start = file_size - FOOTER_SIZE - metadata_len;
     if metadata_start < 0 {
-      return err!("Invalid parquet file. Metadata start is less than zero ({})", metadata_start)
+      return parse_err!(
+        "Invalid parquet file. Metadata start is less than zero ({})",
+        metadata_start)
     }
     self.buf.seek(SeekFrom::Start(metadata_start as u64))?;
     match self.buf.read_exact(metadata_buffer.as_mut_slice()) {
       Ok(_) => (),
       Err(e) => {
-        return err!("Failed to read metadata {}", e);
+        return io_err!(e, "Failed to read metadata");
       }
     }
 
@@ -77,7 +79,7 @@ impl ParquetFileInfo for ParquetFileReader {
     let t_file_metadata = match TFileMetaData::read_from_in_protocol(&mut prot) {
       Ok(fm) => fm,
       Err(e) => {
-        return err!("Could not parse metadata, error: {}", e);
+        return thrift_err!(e, "Could not parse metadata");
       }
     };
 
