@@ -1,4 +1,5 @@
 #![feature(field_init_shorthand)]
+#![feature(type_ascription)]
 
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]

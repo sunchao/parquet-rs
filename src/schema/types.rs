@@ -84,8 +84,7 @@ impl PrimitiveType {
       LogicalType::UTF8 | LogicalType::BSON | LogicalType::JSON => {
         if physical_type != PhysicalType::BYTE_ARRAY {
           // return parse_err!("{} can only annotate BYTE_ARRAY fields", logical_type)
-          return Err(ParquetError::Parse(
-            format!("{} can only annotate BYTE_ARRAY fields", logical_type)))
+          return Err(parse_err!("{} can only annotate BYTE_ARRAY fields", logical_type))
         }
       },
       LogicalType::DECIMAL => {
@@ -93,19 +92,20 @@ impl PrimitiveType {
           PhysicalType::INT32 | PhysicalType::INT64 | PhysicalType::BYTE_ARRAY |
           PhysicalType::FIXED_LEN_BYTE_ARRAY => (),
           _ => {
-            return parse_err!("DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED")
+            return Err(parse_err!("DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED"))
           }
         };
         if precision < 0 {
           // TODO: how can we make ParquetError::Error to accept `&'static str`?
-          return parse_err!("Invalid DECIMAL precision: {}", precision)
+          return Err(parse_err!("Invalid DECIMAL precision: {}", precision))
         }
         if scale < 0 {
-          return parse_err!("Invalid DECIMAL scale: {}", scale)
+          return Err(parse_err!("Invalid DECIMAL scale: {}", scale))
         }
         if scale > precision {
-          return parse_err!("Invalid DECIMAL: scale ({}) cannot be greater than precision ({})",
-                      scale, precision)
+          return Err(parse_err!(
+            "Invalid DECIMAL: scale ({}) cannot be greater than precision ({})",
+            scale, precision))
         }
         decimal_metadata = Some(DecimalMetadata{precision, scale})
       }
@@ -113,31 +113,31 @@ impl PrimitiveType {
       LogicalType::UINT_16 | LogicalType::UINT_32 |
       LogicalType::INT_8 | LogicalType::INT_16 | LogicalType::INT_32 => {
         if physical_type != PhysicalType::INT32 {
-          return parse_err!("{} can only annotate INT32", logical_type)
+          return Err(parse_err!("{} can only annotate INT32", logical_type))
         }
       }
       LogicalType::TIME_MICROS | LogicalType::TIMESTAMP_MILLIS |
       LogicalType::TIMESTAMP_MICROS | LogicalType::UINT_64 | LogicalType::INT_64 => {
         if physical_type != PhysicalType::INT64 {
-          return parse_err!("{} can only annotate INT64", logical_type)
+          return Err(parse_err!("{} can only annotate INT64", logical_type))
         }
       }
       LogicalType::INTERVAL => {
         if physical_type != PhysicalType::FIXED_LEN_BYTE_ARRAY || length != 12 {
-          return parse_err!("INTERVAL can only annotate FIXED(12)")
+          return Err(parse_err!("INTERVAL can only annotate FIXED(12)"))
         }
       }
       LogicalType::ENUM => {
         if physical_type != PhysicalType::BYTE_ARRAY {
-          return parse_err!("ENUM can only annotate BYTE_ARRAY fields")
+          return Err(parse_err!("ENUM can only annotate BYTE_ARRAY fields"))
         }
       }
       _ => {
-        return parse_err!("{} cannot be applied to a primitive type", logical_type)
+        return Err(parse_err!("{} cannot be applied to a primitive type", logical_type))
       }
     };
     if physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY && length < 0 {
-      return parse_err!("Invalid FIXED_LEN_BYTE_ARRAY length: {}", length)
+      return Err(parse_err!("Invalid FIXED_LEN_BYTE_ARRAY length: {}", length))
     }
     Ok(PrimitiveType{
       basic_info: basic_info,

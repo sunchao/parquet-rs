@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{Read, BufReader, Seek, SeekFrom};
+use std::io::{Read, BufReader, Seek, SeekFrom, Error};
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -44,44 +44,36 @@ impl ParquetFileInfo for ParquetFileReader {
       if let Ok(file_info) = self.buf.get_ref().metadata() {
         file_info.len() as usize
       } else {
-        return parse_err!("Fail to get metadata for file");
+        return Err(parse_err!("Fail to get metadata for file"));
       };
     if file_size < FOOTER_SIZE {
-      return parse_err!("Corrputed file, smaller than file footer");
+      return Err(parse_err!("Corrputed file, smaller than file footer"));
     }
     let mut footer_buffer: [u8; FOOTER_SIZE] = [0; FOOTER_SIZE];
     self.buf.seek(SeekFrom::End(-(FOOTER_SIZE as i64)))?;
     self.buf.read_exact(&mut footer_buffer)?;
     if footer_buffer[4..] != PARQUET_MAGIC {
-      return parse_err!("Invalid parquet file. Corrupt footer.");
+      return Err(parse_err!("Invalid parquet file. Corrupt footer."));
     }
     let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]) as usize;
     let mut metadata_buffer = vec![0; metadata_len];
     let metadata_start = file_size - FOOTER_SIZE - metadata_len;
     if metadata_start < 0 {
-      return parse_err!(
+      return Err(parse_err!(
         "Invalid parquet file. Metadata start is less than zero ({})",
-        metadata_start)
+        metadata_start))
     }
     self.buf.seek(SeekFrom::Start(metadata_start as u64))?;
-    match self.buf.read_exact(metadata_buffer.as_mut_slice()) {
-      Ok(_) => (),
-      Err(e) => {
-        return io_err!(e, "Failed to read metadata");
-      }
-    }
+    self.buf.read_exact(metadata_buffer.as_mut_slice())
+      .map_err(|e| io_err!(e, "Failed to read metadata"))?;
 
     // TODO: do row group filtering
     let mut transport = TBufferTransport::with_capacity(metadata_len, 0);
     transport.set_readable_bytes(metadata_buffer.as_mut_slice());
     let transport = Rc::new(RefCell::new(Box::new(transport) as Box<TTransport>));
     let mut prot = TCompactInputProtocol::new(transport);
-    let t_file_metadata = match TFileMetaData::read_from_in_protocol(&mut prot) {
-      Ok(fm) => fm,
-      Err(e) => {
-        return thrift_err!(e, "Could not parse metadata");
-      }
-    };
+    let t_file_metadata = TFileMetaData::read_from_in_protocol(&mut prot)
+      .map_err(|e| thrift_err!(e, "Could not parse metadata"))?;
 
     // TODO: convert from t_metadata
     Ok(file_metadata)

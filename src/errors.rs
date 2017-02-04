@@ -25,18 +25,18 @@ pub type Result<T> = result::Result<T, ParquetError>;
 
 /// Convenient macros for different errors
 macro_rules! parse_err {
-  ($fmt:expr) => (Err(ParquetError::Parse(format!($fmt))));
-  ($fmt:expr, $($args:tt),*) => (Err(ParquetError::Parse(format!($fmt, $($args),*))));
+  ($fmt:expr) => (ParquetError::Parse(format!($fmt)));
+  ($fmt:expr, $($args:tt),*) => (ParquetError::Parse(format!($fmt, $($args),*)));
 }
 
 macro_rules! io_err {
-  ($e:ident, $fmt:expr) => (Err(ParquetError::Io(format!($fmt), $e)));
+  ($e:ident, $fmt:expr) => (ParquetError::Io(format!($fmt), $e));
   ($e:ident, $fmt:expr, $($args:tt),*) => (
-    Err(ParquetError::Io(&format!($fmt, $($args),*), $e)));
+    ParquetError::Io(&format!($fmt, $($args),*), $e));
 }
 
 macro_rules! thrift_err {
-  ($e:ident, $fmt:expr) => (Err(ParquetError::Thrift(format!($fmt), $e)));
+  ($e:ident, $fmt:expr) => (ParquetError::Thrift(format!($fmt), $e));
   ($e:ident, $fmt:expr, $($args:tt),*) => (
-    Err(ParquetError::Thrift(format!($fmt, $($args),*), $e)));
+    ParquetError::Thrift(format!($fmt, $($args),*), $e));
 }
