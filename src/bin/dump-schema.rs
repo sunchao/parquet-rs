@@ -22,8 +22,8 @@ fn main() {
     },
     Ok(f) => f
   };
-  let mut buf = BufReader::new(file);
+  let buf = BufReader::new(file);
   let mut parquet_reader = ParquetFileReader::new(buf);
-  let file_metadata = parquet_reader.metadata();
+  let _ = parquet_reader.metadata();
   println!("Done");
 }

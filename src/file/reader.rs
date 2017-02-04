@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{Read, BufReader, Seek, SeekFrom, Error};
+use std::io::{Read, BufReader, Seek, SeekFrom};
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -41,12 +41,11 @@ impl ParquetFileInfo for ParquetFileReader {
   fn metadata(&mut self) -> Result<FileMetaData> {
     let file_metadata = FileMetaData{};
     let file_size =
-      if let Ok(file_info) = self.buf.get_ref().metadata() {
-        file_info.len() as usize
-      } else {
-        return Err(parse_err!("Fail to get metadata for file"));
+      match self.buf.get_ref().metadata() {
+        Ok(file_info) => file_info.len(),
+        Err(e) => return Err(io_err!(e, "Fail to get metadata for file"))
       };
-    if file_size < FOOTER_SIZE {
+    if file_size < (FOOTER_SIZE as u64) {
       return Err(parse_err!("Corrputed file, smaller than file footer"));
     }
     let mut footer_buffer: [u8; FOOTER_SIZE] = [0; FOOTER_SIZE];
@@ -55,9 +54,14 @@ impl ParquetFileInfo for ParquetFileReader {
     if footer_buffer[4..] != PARQUET_MAGIC {
       return Err(parse_err!("Invalid parquet file. Corrupt footer."));
     }
-    let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]) as usize;
-    let mut metadata_buffer = vec![0; metadata_len];
-    let metadata_start = file_size - FOOTER_SIZE - metadata_len;
+    let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]);
+    if metadata_len < 0 {
+      return Err(parse_err!(
+        "Invalid parquet file. Metadata length is less than zero ({})",
+        metadata_len));
+    }
+    let mut metadata_buffer = vec![0; metadata_len as usize];
+    let metadata_start: i64 = file_size as i64 - FOOTER_SIZE as i64 - metadata_len as i64;
     if metadata_start < 0 {
       return Err(parse_err!(
         "Invalid parquet file. Metadata start is less than zero ({})",
@@ -68,7 +72,7 @@ impl ParquetFileInfo for ParquetFileReader {
       .map_err(|e| io_err!(e, "Failed to read metadata"))?;
 
     // TODO: do row group filtering
-    let mut transport = TBufferTransport::with_capacity(metadata_len, 0);
+    let mut transport = TBufferTransport::with_capacity(metadata_len as usize, 0);
     transport.set_readable_bytes(metadata_buffer.as_mut_slice());
     let transport = Rc::new(RefCell::new(Box::new(transport) as Box<TTransport>));
     let mut prot = TCompactInputProtocol::new(transport);
