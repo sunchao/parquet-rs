@@ -134,31 +134,36 @@ impl convert::From<parquet::Type> for Type {
   }
 }
 
-impl convert::From<parquet::ConvertedType> for LogicalType {
-  fn from(tp: parquet::ConvertedType) -> Self {
-    match tp {
-      parquet::ConvertedType::UTF8 => LogicalType::UTF8,
-      parquet::ConvertedType::MAP => LogicalType::MAP,
-      parquet::ConvertedType::MAP_KEY_VALUE => LogicalType::MAP_KEY_VALUE,
-      parquet::ConvertedType::LIST => LogicalType::LIST,
-      parquet::ConvertedType::ENUM => LogicalType::ENUM,
-      parquet::ConvertedType::DECIMAL => LogicalType::DECIMAL,
-      parquet::ConvertedType::DATE => LogicalType::DATE,
-      parquet::ConvertedType::TIME_MILLIS => LogicalType::TIME_MILLIS,
-      parquet::ConvertedType::TIME_MICROS => LogicalType::TIME_MICROS,
-      parquet::ConvertedType::TIMESTAMP_MILLIS => LogicalType::TIMESTAMP_MILLIS,
-      parquet::ConvertedType::TIMESTAMP_MICROS => LogicalType::TIMESTAMP_MICROS,
-      parquet::ConvertedType::UINT_8 => LogicalType::UINT_8,
-      parquet::ConvertedType::UINT_16 => LogicalType::UINT_16,
-      parquet::ConvertedType::UINT_32 => LogicalType::UINT_32,
-      parquet::ConvertedType::UINT_64 => LogicalType::UINT_64,
-      parquet::ConvertedType::INT_8 => LogicalType::INT_8,
-      parquet::ConvertedType::INT_16 => LogicalType::INT_16,
-      parquet::ConvertedType::INT_32 => LogicalType::INT_32,
-      parquet::ConvertedType::INT_64 => LogicalType::INT_64,
-      parquet::ConvertedType::JSON => LogicalType::JSON,
-      parquet::ConvertedType::BSON => LogicalType::BSON,
-      parquet::ConvertedType::INTERVAL => LogicalType::INTERVAL
+impl convert::From<Option<parquet::ConvertedType>> for LogicalType {
+  fn from(op: Option<parquet::ConvertedType>) -> Self {
+    match op {
+      None => LogicalType::NONE,
+      Some(tp) => {
+        match tp {
+          parquet::ConvertedType::UTF8 => LogicalType::UTF8,
+          parquet::ConvertedType::MAP => LogicalType::MAP,
+          parquet::ConvertedType::MAP_KEY_VALUE => LogicalType::MAP_KEY_VALUE,
+          parquet::ConvertedType::LIST => LogicalType::LIST,
+          parquet::ConvertedType::ENUM => LogicalType::ENUM,
+          parquet::ConvertedType::DECIMAL => LogicalType::DECIMAL,
+          parquet::ConvertedType::DATE => LogicalType::DATE,
+          parquet::ConvertedType::TIME_MILLIS => LogicalType::TIME_MILLIS,
+          parquet::ConvertedType::TIME_MICROS => LogicalType::TIME_MICROS,
+          parquet::ConvertedType::TIMESTAMP_MILLIS => LogicalType::TIMESTAMP_MILLIS,
+          parquet::ConvertedType::TIMESTAMP_MICROS => LogicalType::TIMESTAMP_MICROS,
+          parquet::ConvertedType::UINT_8 => LogicalType::UINT_8,
+          parquet::ConvertedType::UINT_16 => LogicalType::UINT_16,
+          parquet::ConvertedType::UINT_32 => LogicalType::UINT_32,
+          parquet::ConvertedType::UINT_64 => LogicalType::UINT_64,
+          parquet::ConvertedType::INT_8 => LogicalType::INT_8,
+          parquet::ConvertedType::INT_16 => LogicalType::INT_16,
+          parquet::ConvertedType::INT_32 => LogicalType::INT_32,
+          parquet::ConvertedType::INT_64 => LogicalType::INT_64,
+          parquet::ConvertedType::JSON => LogicalType::JSON,
+          parquet::ConvertedType::BSON => LogicalType::BSON,
+          parquet::ConvertedType::INTERVAL => LogicalType::INTERVAL
+        }
+      }
     }
   }
 }
@@ -269,49 +274,50 @@ mod tests {
 
     #[test]
   fn test_from_logical_type() {
-    assert_eq!(LogicalType::from(parquet::ConvertedType::UTF8),
+    assert_eq!(LogicalType::from(None), LogicalType::NONE);
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::UTF8)),
                LogicalType::UTF8);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::MAP),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::MAP)),
                LogicalType::MAP);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::MAP_KEY_VALUE),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::MAP_KEY_VALUE)),
                LogicalType::MAP_KEY_VALUE);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::LIST),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::LIST)),
                LogicalType::LIST);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::ENUM),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::ENUM)),
                LogicalType::ENUM);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::DECIMAL),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::DECIMAL)),
                LogicalType::DECIMAL);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::DATE),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::DATE)),
                LogicalType::DATE);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::TIME_MILLIS),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::TIME_MILLIS)),
                LogicalType::TIME_MILLIS);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::TIME_MICROS),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::TIME_MICROS)),
                LogicalType::TIME_MICROS);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::TIMESTAMP_MILLIS),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::TIMESTAMP_MILLIS)),
                LogicalType::TIMESTAMP_MILLIS);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::TIMESTAMP_MICROS),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::TIMESTAMP_MICROS)),
                LogicalType::TIMESTAMP_MICROS);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::UINT_8),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::UINT_8)),
                LogicalType::UINT_8);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::UINT_16),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::UINT_16)),
                LogicalType::UINT_16);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::UINT_32),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::UINT_32)),
                LogicalType::UINT_32);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::UINT_64),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::UINT_64)),
                LogicalType::UINT_64);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::INT_8),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::INT_8)),
                LogicalType::INT_8);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::INT_16),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::INT_16)),
                LogicalType::INT_16);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::INT_32),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::INT_32)),
                LogicalType::INT_32);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::INT_64),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::INT_64)),
                LogicalType::INT_64);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::JSON),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::JSON)),
                LogicalType::JSON);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::BSON),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::BSON)),
                LogicalType::BSON);
-    assert_eq!(LogicalType::from(parquet::ConvertedType::INTERVAL),
+    assert_eq!(LogicalType::from(Some(parquet::ConvertedType::INTERVAL)),
                LogicalType::INTERVAL);
   }
 
