@@ -18,6 +18,9 @@ quick_error! {
       from(err: thrift::Error) -> (format!("thrift error"), err)
       display("{}, underlying Thrift error: {}", message, err)
     }
+    Schema(message: String) {
+      display("Schema error: {}", message)
+    }
   }
 }
 
@@ -27,6 +30,11 @@ pub type Result<T> = result::Result<T, ParquetError>;
 macro_rules! parse_err {
   ($fmt:expr) => (ParquetError::Parse(format!($fmt)));
   ($fmt:expr, $($args:tt),*) => (ParquetError::Parse(format!($fmt, $($args),*)));
+}
+
+macro_rules! schema_err {
+  ($fmt:expr) => (ParquetError::Schema(format!($fmt)));
+  ($fmt:expr, $($args:expr),*) => (ParquetError::Schema(format!($fmt, $($args),*)));
 }
 
 macro_rules! io_err {

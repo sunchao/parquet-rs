@@ -1,6 +1,7 @@
 use basic::{Type as PhysicalType, Repetition, LogicalType};
 use errors::Result;
 use errors::ParquetError;
+use parquet_thrift::parquet::SchemaElement;
 
 enum TypeKind {
   PRIMITIVE,
@@ -36,7 +37,7 @@ pub trait Type {
     return self.get_basic_info().logical_type;
   }
 
-  fn id(&self) -> i32 {
+  fn id(&self) -> Option<i32> {
     return self.get_basic_info().id;
   }
 
@@ -47,10 +48,10 @@ pub trait Type {
 /// the repetition level, the logical type and the kind of the type (group, primitive).
 pub struct BasicTypeInfo {
   kind: TypeKind,
-  name: &'static str,
+  name: String,
   repetition: Repetition,
   logical_type: LogicalType,
-  id: i32
+  id: Option<i32>
 }
 
 /// Metadata for a decimal type (scale, precision).
@@ -69,12 +70,12 @@ struct PrimitiveType {
 }
 
 impl PrimitiveType {
-  pub fn new(name: &'static str, repetition: Repetition, physical_type: PhysicalType,
+  pub fn new(name: &str, repetition: Repetition, physical_type: PhysicalType,
              logical_type: LogicalType, length: i32,
-             precision: i32, scale: i32, id: i32) -> Result<Self> {
+             precision: i32, scale: i32, id: Option<i32>) -> Result<Self> {
     let mut decimal_metadata = None;
     let basic_info = BasicTypeInfo{
-      kind: TypeKind::PRIMITIVE, name: name, repetition: repetition,
+      kind: TypeKind::PRIMITIVE, name: String::from(name), repetition: repetition,
       logical_type: logical_type, id: id};
 
     match logical_type {
@@ -83,7 +84,6 @@ impl PrimitiveType {
       },
       LogicalType::UTF8 | LogicalType::BSON | LogicalType::JSON => {
         if physical_type != PhysicalType::BYTE_ARRAY {
-          // return parse_err!("{} can only annotate BYTE_ARRAY fields", logical_type)
           return Err(parse_err!("{} can only annotate BYTE_ARRAY fields", logical_type))
         }
       },
@@ -96,7 +96,6 @@ impl PrimitiveType {
           }
         };
         if precision < 0 {
-          // TODO: how can we make ParquetError::Error to accept `&'static str`?
           return Err(parse_err!("Invalid DECIMAL precision: {}", precision))
         }
         if scale < 0 {
@@ -170,11 +169,11 @@ struct GroupType {
 }
 
 impl GroupType {
-  pub fn new(name: &'static str, repetition: Repetition,
+  pub fn new(name: &str, repetition: Repetition,
              logical_type: LogicalType,
-             fields: Vec<Box<Type>>, id: i32) -> Result<Self> {
+             fields: Vec<Box<Type>>, id: Option<i32>) -> Result<Self> {
     let basic_info = BasicTypeInfo{
-      kind: TypeKind::GROUP, name: name, repetition: repetition,
+      kind: TypeKind::GROUP, name: String::from(name), repetition: repetition,
       logical_type: logical_type, id: id};
     Ok(GroupType{
       basic_info: basic_info,
@@ -198,6 +197,69 @@ impl Type for GroupType {
 }
 
 
+pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<Vec<Box<Type>>> {
+  let mut index = 1;
+  let mut result = Vec::new();
+  // if elements.len() <= 0 {
+  //   return Err(schema_err!("SchemaElements can't be empty"));
+  // }
+  // let ref mut root = elements[0];
+  // if root.num_children.is_none() {
+  //   return Err(schema_err!("Root element of SchemaElements should have num_children"));
+  // }
+  while index < elements.len() {
+    let t = from_thrift_helper(elements, index)?;
+    index = t.0;
+    result.push(t.1);
+  }
+  Ok(result)
+}
+
+/// Construct a new Type from the `elements`, starting at index `index`.
+/// The first result is the starting index for the next Type after this one.
+/// If it is equal to `elements.len()`, then this Type is the last one.
+/// The second result is the result Type.
+fn from_thrift_helper(elements: &mut [SchemaElement], index: usize) -> Result<(usize, Box<Type>)> {
+  if index < 0 {
+    return Err(schema_err!("Illegal index ({}). Expect to be non-negative.", index))
+  }
+  if index > elements.len() {
+    return Err(schema_err!("Index out of bound, index = {}, len = {}", index, elements.len()))
+  }
+  if elements[index].repetition_type.is_none() {
+    return Err(schema_err!("Repetition is undefined"));
+  }
+  let repetition = Repetition::from(elements[index].repetition_type.unwrap());
+  let logical_type = LogicalType::from(elements[index].converted_type);
+  let field_id = elements[index].field_id;
+  match elements[index].num_children {
+    None => {
+      // primitive type
+      let physical_type = PhysicalType::from(elements[index].type_.unwrap());
+      let length = elements[index].type_length.unwrap_or(-1);
+      let scale = elements[index].scale.unwrap_or(-1);
+      let precision = elements[index].precision.unwrap_or(-1);
+      let name = &elements[index].name;
+      let result = PrimitiveType::new(
+        name, repetition, physical_type, logical_type, length, precision, scale, field_id)?;
+      Ok((index + 1, Box::new(result)))
+    },
+    Some(n) => {
+      let mut fields: Vec<Box<Type>> = Vec::new();
+      let mut next_index = index + 1;
+      for i in 0..n {
+        let child_result = from_thrift_helper(elements, next_index as usize)?;
+        next_index = child_result.0;
+        fields.push(child_result.1);
+      }
+      let name = &elements[index].name;
+      let result = GroupType::new(
+        name, repetition, logical_type, fields, field_id)?;
+      Ok((next_index, Box::new(result)))
+    }
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -207,7 +269,7 @@ mod tests {
   fn test_primitive_type() {
     let mut result = PrimitiveType::new(
       "foo", Repetition::OPTIONAL, PhysicalType::INT32,
-      LogicalType::INT_32, 0, 0, 0, 0);
+      LogicalType::INT_32, 0, 0, 0, Some(0));
     assert!(result.is_ok());
 
     if let Ok(tp) = result {
@@ -216,14 +278,14 @@ mod tests {
       assert_eq!(tp.repetition(), Repetition::OPTIONAL);
       assert_eq!(tp.logical_type(), LogicalType::INT_32);
       assert_eq!(tp.physical_type(), PhysicalType::INT32);
-      assert_eq!(tp.id(), 0);
+      assert_eq!(tp.id(), Some(0));
       assert!(tp.decimal_metadata().is_none());
     }
 
     // Test illegal inputs
     result = PrimitiveType::new(
       "foo", Repetition::REPEATED, PhysicalType::INT64,
-      LogicalType::BSON, 0, 0, 0, 0);
+      LogicalType::BSON, 0, 0, 0, None);
     assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "BSON can only annotate BYTE_ARRAY fields");
@@ -231,7 +293,7 @@ mod tests {
 
     result = PrimitiveType::new(
       "foo", Repetition::REQUIRED, PhysicalType::INT96,
-      LogicalType::DECIMAL, 0, -1, -1, 0);
+      LogicalType::DECIMAL, 0, -1, -1, None);
     assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED");
@@ -239,21 +301,21 @@ mod tests {
 
     result = PrimitiveType::new(
       "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
-      LogicalType::DECIMAL, 0, -1, -1, 0);
+      LogicalType::DECIMAL, 0, -1, -1, None);
     if let Err(e) = result {
       assert_eq!(e.description(), "Invalid DECIMAL precision: -1");
     }
 
     result = PrimitiveType::new(
       "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
-      LogicalType::DECIMAL, 0, 0, -1, 0);
+      LogicalType::DECIMAL, 0, 0, -1, None);
     if let Err(e) = result {
       assert_eq!(e.description(), "Invalid DECIMAL scale: -1");
     }
 
     result = PrimitiveType::new(
       "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
-      LogicalType::DECIMAL, 0, 1, 2, 0);
+      LogicalType::DECIMAL, 0, 1, 2, None);
     if let Err(e) = result {
       assert_eq!(
         e.description(),
@@ -262,49 +324,49 @@ mod tests {
 
     result = PrimitiveType::new(
       "foo", Repetition::REQUIRED, PhysicalType::INT64,
-      LogicalType::UINT_8, 0, 0, 0, 0);
+      LogicalType::UINT_8, 0, 0, 0, None);
     if let Err(e) = result {
       assert_eq!(e.description(), "UINT_8 can only annotate INT32");
     }
 
     result = PrimitiveType::new(
       "foo", Repetition::REQUIRED, PhysicalType::INT32,
-      LogicalType::TIME_MICROS, 0, 0, 0, 0);
+      LogicalType::TIME_MICROS, 0, 0, 0, None);
     if let Err(e) = result {
       assert_eq!(e.description(), "TIME_MICROS can only annotate INT64");
     }
 
     result = PrimitiveType::new(
       "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
-      LogicalType::INTERVAL, 0, 0, 0, 0);
+      LogicalType::INTERVAL, 0, 0, 0, None);
     if let Err(e) = result {
       assert_eq!(e.description(), "INTERVAL can only annotate FIXED(12)");
     }
 
     result = PrimitiveType::new(
       "foo", Repetition::REQUIRED, PhysicalType::FIXED_LEN_BYTE_ARRAY,
-      LogicalType::INTERVAL, 0, 0, 0, 0);
+      LogicalType::INTERVAL, 0, 0, 0, None);
     if let Err(e) = result {
       assert_eq!(e.description(), "INTERVAL can only annotate FIXED(12)");
     }
 
     result = PrimitiveType::new(
       "foo", Repetition::REQUIRED, PhysicalType::INT32,
-      LogicalType::ENUM, 0, 0, 0, 0);
+      LogicalType::ENUM, 0, 0, 0, None);
     if let Err(e) = result {
       assert_eq!(e.description(), "ENUM can only annotate BYTE_ARRAY fields");
     }
 
     result = PrimitiveType::new(
       "foo", Repetition::REQUIRED, PhysicalType::INT32,
-      LogicalType::MAP, 0, 0, 0, 0);
+      LogicalType::MAP, 0, 0, 0, None);
     if let Err(e) = result {
       assert_eq!(e.description(), "MAP cannot be applied to a primitive type");
     }
 
     result = PrimitiveType::new(
       "foo", Repetition::REQUIRED, PhysicalType::FIXED_LEN_BYTE_ARRAY,
-      LogicalType::DECIMAL, -1, 0, 0, 0);
+      LogicalType::DECIMAL, -1, 0, 0, None);
     if let Err(e) = result {
       assert_eq!(e.description(), "Invalid FIXED_LEN_BYTE_ARRAY length: -1");
     }
@@ -316,21 +378,21 @@ mod tests {
     let mut fields: Vec<Box<Type>> = Vec::new();
     let f1 = PrimitiveType::new(
       "f1", Repetition::OPTIONAL, PhysicalType::INT32,
-      LogicalType::INT_32, 0, 0, 0, 0);
+      LogicalType::INT_32, 0, 0, 0, Some(0));
     let f2 = PrimitiveType::new(
       "f1", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
-      LogicalType::UTF8, 0, 0, 0, 1);
+      LogicalType::UTF8, 0, 0, 0, Some(1));
     assert!(f1.is_ok());
     assert!(f2.is_ok());
     fields.push(Box::new(f1.unwrap()));
     fields.push(Box::new(f2.unwrap()));
     let result = GroupType::new(
-      "foo", Repetition::REPEATED, LogicalType::NONE, fields, 1);
+      "foo", Repetition::REPEATED, LogicalType::NONE, fields, Some(1));
     assert!(result.is_ok());
     if let Ok(tp) = result {
       assert_eq!(tp.repetition(), Repetition::REPEATED);
       assert_eq!(tp.logical_type(), LogicalType::NONE);
-      assert_eq!(tp.id(), 1);
+      assert_eq!(tp.id(), Some(1));
       assert_eq!(tp.num_fields(), 2);
       // TODO: test fields equality once that is implemented.
     }

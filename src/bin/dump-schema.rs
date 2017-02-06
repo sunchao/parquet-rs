@@ -24,6 +24,14 @@ fn main() {
   };
   let buf = BufReader::new(file);
   let mut parquet_reader = ParquetFileReader::new(buf);
-  let _ = parquet_reader.metadata();
-  println!("Done");
+  let result = parquet_reader.metadata();
+  match result {
+    Ok(metadata) => {
+      println!("Done");
+    },
+    Err(e) => {
+      println!("Error while dumping metadata. Error is: {}", e);
+    }
+  }
+
 }

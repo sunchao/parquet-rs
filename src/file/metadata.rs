@@ -1,4 +1,5 @@
 use basic::{Encoding, Type};
+use schema::types::Type as SchemaType;
 
 pub struct ParquetMetaData {
   file_metadata: FileMetaData,
@@ -9,13 +10,14 @@ pub struct ParquetMetaData {
 pub struct FileMetaData {
   version: i32,
   num_rows: i64,
-  created_by: Option<String>
-  // row_groups: Vec<Box<RowGroupMetaData>>
+  created_by: Option<String>,
+  schema: Vec<Box<SchemaType>>
 }
 
 impl FileMetaData {
-  pub fn new(version: i32, num_rows: i64, created_by: Option<String>) -> Self {
-    FileMetaData { version, num_rows, created_by }
+  pub fn new(version: i32, num_rows: i64, created_by: Option<String>,
+             schema: Vec<Box<SchemaType>>) -> Self {
+    FileMetaData { version, num_rows, created_by, schema }
   }
 
   pub fn version(&self) -> i32 {

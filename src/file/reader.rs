@@ -9,6 +9,7 @@ use byteorder::{LittleEndian, ByteOrder};
 use thrift::transport::{TTransport, TBufferTransport};
 use thrift::protocol::TCompactInputProtocol;
 use parquet_thrift::parquet::FileMetaData as TFileMetaData;
+use schema::types;
 
 pub trait ParquetFileInfo {
   /// Get the metadata about this file
@@ -75,14 +76,16 @@ impl ParquetFileInfo for ParquetFileReader {
     transport.set_readable_bytes(metadata_buffer.as_mut_slice());
     let transport = Rc::new(RefCell::new(Box::new(transport) as Box<TTransport>));
     let mut prot = TCompactInputProtocol::new(transport);
-    let t_file_metadata: TFileMetaData = TFileMetaData::read_from_in_protocol(&mut prot)
+    let mut t_file_metadata: TFileMetaData = TFileMetaData::read_from_in_protocol(&mut prot)
       .map_err(|e| thrift_err!(e, "Could not parse metadata"))?;
+    let schema: Vec<Box<types::Type>> = types::from_thrift(&mut t_file_metadata.schema)?;
 
     // TODO: convert from t_metadata
     let file_metadata = FileMetaData::new(
       t_file_metadata.version,
       t_file_metadata.num_rows,
-      t_file_metadata.created_by);
+      t_file_metadata.created_by,
+      schema);
     Ok(file_metadata)
   }
 
