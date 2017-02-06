@@ -200,13 +200,7 @@ impl Type for GroupType {
 pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<Vec<Box<Type>>> {
   let mut index = 1;
   let mut result = Vec::new();
-  // if elements.len() <= 0 {
-  //   return Err(schema_err!("SchemaElements can't be empty"));
-  // }
-  // let ref mut root = elements[0];
-  // if root.num_children.is_none() {
-  //   return Err(schema_err!("Root element of SchemaElements should have num_children"));
-  // }
+  // TODO: do we need to process the root element?
   while index < elements.len() {
     let t = from_thrift_helper(elements, index)?;
     index = t.0;
