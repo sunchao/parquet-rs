@@ -48,10 +48,10 @@ pub trait Type {
 /// the repetition level, the logical type and the kind of the type (group, primitive).
 pub struct BasicTypeInfo {
   kind: TypeKind,
-  name: String,
-  repetition: Repetition,
-  logical_type: LogicalType,
-  id: Option<i32>
+  pub name: String,
+  pub repetition: Repetition,
+  pub logical_type: LogicalType,
+  pub id: Option<i32>
 }
 
 /// Metadata for a decimal type (scale, precision).
@@ -62,7 +62,7 @@ struct DecimalMetadata {
 
 /// Representation of primitive types
 // TODO: add equality
-struct PrimitiveType {
+pub struct PrimitiveType {
   basic_info: BasicTypeInfo,
   physical_type: PhysicalType,
   type_length: i32,
@@ -150,7 +150,7 @@ impl PrimitiveType {
     self.physical_type
   }
 
-  pub fn decimal_metadata(&self) -> &Option<DecimalMetadata> {
+  fn decimal_metadata(&self) -> &Option<DecimalMetadata> {
     &self.decimal_metadata
   }
 }
@@ -163,7 +163,7 @@ impl Type for PrimitiveType {
 
 /// Representation of group types
 // TODO: add equality
-struct GroupType {
+pub struct GroupType {
   basic_info: BasicTypeInfo,
   fields: Vec<Box<Type>>
 }
@@ -196,6 +196,8 @@ impl Type for GroupType {
   }
 }
 
+
+/// Conversion from Thrift equivalents
 
 pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<Vec<Box<Type>>> {
   let mut index = 1;
@@ -374,7 +376,7 @@ mod tests {
       "f1", Repetition::OPTIONAL, PhysicalType::INT32,
       LogicalType::INT_32, 0, 0, 0, Some(0));
     let f2 = PrimitiveType::new(
-      "f1", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
+      "f2", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
       LogicalType::UTF8, 0, 0, 0, Some(1));
     assert!(f1.is_ok());
     assert!(f2.is_ok());
