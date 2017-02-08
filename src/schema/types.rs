@@ -19,33 +19,33 @@ pub trait TypeVisitor {
 /// this needs to implement the `get_basic_info()` function.
 pub trait Type {
   fn is_primitive(&self) -> bool {
-    return match self.get_basic_info().kind {
+    match self.get_basic_info().kind {
       TypeKind::PRIMITIVE => true,
       _ => false
     }
   }
 
   fn is_group(&self) -> bool {
-    return match self.get_basic_info().kind {
+    match self.get_basic_info().kind {
       TypeKind::GROUP => true,
       _ => false
     }
   }
 
   fn name(&self) -> &str {
-    return &self.get_basic_info().name;
+    &self.get_basic_info().name
   }
 
   fn repetition(&self) -> Repetition {
-    return self.get_basic_info().repetition;
+    self.get_basic_info().repetition
   }
 
   fn logical_type(&self) -> LogicalType {
-    return self.get_basic_info().logical_type;
+    self.get_basic_info().logical_type
   }
 
   fn id(&self) -> Option<i32> {
-    return self.get_basic_info().id;
+    self.get_basic_info().id
   }
 
   /// Get the basic type information.
@@ -168,7 +168,7 @@ impl PrimitiveType {
 
 impl Type for PrimitiveType {
   fn get_basic_info(&self) -> &BasicTypeInfo {
-    return &self.basic_info;
+    &self.basic_info
   }
 
   fn accept(&mut self, visitor: &mut TypeVisitor) {
@@ -201,17 +201,17 @@ impl GroupType {
   }
 
   pub fn num_fields(&self) -> usize {
-    return self.fields.len()
+    self.fields.len()
   }
 
   pub fn field(&mut self, index: usize) -> &mut Box<Type> {
-    return &mut self.fields[index]
+    &mut self.fields[index]
   }
 }
 
 impl Type for GroupType {
   fn get_basic_info(&self) -> &BasicTypeInfo {
-    return &self.basic_info;
+    &self.basic_info
   }
 
   fn accept(&mut self, visitor: &mut TypeVisitor) {
