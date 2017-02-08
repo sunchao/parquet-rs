@@ -8,6 +8,13 @@ enum TypeKind {
   GROUP
 }
 
+// TODO: how can we specify a return type for the methods?
+// This seems tricky since Rust doesn't allow generic methods for trait objects.
+pub trait TypeVisitor {
+  fn visit_primitive_type(&mut self, tp: &mut PrimitiveType);
+  fn visit_group_type(&mut self, tp: &mut GroupType);
+}
+
 /// A trait for a logical schema type. Structs who implement
 /// this needs to implement the `get_basic_info()` function.
 pub trait Type {
@@ -41,17 +48,21 @@ pub trait Type {
     return self.get_basic_info().id;
   }
 
+  /// Get the basic type information.
   fn get_basic_info(&self) -> &BasicTypeInfo;
+
+  /// Accept a `TypeVisitor` to visit the concrete type of this trait.
+  fn accept(&mut self, visitor: &mut TypeVisitor);
 }
 
 /// Basic type info. This contains information such as the name of the type,
 /// the repetition level, the logical type and the kind of the type (group, primitive).
 pub struct BasicTypeInfo {
   kind: TypeKind,
-  pub name: String,
-  pub repetition: Repetition,
-  pub logical_type: LogicalType,
-  pub id: Option<i32>
+  name: String,
+  repetition: Repetition,
+  logical_type: LogicalType,
+  id: Option<i32>
 }
 
 /// Metadata for a decimal type (scale, precision).
@@ -159,6 +170,10 @@ impl Type for PrimitiveType {
   fn get_basic_info(&self) -> &BasicTypeInfo {
     return &self.basic_info;
   }
+
+  fn accept(&mut self, visitor: &mut TypeVisitor) {
+    visitor.visit_primitive_type(self)
+  }
 }
 
 /// Representation of group types
@@ -181,6 +196,10 @@ impl GroupType {
     })
   }
 
+  pub fn fields(&mut self) -> &mut Vec<Box<Type>> {
+    &mut self.fields
+  }
+
   pub fn num_fields(&self) -> usize {
     return self.fields.len()
   }
@@ -193,6 +212,10 @@ impl GroupType {
 impl Type for GroupType {
   fn get_basic_info(&self) -> &BasicTypeInfo {
     return &self.basic_info;
+  }
+
+  fn accept(&mut self, visitor: &mut TypeVisitor) {
+    visitor.visit_group_type(self)
   }
 }
 
@@ -243,7 +266,7 @@ fn from_thrift_helper(elements: &mut [SchemaElement], index: usize) -> Result<(u
     Some(n) => {
       let mut fields: Vec<Box<Type>> = Vec::new();
       let mut next_index = index + 1;
-      for i in 0..n {
+      for _ in 0..n {
         let child_result = from_thrift_helper(elements, next_index as usize)?;
         next_index = child_result.0;
         fields.push(child_result.1);
