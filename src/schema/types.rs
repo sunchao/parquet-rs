@@ -222,15 +222,18 @@ impl Type for GroupType {
 
 /// Conversion from Thrift equivalents
 
-pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<Vec<Box<Type>>> {
+pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<Box<Type>> {
   let mut index = 0;
-  let mut result = Vec::new();
+  let mut schema_nodes = Vec::new();
   while index < elements.len() {
     let t = from_thrift_helper(elements, index)?;
     index = t.0;
-    result.push(t.1);
+    schema_nodes.push(t.1);
   }
-  Ok(result)
+  if schema_nodes.len() != 1 {
+    return Err(schema_err!("Expected exactly one root node, but found {}", schema_nodes.len()))
+  }
+  Ok(schema_nodes.remove(0))
 }
 
 /// Construct a new Type from the `elements`, starting at index `index`.

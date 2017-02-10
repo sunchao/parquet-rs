@@ -11,12 +11,12 @@ pub struct FileMetaData {
   version: i32,
   num_rows: i64,
   created_by: Option<String>,
-  schema: Vec<Box<SchemaType>>
+  schema: Box<SchemaType>
 }
 
 impl FileMetaData {
   pub fn new(version: i32, num_rows: i64, created_by: Option<String>,
-             schema: Vec<Box<SchemaType>>) -> Self {
+             schema: Box<SchemaType>) -> Self {
     FileMetaData { version, num_rows, created_by, schema }
   }
 

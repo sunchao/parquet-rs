@@ -1,7 +1,20 @@
 use std::fmt;
+use std::io;
 
-use basic::{Type as PhysicalType, LogicalType, Repetition};
+use basic::LogicalType;
 use schema::types::{Type, PrimitiveType, GroupType, TypeVisitor};
+
+#[allow(unused_must_use)]
+pub fn print_schema(out: &mut io::Write, tp: &mut Type) {
+  // TODO: better if we can pass fmt::Write to Printer.
+  // But how can we make it to accept both io::Write & fmt::Write?
+  let mut s = String::new();
+  {
+    let mut printer = Printer::new(&mut s);
+    tp.accept(&mut printer);
+  }
+  out.write(s.as_bytes());
+}
 
 const INDENT_WIDTH: i32 = 2;
 
@@ -12,6 +25,10 @@ pub struct Printer<'a> {
 
 #[allow(unused_must_use)]
 impl <'a> Printer<'a> {
+  fn new(output: &'a mut fmt::Write) -> Self {
+    Printer { output: output, indent: 0 }
+  }
+
   fn print_indent(&mut self) {
     for _ in 0..self.indent {
       write!(self.output, " ");
@@ -55,12 +72,13 @@ impl <'a> TypeVisitor for Printer<'a> {
 mod tests {
   use super::*;
   use schema::types::Type;
+  use basic::{Type as PhysicalType, Repetition};
 
   #[test]
   fn test_print_primitive_type() {
     let mut s = String::new();
     {
-      let mut p = Printer{ output: &mut s, indent: 0 };
+      let mut p = Printer::new(&mut s);
       let mut foo = PrimitiveType::new(
         "foo", Repetition::REQUIRED, PhysicalType::INT32,
         LogicalType::INT_32, 0, 0, 0, None).unwrap();
@@ -73,7 +91,7 @@ mod tests {
   fn test_print_group_type() {
     let mut s = String::new();
     {
-      let mut p = Printer{ output: &mut s, indent: 0 };
+      let mut p = Printer::new(&mut s);
       let f1 = PrimitiveType::new(
         "f1", Repetition::REQUIRED, PhysicalType::INT32,
         LogicalType::INT_32, 0, 0, 0, Some(0));
@@ -86,7 +104,7 @@ mod tests {
       let mut struct_fields: Vec<Box<Type>> = Vec::new();
       struct_fields.push(Box::new(f1.unwrap()));
       struct_fields.push(Box::new(f2.unwrap()));
-      let mut foo = GroupType::new(
+      let foo = GroupType::new(
         "foo", Some(Repetition::OPTIONAL), LogicalType::NONE, struct_fields, Some(1)).unwrap();
       let mut fields: Vec<Box<Type>> = Vec::new();
       fields.push(Box::new(foo));

@@ -78,7 +78,7 @@ impl ParquetFileInfo for ParquetFileReader {
     let mut prot = TCompactInputProtocol::new(transport);
     let mut t_file_metadata: TFileMetaData = TFileMetaData::read_from_in_protocol(&mut prot)
       .map_err(|e| thrift_err!(e, "Could not parse metadata"))?;
-    let schema: Vec<Box<types::Type>> = types::from_thrift(&mut t_file_metadata.schema)?;
+    let schema: Box<types::Type> = types::from_thrift(&mut t_file_metadata.schema)?;
 
     // TODO: convert from t_metadata
     let file_metadata = FileMetaData::new(
