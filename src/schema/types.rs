@@ -16,7 +16,7 @@ pub trait TypeVisitor {
 }
 
 /// A trait for a logical schema type. Structs who implement
-/// this needs to implement the `get_basic_info()` function.
+/// this need to implement `get_basic_info()` and `accept()`.
 pub trait Type {
   fn is_primitive(&self) -> bool {
     match self.get_basic_info().kind {
@@ -36,7 +36,7 @@ pub trait Type {
     &self.get_basic_info().name
   }
 
-  fn repetition(&self) -> Repetition {
+  fn repetition(&self) -> Option<Repetition> {
     self.get_basic_info().repetition
   }
 
@@ -60,9 +60,9 @@ pub trait Type {
 pub struct BasicTypeInfo {
   kind: TypeKind,
   name: String,
-  repetition: Repetition,
+  repetition: Option<Repetition>,
   logical_type: LogicalType,
-  id: Option<i32>
+  id: Option<i32>,
 }
 
 /// Metadata for a decimal type (scale, precision).
@@ -86,8 +86,8 @@ impl PrimitiveType {
              precision: i32, scale: i32, id: Option<i32>) -> Result<Self> {
     let mut decimal_metadata = None;
     let basic_info = BasicTypeInfo{
-      kind: TypeKind::PRIMITIVE, name: String::from(name), repetition: repetition,
-      logical_type: logical_type, id: id};
+      kind: TypeKind::PRIMITIVE, name: String::from(name), repetition: Some(repetition),
+      logical_type: logical_type, id: id };
 
     match logical_type {
       LogicalType::NONE => {
@@ -184,12 +184,12 @@ pub struct GroupType {
 }
 
 impl GroupType {
-  pub fn new(name: &str, repetition: Repetition,
+  pub fn new(name: &str, repetition: Option<Repetition>,
              logical_type: LogicalType,
              fields: Vec<Box<Type>>, id: Option<i32>) -> Result<Self> {
     let basic_info = BasicTypeInfo{
       kind: TypeKind::GROUP, name: String::from(name), repetition: repetition,
-      logical_type: logical_type, id: id};
+      logical_type: logical_type, id: id };
     Ok(GroupType{
       basic_info: basic_info,
       fields: fields
@@ -223,9 +223,8 @@ impl Type for GroupType {
 /// Conversion from Thrift equivalents
 
 pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<Vec<Box<Type>>> {
-  let mut index = 1;
+  let mut index = 0;
   let mut result = Vec::new();
-  // TODO: do we need to process the root element?
   while index < elements.len() {
     let t = from_thrift_helper(elements, index)?;
     index = t.0;
@@ -239,21 +238,18 @@ pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<Vec<Box<Type>>> {
 /// If it is equal to `elements.len()`, then this Type is the last one.
 /// The second result is the result Type.
 fn from_thrift_helper(elements: &mut [SchemaElement], index: usize) -> Result<(usize, Box<Type>)> {
-  if index < 0 {
-    return Err(schema_err!("Illegal index ({}). Expect to be non-negative.", index))
-  }
   if index > elements.len() {
     return Err(schema_err!("Index out of bound, index = {}, len = {}", index, elements.len()))
   }
-  if elements[index].repetition_type.is_none() {
-    return Err(schema_err!("Repetition is undefined"));
-  }
-  let repetition = Repetition::from(elements[index].repetition_type.unwrap());
   let logical_type = LogicalType::from(elements[index].converted_type);
   let field_id = elements[index].field_id;
   match elements[index].num_children {
     None => {
       // primitive type
+      if elements[index].repetition_type.is_none() {
+        return Err(schema_err!("Repetition level must be defined for a primitive type"));
+      }
+      let repetition = Repetition::from(elements[index].repetition_type.unwrap());
       let physical_type = PhysicalType::from(elements[index].type_.unwrap());
       let length = elements[index].type_length.unwrap_or(-1);
       let scale = elements[index].scale.unwrap_or(-1);
@@ -264,6 +260,10 @@ fn from_thrift_helper(elements: &mut [SchemaElement], index: usize) -> Result<(u
       Ok((index + 1, Box::new(result)))
     },
     Some(n) => {
+      let repetition = match elements[index].repetition_type {
+        Some(r) => Some(Repetition::from(r)),
+        None => None
+      };
       let mut fields: Vec<Box<Type>> = Vec::new();
       let mut next_index = index + 1;
       for _ in 0..n {
@@ -294,7 +294,7 @@ mod tests {
     if let Ok(tp) = result {
       assert!(tp.is_primitive());
       assert!(!tp.is_group());
-      assert_eq!(tp.repetition(), Repetition::OPTIONAL);
+      assert_eq!(tp.repetition(), Some(Repetition::OPTIONAL));
       assert_eq!(tp.logical_type(), LogicalType::INT_32);
       assert_eq!(tp.physical_type(), PhysicalType::INT32);
       assert_eq!(tp.id(), Some(0));
@@ -406,10 +406,10 @@ mod tests {
     fields.push(Box::new(f1.unwrap()));
     fields.push(Box::new(f2.unwrap()));
     let result = GroupType::new(
-      "foo", Repetition::REPEATED, LogicalType::NONE, fields, Some(1));
+      "foo", Some(Repetition::REPEATED), LogicalType::NONE, fields, Some(1));
     assert!(result.is_ok());
     if let Ok(tp) = result {
-      assert_eq!(tp.repetition(), Repetition::REPEATED);
+      assert_eq!(tp.repetition(), Some(Repetition::REPEATED));
       assert_eq!(tp.logical_type(), LogicalType::NONE);
       assert_eq!(tp.id(), Some(1));
       assert_eq!(tp.num_fields(), 2);

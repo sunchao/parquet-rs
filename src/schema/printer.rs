@@ -23,22 +23,30 @@ impl <'a> Printer<'a> {
 impl <'a> TypeVisitor for Printer<'a> {
   fn visit_primitive_type(&mut self, tp: &mut PrimitiveType) {
     self.print_indent();
-    write!(self.output, "{} {} {};", tp.repetition(), tp.physical_type(), tp.name());
+    write!(self.output, "{} {} {};", tp.repetition().unwrap(), tp.physical_type(), tp.name());
   }
 
   fn visit_group_type(&mut self, tp: &mut GroupType) {
     self.print_indent();
-    write!(self.output, "{} group {} ", tp.repetition(), tp.name());
-    if tp.logical_type() != LogicalType::NONE {
-      write!(self.output, "({}) ", tp.logical_type());
+    match tp.repetition() {
+      None => {
+        writeln!(self.output, "message {} {{", tp.name());
+      },
+      Some(r) => {
+        write!(self.output, "{} group {} ", r, tp.name());
+        if tp.logical_type() != LogicalType::NONE {
+          write!(self.output, "({}) ", tp.logical_type());
+        }
+        writeln!(self.output, "{{");
+      }
     }
-    writeln!(self.output, "{{");
     self.indent += INDENT_WIDTH;
     for c in tp.fields() {
       c.accept(self);
       writeln!(self.output, "");
     }
     self.indent -= INDENT_WIDTH;
+    self.print_indent();
     write!(self.output, "}}");
   }
 }
@@ -66,25 +74,35 @@ mod tests {
     let mut s = String::new();
     {
       let mut p = Printer{ output: &mut s, indent: 0 };
-      let mut fields: Vec<Box<Type>> = Vec::new();
       let f1 = PrimitiveType::new(
         "f1", Repetition::REQUIRED, PhysicalType::INT32,
         LogicalType::INT_32, 0, 0, 0, Some(0));
       let f2 = PrimitiveType::new(
         "f2", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
         LogicalType::UTF8, 0, 0, 0, Some(1));
-      fields.push(Box::new(f1.unwrap()));
-      fields.push(Box::new(f2.unwrap()));
+      let f3 = PrimitiveType::new(
+        "f3", Repetition::REPEATED, PhysicalType::FIXED_LEN_BYTE_ARRAY,
+        LogicalType::INTERVAL, 12, 0, 0, Some(2));
+      let mut struct_fields: Vec<Box<Type>> = Vec::new();
+      struct_fields.push(Box::new(f1.unwrap()));
+      struct_fields.push(Box::new(f2.unwrap()));
       let mut foo = GroupType::new(
-        "foo", Repetition::OPTIONAL, LogicalType::NONE, fields, Some(1)).unwrap();
-      foo.accept(&mut p);
+        "foo", Some(Repetition::OPTIONAL), LogicalType::NONE, struct_fields, Some(1)).unwrap();
+      let mut fields: Vec<Box<Type>> = Vec::new();
+      fields.push(Box::new(foo));
+      fields.push(Box::new(f3.unwrap()));
+      let mut message = GroupType::new(
+        "schema", None, LogicalType::NONE, fields, Some(2)).unwrap();
+      message.accept(&mut p);
     }
     let expected =
-"OPTIONAL group foo {
-  REQUIRED INT32 f1;
-  OPTIONAL BYTE_ARRAY f2;
+"message schema {
+  OPTIONAL group foo {
+    REQUIRED INT32 f1;
+    OPTIONAL BYTE_ARRAY f2;
+  }
+  REPEATED FIXED_LEN_BYTE_ARRAY f3;
 }";
     assert_eq!(&mut s, expected);
   }
-
 }
