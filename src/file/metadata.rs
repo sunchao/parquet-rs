@@ -1,7 +1,9 @@
 use std::borrow::BorrowMut;
 
 use basic::{Encoding, Type};
+use errors::{Result, ParquetError};
 use schema::types::Type as SchemaType;
+use parquet_thrift::parquet::{ColumnChunk, ColumnMetaData};
 
 pub struct ParquetMetaData {
   file_metadata: FileMetaData,
@@ -123,6 +125,30 @@ impl ColumnChunkMetaData {
   /// Get the offset for the dictionary page, if any
   fn dictionary_page_offset(&self) -> Option<i64> {
     self.dictionary_page_offset.clone()
+  }
+
+  /// Conversion from Thrift
+  pub fn from_thrift(cc: ColumnChunk) -> Result<Self> {
+    if cc.meta_data.is_none() {
+      return Err(schema_err!("Expected to have column metadata"))
+    }
+    let mut col_metadata: ColumnMetaData = cc.meta_data.unwrap();
+    let column_type = Type::from(col_metadata.type_);
+    let column_path = ColumnPath::new(col_metadata.path_in_schema);
+    let encodings = col_metadata.encodings.drain(0..).map(Encoding::from).collect();
+    let file_path = cc.file_path;
+    let file_offset = cc.file_offset;
+    let num_values = col_metadata.num_values;
+    let total_compressed_size = col_metadata.total_compressed_size;
+    let total_uncompressed_size = col_metadata.total_uncompressed_size;
+    let data_page_offset = col_metadata.data_page_offset;
+    let index_page_offset = col_metadata.index_page_offset;
+    let dictionary_page_offset = col_metadata.dictionary_page_offset;
+    let result = ColumnChunkMetaData
+    { column_type, column_path, encodings, file_path,
+      file_offset, num_values, total_compressed_size, total_uncompressed_size,
+      data_page_offset, index_page_offset, dictionary_page_offset };
+    Ok(result)
   }
 }
 
