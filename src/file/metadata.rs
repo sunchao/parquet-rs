@@ -1,3 +1,5 @@
+use std::borrow::BorrowMut;
+
 use basic::{Encoding, Type};
 use schema::types::Type as SchemaType;
 
@@ -30,6 +32,10 @@ impl FileMetaData {
 
   pub fn created_by(&self) -> &Option<String> {
     &self.created_by
+  }
+
+  pub fn schema(&mut self) -> &mut SchemaType {
+    self.schema.borrow_mut()
   }
 }
 

@@ -3,6 +3,7 @@ use std::io;
 
 use basic::LogicalType;
 use schema::types::{Type, PrimitiveType, GroupType, TypeVisitor};
+use file::metadata::FileMetaData;
 
 #[allow(unused_must_use)]
 pub fn print_schema(out: &mut io::Write, tp: &mut Type) {
@@ -13,7 +14,18 @@ pub fn print_schema(out: &mut io::Write, tp: &mut Type) {
     let mut printer = Printer::new(&mut s);
     tp.accept(&mut printer);
   }
-  out.write(s.as_bytes());
+  write!(out, "{}", s);
+}
+
+#[allow(unused_must_use)]
+pub fn print_file_metadata<'a>(out: &mut io::Write, file_metadata: &mut FileMetaData) {
+  writeln!(out, "version: {}", file_metadata.version());
+  writeln!(out, "num of rows: {}", file_metadata.num_rows());
+  if file_metadata.created_by().is_some() {
+    writeln!(out, "created by: {}", file_metadata.created_by().as_ref().unwrap());
+  }
+  let schema = file_metadata.schema();
+  print_schema(out, schema);
 }
 
 const INDENT_WIDTH: i32 = 2;

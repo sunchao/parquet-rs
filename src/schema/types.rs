@@ -17,7 +17,8 @@ pub trait TypeVisitor {
 
 /// A trait for a logical schema type. Structs who implement
 /// this need to implement `get_basic_info()` and `accept()`.
-pub trait Type {
+/// TODO: why can 'static work here?
+pub trait Type: 'static {
   fn is_primitive(&self) -> bool {
     match self.get_basic_info().kind {
       TypeKind::PRIMITIVE => true,

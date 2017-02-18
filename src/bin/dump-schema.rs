@@ -8,6 +8,7 @@ use std::error::Error;
 use std::io::BufReader;
 
 use parquet_rs::file::reader::{ParquetFileInfo, ParquetFileReader};
+use parquet_rs::schema::printer::print_file_metadata;
 
 fn main() {
   let args: Vec<_> = env::args().collect();
@@ -26,8 +27,9 @@ fn main() {
   let mut parquet_reader = ParquetFileReader::new(buf);
   let result = parquet_reader.metadata();
   match result {
-    Ok(metadata) => {
-      println!("Done");
+    Ok(mut metadata) => {
+      println!("Metadata for file: {}", &args[1]);
+      print_file_metadata(&mut std::io::stdout(), &mut metadata);
     },
     Err(e) => {
       println!("Error while dumping metadata. Error is: {}", e);
