@@ -79,13 +79,18 @@ impl ParquetFileInfo for ParquetFileReader {
     let mut t_file_metadata: TFileMetaData = TFileMetaData::read_from_in_protocol(&mut prot)
       .map_err(|e| thrift_err!(e, "Could not parse metadata"))?;
     let schema: Box<types::Type> = types::from_thrift(&mut t_file_metadata.schema)?;
+    let mut row_groups = Vec::new();
+    for rg in t_file_metadata.row_groups {
+      row_groups.push(RowGroupMetaData::from_thrift(rg)?);
+    }
 
     // TODO: convert from t_metadata
     let file_metadata = FileMetaData::new(
       t_file_metadata.version,
       t_file_metadata.num_rows,
       t_file_metadata.created_by,
-      schema);
+      schema,
+      row_groups);
     Ok(file_metadata)
   }
 

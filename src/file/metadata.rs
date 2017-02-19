@@ -15,13 +15,14 @@ pub struct FileMetaData {
   version: i32,
   num_rows: i64,
   created_by: Option<String>,
-  schema: Box<SchemaType>
+  schema: Box<SchemaType>,
+  row_groups: Vec<RowGroupMetaData>
 }
 
 impl FileMetaData {
   pub fn new(version: i32, num_rows: i64, created_by: Option<String>,
-             schema: Box<SchemaType>) -> Self {
-    FileMetaData { version, num_rows, created_by, schema }
+             schema: Box<SchemaType>, row_groups: Vec<RowGroupMetaData>) -> Self {
+    FileMetaData { version, num_rows, created_by, schema, row_groups }
   }
 
   pub fn version(&self) -> i32 {
@@ -38,6 +39,14 @@ impl FileMetaData {
 
   pub fn schema(&mut self) -> &mut SchemaType {
     self.schema.borrow_mut()
+  }
+
+  pub fn num_row_groups(&self) -> usize {
+    self.row_groups.len()
+  }
+
+  pub fn row_group(&self, i: usize) -> &RowGroupMetaData {
+    &self.row_groups[i]
   }
 }
 
