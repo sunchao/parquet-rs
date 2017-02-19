@@ -1,4 +1,3 @@
-#![feature(field_init_shorthand)]
 #![feature(type_ascription)]
 
 #![allow(dead_code)]
