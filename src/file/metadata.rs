@@ -3,7 +3,7 @@ use std::borrow::BorrowMut;
 use basic::{Encoding, Type};
 use errors::{Result, ParquetError};
 use schema::types::Type as SchemaType;
-use parquet_thrift::parquet::{ColumnChunk, ColumnMetaData};
+use parquet_thrift::parquet::{ColumnChunk, ColumnMetaData, RowGroup};
 
 pub struct ParquetMetaData {
   file_metadata: FileMetaData,
@@ -43,10 +43,37 @@ impl FileMetaData {
 
 /// Metadata for a row group
 pub struct RowGroupMetaData {
-  columns: Vec<Box<ColumnChunkMetaData>>,
+  columns: Vec<ColumnChunkMetaData>,
   num_rows: i64,
-  total_byte_size: i64,
-  path: String
+  total_byte_size: i64
+}
+
+impl RowGroupMetaData {
+  pub fn num_columns(&self) -> usize {
+    self.columns.len()
+  }
+
+  pub fn column(&self, i: usize) -> &ColumnChunkMetaData {
+    &self.columns[i]
+  }
+
+  pub fn num_rows(&self) -> i64 {
+    self.num_rows
+  }
+
+  pub fn total_byte_size(&self) -> i64 {
+    self.total_byte_size
+  }
+
+  pub fn from_thrift(rg: RowGroup) -> Result<RowGroupMetaData> {
+    let total_byte_size = rg.total_byte_size;
+    let num_rows = rg.num_rows;
+    let mut columns = Vec::new();
+    for c in rg.columns {
+      columns.push(ColumnChunkMetaData::from_thrift(c)?)
+    }
+    Ok(RowGroupMetaData{columns, num_rows, total_byte_size})
+  }
 }
 
 // Metadata for a column chunk
