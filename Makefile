@@ -11,5 +11,8 @@ all: parquet.rs
 test:
 	cargo test
 
+clippy:
+	cargo clean & cargo clippy
+
 clean:
 	cd src/thrift; rm *.rs

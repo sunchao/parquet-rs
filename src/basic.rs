@@ -2,7 +2,7 @@ use std::fmt;
 use std::convert;
 use parquet_thrift::parquet;
 
-/// Mirrors parquet::Type
+/// Mirrors `parquet::Type`
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Type {
   BOOLEAN,
@@ -15,7 +15,7 @@ pub enum Type {
   FIXED_LEN_BYTE_ARRAY
 }
 
-/// Mirrors parquet::ConvertedType
+/// Mirrors `parquet::ConvertedType`
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogicalType {
   NONE,
@@ -43,7 +43,7 @@ pub enum LogicalType {
   INTERVAL
 }
 
-/// Mirrors parquet::FieldRepetitionType
+/// Mirrors `parquet::FieldRepetitionType`
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Repetition {
   REQUIRED,
@@ -51,7 +51,7 @@ pub enum Repetition {
   REPEATED
 }
 
-/// Mirrors parquet::Encoding
+/// Mirrors `parquet::Encoding`
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Encoding {
   PLAIN,
@@ -64,7 +64,7 @@ pub enum Encoding {
   RLE_DICTIONARY
 }
 
-/// Mirrors parquet::CompressionCodec
+/// Mirrors `parquet::CompressionCodec`
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Compression {
   UNCOMPRESSED,
@@ -74,7 +74,7 @@ pub enum Compression {
   BROTLI
 }
 
-/// Mirrors parquet::PageType
+/// Mirrors `parquet::PageType`
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PageType {
   DATA_PAGE,

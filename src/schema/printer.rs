@@ -18,7 +18,7 @@ pub fn print_schema(out: &mut io::Write, tp: &mut Type) {
 }
 
 #[allow(unused_must_use)]
-pub fn print_file_metadata<'a>(out: &mut io::Write, file_metadata: &mut FileMetaData) {
+pub fn print_file_metadata(out: &mut io::Write, file_metadata: &mut FileMetaData) {
   writeln!(out, "version: {}", file_metadata.version());
   writeln!(out, "num of rows: {}", file_metadata.num_rows());
   if file_metadata.created_by().is_some() {

@@ -16,7 +16,7 @@ pub trait ParquetFileInfo {
   fn metadata(&mut self) -> Result<FileMetaData>;
 
   /// Get the `i`th row group. Note this doesn't do bound check.
-  fn get_row_group(&self, i: usize) -> Box<ParquetRowGroupInfo>;
+  fn get_row_group(&self, _: usize) -> Box<ParquetRowGroupInfo>;
 }
 
 /// TODO: add page reader
@@ -36,7 +36,7 @@ impl ParquetFileReader {
 }
 
 const FOOTER_SIZE: usize = 8;
-const PARQUET_MAGIC: [u8; 4] = ['P' as u8, 'A' as u8, 'R' as u8, '1' as u8];
+const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
 
 impl ParquetFileInfo for ParquetFileReader {
   fn metadata(&mut self) -> Result<FileMetaData> {
@@ -94,7 +94,7 @@ impl ParquetFileInfo for ParquetFileReader {
     Ok(file_metadata)
   }
 
-  fn get_row_group(&self, i: usize) -> Box<ParquetRowGroupInfo> {
+  fn get_row_group(&self, _: usize) -> Box<ParquetRowGroupInfo> {
     unimplemented!()
   }
 }

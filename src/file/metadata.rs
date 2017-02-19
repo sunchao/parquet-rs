@@ -160,7 +160,7 @@ impl ColumnChunkMetaData {
 
   /// Get the offset for the dictionary page, if any
   pub fn dictionary_page_offset(&self) -> Option<i64> {
-    self.dictionary_page_offset.clone()
+    self.dictionary_page_offset
   }
 
   /// Conversion from Thrift

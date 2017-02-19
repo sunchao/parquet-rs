@@ -82,6 +82,7 @@ pub struct PrimitiveType {
 }
 
 impl PrimitiveType {
+  #[cfg_attr(feature="cargo-clippy", allow(too_many_arguments))]
   pub fn new(name: &str, repetition: Repetition, physical_type: PhysicalType,
              logical_type: LogicalType, length: i32,
              precision: i32, scale: i32, id: Option<i32>) -> Result<Self> {
