@@ -1,3 +1,2 @@
 target
 Cargo.lock
-src/parquet_thrift/parquet.rs
