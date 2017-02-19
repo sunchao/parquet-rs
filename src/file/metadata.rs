@@ -128,29 +128,29 @@ impl ColumnChunkMetaData {
   }
 
   /// Get the total compressed data size of this column chunk
-  fn compressed_size(&self) -> i64 {
+  pub fn compressed_size(&self) -> i64 {
     self.total_compressed_size
   }
 
   /// Get the total uncompressed data size of this column chunk
-  fn uncompressed_size(&self) -> i64 {
+  pub fn uncompressed_size(&self) -> i64 {
     self.total_uncompressed_size
   }
 
   /// Get the offset for the column data
-  fn data_page_offset(&self) -> i64 {
+  pub fn data_page_offset(&self) -> i64 {
     self.data_page_offset
   }
 
   /// Whether this column chunk contains a dictionary page
-  fn has_dictionary_page(&self) -> bool {
+  pub fn has_dictionary_page(&self) -> bool {
     self.dictionary_page_offset.is_some()
   }
 
   /// TODO: add statistics
 
   /// Get the offset for the dictionary page, if any
-  fn dictionary_page_offset(&self) -> Option<i64> {
+  pub fn dictionary_page_offset(&self) -> Option<i64> {
     self.dictionary_page_offset.clone()
   }
 
