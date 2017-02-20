@@ -1,4 +1,5 @@
 use std::borrow::BorrowMut;
+use std::fmt;
 
 use basic::{Encoding, Type};
 use errors::{Result, ParquetError};
@@ -48,6 +49,10 @@ impl FileMetaData {
   pub fn row_group(&self, i: usize) -> &RowGroupMetaData {
     &self.row_groups[i]
   }
+
+  pub fn row_groups(&self) -> &[RowGroupMetaData] {
+    &self.row_groups.as_slice()
+  }
 }
 
 /// Metadata for a row group
@@ -64,6 +69,10 @@ impl RowGroupMetaData {
 
   pub fn column(&self, i: usize) -> &ColumnChunkMetaData {
     &self.columns[i]
+  }
+
+  pub fn columns(&self) -> &[ColumnChunkMetaData] {
+    &self.columns
   }
 
   pub fn num_rows(&self) -> i64 {
@@ -105,8 +114,8 @@ impl ColumnChunkMetaData {
   /// File where the column chunk is stored. If not set, assumed to
   /// be at the same file as the metadata.
   /// This path is relative to the current file.
-  pub fn file_path(&self) -> &Option<String> {
-    &self.file_path
+  pub fn file_path(&self) -> Option<&String> {
+    self.file_path.as_ref()
   }
 
   /// Byte offset in `file_path()`.
@@ -149,6 +158,16 @@ impl ColumnChunkMetaData {
   /// Get the offset for the column data
   pub fn data_page_offset(&self) -> i64 {
     self.data_page_offset
+  }
+
+  /// Whether this column chunk contains a index page
+  pub fn has_index_page(&self) -> bool {
+    self.index_page_offset.is_some()
+  }
+
+  /// Get the offset for the index page
+  pub fn index_page_offset(&self) -> Option<i64> {
+    self.index_page_offset
   }
 
   /// Whether this column chunk contains a dictionary page
@@ -196,5 +215,11 @@ pub struct ColumnPath {
 impl ColumnPath {
   pub fn new(parts: Vec<String>) -> Self {
     ColumnPath { parts: parts }
+  }
+}
+
+impl fmt::Display for ColumnPath {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}", self.parts.join("."))
   }
 }

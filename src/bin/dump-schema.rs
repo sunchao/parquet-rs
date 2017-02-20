@@ -29,7 +29,8 @@ fn main() {
   match result {
     Ok(mut metadata) => {
       println!("Metadata for file: {}", &args[1]);
-      print_file_metadata(&mut std::io::stdout(), &mut metadata);
+      println!("");
+      print_file_metadata(&mut std::io::stdout(), &mut metadata, true);
     },
     Err(e) => {
       println!("Error while dumping metadata. Error is: {}", e);
