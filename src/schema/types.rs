@@ -9,10 +9,11 @@ enum TypeKind {
 }
 
 // TODO: how can we specify a return type for the methods?
+// TODO: add a mutable `TypeVisitor`
 // This seems tricky since Rust doesn't allow generic methods for trait objects.
 pub trait TypeVisitor {
-  fn visit_primitive_type(&mut self, tp: &mut PrimitiveType);
-  fn visit_group_type(&mut self, tp: &mut GroupType);
+  fn visit_primitive_type(&mut self, tp: &PrimitiveType);
+  fn visit_group_type(&mut self, tp: &GroupType);
 }
 
 /// A trait for a logical schema type. Structs who implement
@@ -53,7 +54,7 @@ pub trait Type: 'static {
   fn get_basic_info(&self) -> &BasicTypeInfo;
 
   /// Accept a `TypeVisitor` to visit the concrete type of this trait.
-  fn accept(&mut self, visitor: &mut TypeVisitor);
+  fn accept(&self, visitor: &mut TypeVisitor);
 }
 
 /// Basic type info. This contains information such as the name of the type,
@@ -173,7 +174,7 @@ impl Type for PrimitiveType {
     &self.basic_info
   }
 
-  fn accept(&mut self, visitor: &mut TypeVisitor) {
+  fn accept(&self, visitor: &mut TypeVisitor) {
     visitor.visit_primitive_type(self)
   }
 }
@@ -198,16 +199,16 @@ impl GroupType {
     })
   }
 
-  pub fn fields(&mut self) -> &mut Vec<Box<Type>> {
-    &mut self.fields
+  pub fn fields(&self) -> &[Box<Type>] {
+    self.fields.as_slice()
   }
 
   pub fn num_fields(&self) -> usize {
     self.fields.len()
   }
 
-  pub fn field(&mut self, index: usize) -> &mut Box<Type> {
-    &mut self.fields[index]
+  pub fn field(&mut self, index: usize) -> &Box<Type> {
+    &self.fields[index]
   }
 }
 
@@ -216,7 +217,7 @@ impl Type for GroupType {
     &self.basic_info
   }
 
-  fn accept(&mut self, visitor: &mut TypeVisitor) {
+  fn accept(&self, visitor: &mut TypeVisitor) {
     visitor.visit_group_type(self)
   }
 }

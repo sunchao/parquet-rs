@@ -1,4 +1,4 @@
-use std::borrow::BorrowMut;
+use std::borrow::Borrow;
 use std::fmt;
 
 use basic::{Encoding, Type};
@@ -11,19 +11,40 @@ pub struct ParquetMetaData {
   row_groups: Vec<RowGroupMetaData>
 }
 
+impl ParquetMetaData {
+  pub fn new(file_metadata: FileMetaData, row_groups: Vec<RowGroupMetaData>) -> Self {
+    ParquetMetaData { file_metadata, row_groups }
+  }
+
+  pub fn file_metadata(&self) -> &FileMetaData {
+    &self.file_metadata
+  }
+
+  pub fn num_row_groups(&self) -> usize {
+    self.row_groups.len()
+  }
+
+  pub fn row_group(&self, i: usize) -> &RowGroupMetaData {
+    &self.row_groups[i]
+  }
+
+  pub fn row_groups(&self) -> &[RowGroupMetaData] {
+    &self.row_groups.as_slice()
+  }
+}
+
 /// Metadata for a Parquet file
 pub struct FileMetaData {
   version: i32,
   num_rows: i64,
   created_by: Option<String>,
-  schema: Box<SchemaType>,
-  row_groups: Vec<RowGroupMetaData>
+  schema: Box<SchemaType>
 }
 
 impl FileMetaData {
   pub fn new(version: i32, num_rows: i64, created_by: Option<String>,
-             schema: Box<SchemaType>, row_groups: Vec<RowGroupMetaData>) -> Self {
-    FileMetaData { version, num_rows, created_by, schema, row_groups }
+             schema: Box<SchemaType>) -> Self {
+    FileMetaData { version, num_rows, created_by, schema }
   }
 
   pub fn version(&self) -> i32 {
@@ -38,20 +59,8 @@ impl FileMetaData {
     &self.created_by
   }
 
-  pub fn schema(&mut self) -> &mut SchemaType {
-    self.schema.borrow_mut()
-  }
-
-  pub fn num_row_groups(&self) -> usize {
-    self.row_groups.len()
-  }
-
-  pub fn row_group(&self, i: usize) -> &RowGroupMetaData {
-    &self.row_groups[i]
-  }
-
-  pub fn row_groups(&self) -> &[RowGroupMetaData] {
-    &self.row_groups.as_slice()
+  pub fn schema(&self) -> &SchemaType {
+    self.schema.borrow()
   }
 }
 
@@ -94,7 +103,7 @@ impl RowGroupMetaData {
   }
 }
 
-// Metadata for a column chunk
+/// Metadata for a column chunk
 pub struct ColumnChunkMetaData {
   column_type: Type,
   column_path: ColumnPath,

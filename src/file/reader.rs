@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use errors::{Result, ParquetError};
-use file::metadata::{RowGroupMetaData, FileMetaData};
+use file::metadata::{RowGroupMetaData, FileMetaData, ParquetMetaData};
 use byteorder::{LittleEndian, ByteOrder};
 use thrift::transport::{TTransport, TBufferTransport};
 use thrift::protocol::TCompactInputProtocol;
@@ -13,7 +13,7 @@ use schema::types;
 
 pub trait ParquetFileInfo {
   /// Get the metadata about this file
-  fn metadata(&mut self) -> Result<FileMetaData>;
+  fn metadata(&mut self) -> Result<ParquetMetaData>;
 
   /// Get the `i`th row group. Note this doesn't do bound check.
   fn get_row_group(&self, _: usize) -> Box<ParquetRowGroupInfo>;
@@ -39,7 +39,7 @@ const FOOTER_SIZE: usize = 8;
 const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
 
 impl ParquetFileInfo for ParquetFileReader {
-  fn metadata(&mut self) -> Result<FileMetaData> {
+  fn metadata(&mut self) -> Result<ParquetMetaData> {
     let file_size =
       match self.buf.get_ref().metadata() {
         Ok(file_info) => file_info.len(),
@@ -84,14 +84,12 @@ impl ParquetFileInfo for ParquetFileReader {
       row_groups.push(RowGroupMetaData::from_thrift(rg)?);
     }
 
-    // TODO: convert from t_metadata
     let file_metadata = FileMetaData::new(
       t_file_metadata.version,
       t_file_metadata.num_rows,
       t_file_metadata.created_by,
-      schema,
-      row_groups);
-    Ok(file_metadata)
+      schema);
+    Ok(ParquetMetaData::new(file_metadata, row_groups))
   }
 
   fn get_row_group(&self, _: usize) -> Box<ParquetRowGroupInfo> {
