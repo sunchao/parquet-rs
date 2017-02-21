@@ -8,24 +8,19 @@ addons:
       - libdw-dev
       - binutils-dev
 
-# run builds for all the trains (and more)
 rust:
   - nightly
 
-# load travis-cargo
 before_script:
-  - |
-      pip install 'travis-cargo<0.2' --user &&
-      export PATH=$HOME/.local/bin:$PATH
+  - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
 
-# the main build
 script:
-  - |
-      travis-cargo build &&
-      travis-cargo test
+  - travis-cargo build
+  - travis-cargo test
 
 after_success:
   - travis-cargo coveralls --no-sudo --verify
+  - ./kcov/build/src/kcov --coveralls-id=$TRAVIS_JOB_ID --exclude-pattern=/.cargo target/kcov target/debug/parquet_rs-*
 
 env:
   global:
