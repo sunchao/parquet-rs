@@ -1,4 +1,4 @@
-THRIFT_DIR=src/thrift
+THRIFT_DIR=src/parquet_thrift
 
 .PHONY: all, clean, test
 
