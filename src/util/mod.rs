@@ -15,25 +15,4 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![feature(type_ascription)]
-#![feature(rustc_private)]
-
-#![allow(dead_code)]
-#![allow(non_camel_case_types)]
-
-#[macro_use]
-extern crate quick_error;
-extern crate byteorder;
-extern crate thrift;
-extern crate ordered_float;
-extern crate try_from;
-extern crate arena;
-
-#[macro_use]
-mod errors;
-mod basic;
-mod parquet_thrift;
-mod util;
-
-pub mod schema;
-pub mod file;
+pub mod memory;
