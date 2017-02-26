@@ -28,34 +28,33 @@ use thrift::protocol::TCompactInputProtocol;
 use parquet_thrift::parquet::FileMetaData as TFileMetaData;
 use schema::types;
 
-pub trait ParquetFileInfo {
+pub trait ParquetFileReader {
   /// Get the metadata about this file
   fn metadata(&mut self) -> Result<ParquetMetaData>;
 
-  /// Get the `i`th row group. Note this doesn't do bound check.
-  fn get_row_group(&self, _: usize) -> Box<ParquetRowGroupInfo>;
+  /// Get the `i`th row group reader. Note this doesn't do bound check.
+  fn get_row_group(&self, _: usize) -> Box<ParquetRowGroupReader>;
 }
 
 /// TODO: add page reader
-pub trait ParquetRowGroupInfo {
+pub trait ParquetRowGroupReader {
   fn metadata(&self) -> RowGroupMetaData;
 }
 
-
-pub struct ParquetFileReader {
+pub struct SerializedParquetFileReader {
   buf: BufReader<File>
 }
 
-impl ParquetFileReader {
+impl SerializedParquetFileReader {
   pub fn new(b: BufReader<File>) -> Self {
-    ParquetFileReader{buf: b}
+    Self { buf: b }
   }
 }
 
 const FOOTER_SIZE: usize = 8;
 const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
 
-impl ParquetFileInfo for ParquetFileReader {
+impl ParquetFileReader for SerializedParquetFileReader {
   fn metadata(&mut self) -> Result<ParquetMetaData> {
     let file_size =
       match self.buf.get_ref().metadata() {
@@ -109,7 +108,7 @@ impl ParquetFileInfo for ParquetFileReader {
     Ok(ParquetMetaData::new(file_metadata, row_groups))
   }
 
-  fn get_row_group(&self, _: usize) -> Box<ParquetRowGroupInfo> {
+  fn get_row_group(&self, _: usize) -> Box<ParquetRowGroupReader> {
     unimplemented!()
   }
 }

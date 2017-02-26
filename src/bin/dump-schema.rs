@@ -24,7 +24,7 @@ use std::path::Path;
 use std::error::Error;
 use std::io::BufReader;
 
-use parquet_rs::file::reader::{ParquetFileInfo, ParquetFileReader};
+use parquet_rs::file::reader::{ParquetFileReader, SerializedParquetFileReader};
 use parquet_rs::schema::printer::{print_parquet_metadata, print_file_metadata};
 
 fn main() {
@@ -49,7 +49,7 @@ fn main() {
     Ok(f) => f
   };
   let buf = BufReader::new(file);
-  let mut parquet_reader = ParquetFileReader::new(buf);
+  let mut parquet_reader = SerializedParquetFileReader::new(buf);
   let result = parquet_reader.metadata();
   match result {
     Ok(metadata) => {
