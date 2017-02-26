@@ -178,7 +178,7 @@ mod tests {
     let mut s = String::new();
     {
       let mut p = Printer::new(&mut s);
-      let mut foo = PrimitiveType::new(
+      let foo = PrimitiveType::new(
         "foo", Repetition::REQUIRED, PhysicalType::INT32,
         LogicalType::INT_32, 0, 0, 0, None).unwrap();
       foo.accept(&mut p);
@@ -208,7 +208,7 @@ mod tests {
       let mut fields: Vec<Box<Type>> = Vec::new();
       fields.push(Box::new(foo));
       fields.push(Box::new(f3.unwrap()));
-      let mut message = GroupType::new(
+      let message = GroupType::new(
         "schema", None, LogicalType::NONE, fields, Some(2)).unwrap();
       message.accept(&mut p);
     }

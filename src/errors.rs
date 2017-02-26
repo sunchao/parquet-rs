@@ -18,6 +18,7 @@
 use std::io;
 use std::result;
 use thrift;
+use snap;
 
 quick_error! {
   #[derive(Debug)]
@@ -29,6 +30,7 @@ quick_error! {
     }
     Io(message: String, err: io::Error) {
       from(err: io::Error) -> ("io error".to_owned(), err)
+      from(err: snap::Error) -> ("io error".to_owned(), io::Error::from(err))
       display("{}, underlying IO error: {}", message, err)
     }
     Thrift(message: String, err: thrift::Error) {
@@ -37,6 +39,9 @@ quick_error! {
     }
     Schema(message: String) {
       display("Schema error: {}", message)
+    }
+    Unsupported(message: String) {
+      display("Unsupported error: {}", message)
     }
   }
 }
@@ -54,8 +59,13 @@ macro_rules! schema_err {
   ($fmt:expr, $($args:expr),*) => (ParquetError::Schema(format!($fmt, $($args),*)));
 }
 
+macro_rules! unsupported_err {
+  ($fmt:expr) => (ParquetError::Unsupported($fmt.to_owned()));
+  ($fmt:expr, $($args:expr),*) => (ParquetError::Unsupported(format!($fmt, $($args),*)));
+}
+
 macro_rules! io_err {
-  ($e:ident, $fmt:expr) => (ParquetError::Io($fmt.to_owned(), $e));
+  ($e:expr, $fmt:expr) => (ParquetError::Io($fmt.to_owned(), $e));
   ($e:ident, $fmt:expr, $($args:tt),*) => (
     ParquetError::Io(&format!($fmt, $($args),*), $e));
 }

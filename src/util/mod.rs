@@ -16,3 +16,4 @@
 // under the License.
 
 pub mod memory;
+pub mod test_common;

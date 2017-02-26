@@ -15,31 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![feature(type_ascription)]
-#![feature(rustc_private)]
+use rand::{thread_rng, Rng};
 
-#![allow(dead_code)]
-#![allow(non_camel_case_types)]
-
-#[macro_use]
-extern crate quick_error;
-extern crate byteorder;
-extern crate thrift;
-extern crate ordered_float;
-extern crate try_from;
-extern crate arena;
-extern crate snap;
-extern crate brotli;
-extern crate flate2;
-extern crate rand;
-
-#[macro_use]
-mod errors;
-mod basic;
-mod parquet_thrift;
-mod util;
-mod column;
-mod compression;
-
-pub mod schema;
-pub mod file;
+pub fn random_bytes(n: i32, out: &mut Vec<u8>) {
+  let mut rng = thread_rng();
+  for _ in 0..n {
+    out.push(rng.gen_range(0, 255) & 0xFF);
+  }
+}

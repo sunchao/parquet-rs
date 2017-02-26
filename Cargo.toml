@@ -8,6 +8,10 @@ quick-error = "1.1.0"
 byteorder = "1"
 ordered-float = "0.4.0"
 try_from = "0.2.1"
+snap = "0.2"
+brotli = "1.0.7"
+flate2 = "0.2"
+rand = "0.3"
 
 # TODO: use the official repo
 thrift = { git = "https://github.com/sunchao/thrift" }
