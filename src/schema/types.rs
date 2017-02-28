@@ -19,6 +19,7 @@ use basic::{Type as PhysicalType, Repetition, LogicalType};
 use errors::Result;
 use errors::ParquetError;
 use parquet_thrift::parquet::SchemaElement;
+use file::metadata::ColumnPath;
 
 enum TypeKind {
   PRIMITIVE,
@@ -26,8 +27,8 @@ enum TypeKind {
 }
 
 // TODO: how can we specify a return type for the methods?
-// TODO: add a mutable `TypeVisitor`
 // This seems tricky since Rust doesn't allow generic methods for trait objects.
+// TODO: add a mutable `TypeVisitor`
 pub trait TypeVisitor {
   fn visit_primitive_type(&mut self, tp: &PrimitiveType);
   fn visit_group_type(&mut self, tp: &GroupType);
@@ -84,19 +85,14 @@ pub struct BasicTypeInfo {
   id: Option<i32>,
 }
 
-/// Metadata for a decimal type (scale, precision).
-struct DecimalMetadata {
-  scale: i32,
-  precision: i32
-}
-
 /// Representation of primitive types
 // TODO: add equality
 pub struct PrimitiveType {
   basic_info: BasicTypeInfo,
   physical_type: PhysicalType,
   type_length: i32,
-  decimal_metadata: Option<DecimalMetadata>
+  scale: i32,
+  precision: i32
 }
 
 impl PrimitiveType {
@@ -104,14 +100,12 @@ impl PrimitiveType {
   pub fn new(name: &str, repetition: Repetition, physical_type: PhysicalType,
              logical_type: LogicalType, length: i32,
              precision: i32, scale: i32, id: Option<i32>) -> Result<Self> {
-    let mut decimal_metadata = None;
     let basic_info = BasicTypeInfo{
       kind: TypeKind::PRIMITIVE, name: String::from(name), repetition: Some(repetition),
       logical_type: logical_type, id: id };
 
     match logical_type {
       LogicalType::NONE => {
-        decimal_metadata = Some(DecimalMetadata{precision, scale});
       },
       LogicalType::UTF8 | LogicalType::BSON | LogicalType::JSON => {
         if physical_type != PhysicalType::BYTE_ARRAY {
@@ -137,7 +131,6 @@ impl PrimitiveType {
             "Invalid DECIMAL: scale ({}) cannot be greater than precision ({})",
             scale, precision))
         }
-        decimal_metadata = Some(DecimalMetadata{precision, scale})
       }
       LogicalType::DATE | LogicalType::TIME_MILLIS | LogicalType::UINT_8 |
       LogicalType::UINT_16 | LogicalType::UINT_32 |
@@ -173,7 +166,8 @@ impl PrimitiveType {
       basic_info: basic_info,
       physical_type: physical_type,
       type_length: length,
-      decimal_metadata: decimal_metadata
+      scale: scale,
+      precision: precision
     })
   }
 
@@ -181,8 +175,16 @@ impl PrimitiveType {
     self.physical_type
   }
 
-  fn decimal_metadata(&self) -> &Option<DecimalMetadata> {
-    &self.decimal_metadata
+  pub fn type_length(&self) -> i32 {
+    self.type_length
+  }
+
+  pub fn type_scale(&self) -> i32 {
+    self.scale
+  }
+
+  pub fn type_precision(&self) -> i32 {
+    self.precision
   }
 }
 
@@ -239,6 +241,57 @@ impl Type for GroupType {
   }
 }
 
+
+pub struct ColumnDescriptor {
+  path: ColumnPath,
+  primitive_type: PrimitiveType,
+  max_def_level: i16,
+  max_rep_level: i16
+}
+
+impl ColumnDescriptor {
+  pub fn new(path: ColumnPath, primitive_type: PrimitiveType,
+             max_def_level: i16, max_rep_level: i16) -> Self {
+    Self { path, primitive_type, max_def_level, max_rep_level }
+  }
+
+  pub fn max_def_level(&self) -> i16 {
+    self.max_def_level
+  }
+
+  pub fn max_rep_level(&self) -> i16 {
+    self.max_rep_level
+  }
+
+  pub fn physical_type(&self) -> PhysicalType {
+    self.primitive_type.physical_type()
+  }
+
+  pub fn logical_type(&self) -> LogicalType {
+    self.primitive_type.get_basic_info().logical_type
+  }
+
+  pub fn name(&self) -> &str {
+    self.primitive_type.get_basic_info().name.as_str()
+  }
+
+  pub fn path(&self) -> &ColumnPath {
+    &self.path
+  }
+
+  pub fn type_length(&self) -> i32 {
+    self.primitive_type.type_length
+  }
+
+  pub fn type_precision(&self) -> i32 {
+    self.primitive_type.type_precision()
+  }
+
+  pub fn type_scale(&self) -> i32 {
+    self.primitive_type.type_scale()
+  }
+
+}
 
 /// Conversion from Thrift equivalents
 
@@ -321,7 +374,6 @@ mod tests {
       assert_eq!(tp.logical_type(), LogicalType::INT_32);
       assert_eq!(tp.physical_type(), PhysicalType::INT32);
       assert_eq!(tp.id(), Some(0));
-      assert!(tp.decimal_metadata().is_none());
     }
 
     // Test illegal inputs
