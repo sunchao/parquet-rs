@@ -17,7 +17,12 @@
 
 use std::fmt;
 use std::convert;
+use std::mem;
 use parquet_thrift::parquet;
+
+// ----------------------------------------------------------------------
+// Types from the Thrift definition
+
 
 /// Mirrors `parquet::Type`
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -232,6 +237,99 @@ impl convert::From<parquet::PageType> for PageType {
     }
   }
 }
+
+// ----------------------------------------------------------------------
+// Types connect Parquet physical types with Rust-specific types
+
+
+// TODO: alignment?
+pub struct Int96 {
+  value: Vec<u32>
+}
+
+impl Int96 {
+  pub fn new() -> Self {
+    Int96 { value: vec![0, 0, 0] }
+  }
+}
+
+pub struct ByteArray<'a> {
+  data: &'a [u8]
+}
+
+impl<'a> ByteArray<'a> {
+  pub fn new(data: &'a [u8]) -> Self {
+    ByteArray { data: data }
+  }
+}
+
+pub struct FixedLenByteArray<'a> {
+  data: &'a [u8]
+}
+
+impl <'a> FixedLenByteArray<'a> {
+  pub fn new(data: &'a [u8]) -> Self {
+    FixedLenByteArray { data: data }
+  }
+}
+
+trait DataType<T> {
+  fn get_physical_type(&self) -> Type;
+  fn get_type_size(&self) -> usize;
+}
+
+macro_rules! make_type {
+  ($name:ident, $physical_ty:path, $native_ty:ty, $size:expr) => {
+    pub struct $name {
+    }
+
+    impl DataType<$native_ty> for $name {
+      fn get_physical_type(&self) -> Type {
+        $physical_ty
+      }
+
+      fn get_type_size(&self) -> usize {
+        $size
+      }
+    }
+  };
+}
+
+/// Generate struct definitions for all physical types
+
+make_type!(BoolType, Type::BOOLEAN, bool, 1);
+make_type!(Int32Type, Type::INT32, i32, 4);
+make_type!(Int64Type, Type::INT64, i64, 8);
+make_type!(Int96Type, Type::INT96, Int96, 12);
+make_type!(FloatType, Type::FLOAT, f32, 4);
+make_type!(DoubleType, Type::DOUBLE, f64, 8);
+
+pub struct ByteArrayType {
+}
+
+impl<'a> DataType<ByteArray<'a>> for ByteArrayType {
+  fn get_physical_type(&self) -> Type {
+    Type::BYTE_ARRAY
+  }
+
+  fn get_type_size(&self) -> usize {
+    mem::size_of::<ByteArray<'a>>()
+  }
+}
+
+pub struct FixedLenByteArrayType {
+}
+
+impl<'a> DataType<FixedLenByteArray<'a>> for FixedLenByteArrayType {
+  fn get_physical_type(&self) -> Type {
+    Type::FIXED_LEN_BYTE_ARRAY
+  }
+
+  fn get_type_size(&self) -> usize {
+    mem::size_of::<FixedLenByteArray>()
+  }
+}
+
 
 #[cfg(test)]
 mod tests {
