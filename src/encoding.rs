@@ -17,8 +17,10 @@
 
 use std::mem;
 use std::cmp;
+use std::marker::PhantomData;
 use std::slice::from_raw_parts_mut;
-use basic::{Encoding, Type as PhysicalType, DataType, LogicalType, Repetition};
+use basic::*;
+use basic::{Type as PhysicalType};
 use errors::{Result, ParquetError};
 use file::metadata::ColumnPath;
 use schema::types::ColumnDescriptor;
@@ -27,14 +29,17 @@ use schema::types::ColumnDescriptor;
 // Decoders
 
 pub trait Decoder<'a> {
+  /// The target type to decode to (e.g., bool, i32, f64)
+  type TargetType;
+
   /// Set the data to decode to be `data`, which should contain `num_values` of
   /// values to decode
-  fn set_data(&mut self, num_values: usize, data: &'a mut [u8]);
+  fn set_data(&mut self, data: &'a mut [u8], num_values: usize);
 
   /// Try to consume at most `max_values` from this decoder and write
   /// the result to `buffer`. Return the actual number of values written.
   /// N.B., `buffer` should have at least `max_values` capacity.
-  fn decode<E>(&mut self, buffer: &mut [E], max_values: usize) -> Result<usize>;
+  fn decode(&mut self, buffer: &mut [Self::TargetType], max_values: usize) -> Result<usize>;
 
   /// Return the number of values left in the current buffer to decode
   fn values_left(&self) -> usize;
@@ -43,12 +48,9 @@ pub trait Decoder<'a> {
   fn encoding(&self) -> Encoding;
 }
 
-pub struct PlainDecoder<'a> {
+pub struct PlainDecoder<'a, T: DataType> {
   /// A column descriptor about the primitive type this decoder is for
   descriptor: ColumnDescriptor,
-
-  /// The encoding of the source data
-  encoding: Encoding,
 
   /// The byte array to decode from
   data: &'a mut[u8],
@@ -59,22 +61,28 @@ pub struct PlainDecoder<'a> {
   /// The current starting index in the byte array.
   start: usize,
 
-  /// the length of the type to be decoded
-  type_length: usize
+  /// The length of the type to be decoded
+  type_length: usize,
+
+  /// To allow `T` in the generic parameter for this struct. This doesn't take any space.
+  _phantom: PhantomData<T>
 }
 
-impl<'a> PlainDecoder<'a> {
-  pub fn new(desc: ColumnDescriptor, encoding: Encoding, data: &'a mut[u8],
+impl<'a, T: DataType> PlainDecoder<'a, T> {
+  pub fn new(desc: ColumnDescriptor, data: &'a mut[u8],
              num_values: usize, type_length: usize) -> Self {
     PlainDecoder{
-      descriptor: desc, encoding: encoding, data: data,
-      num_values: num_values, start: 0, type_length: type_length
+      descriptor: desc, data: data,
+      num_values: num_values, start: 0, type_length: type_length, _phantom: PhantomData
     }
   }
 }
 
-impl<'a> Decoder<'a> for PlainDecoder<'a> {
-  default fn set_data(&mut self, num_values: usize, data: &'a mut[u8]) {
+impl<'a, T: DataType> Decoder<'a> for PlainDecoder<'a, T> {
+  type TargetType = T::T;
+
+  #[inline]
+  default fn set_data(&mut self, data: &'a mut[u8], num_values: usize) {
     self.num_values = num_values;
     self.data = data;
   }
@@ -86,21 +94,24 @@ impl<'a> Decoder<'a> for PlainDecoder<'a> {
 
   #[inline]
   default fn encoding(&self) -> Encoding {
-    self.encoding
+    Encoding::PLAIN
   }
 
   #[inline]
-  default fn decode<E>(&mut self, buffer: &mut [E], max_values: usize) -> Result<usize> {
-    assert!(buffer.len() >= max_values);
+  default fn decode(
+    &mut self, buffer: &mut [Self::TargetType], max_values: usize) -> Result<usize> {
+    assert!(buffer.len() >= max_values, "buffer length {} must be greater than max_values {}",
+            buffer.len(), max_values);
     let num_values = cmp::min(max_values, self.num_values);
     let bytes_left = self.data.len() - self.start;
-    let bytes_to_decode = mem::size_of::<E>() * num_values;
+    let bytes_to_decode = mem::size_of::<Self::TargetType>() * num_values;
     if bytes_left < bytes_to_decode {
       return Err(schema_err!("Not enough bytes to decode (requested: {}, actual: {})",
                              bytes_to_decode, bytes_left));
     }
     let raw_buffer: &mut [u8] = unsafe {
-      from_raw_parts_mut(buffer.as_ptr() as *mut u8, num_values * mem::size_of::<E>())
+      from_raw_parts_mut(buffer.as_ptr() as *mut u8,
+                         num_values * mem::size_of::<Self::TargetType>())
     };
     raw_buffer.copy_from_slice(&self.data[self.start..self.start + bytes_to_decode]);
     self.start += bytes_to_decode;
@@ -108,24 +119,58 @@ impl<'a> Decoder<'a> for PlainDecoder<'a> {
   }
 }
 
+#[inline]
+fn decode_numeric<T>(raw_data: &[u8], start: &mut usize, num_values: usize,
+                     buffer: &mut [T], max_values: usize) -> Result<(usize)> {
+  assert!(buffer.len() >= max_values);
+  let num_values = cmp::min(max_values, num_values);
+  let bytes_left = raw_data.len() - *start;
+  let bytes_to_decode = mem::size_of::<T>() * num_values;
+  if bytes_left < bytes_to_decode {
+    return Err(schema_err!("Not enough bytes to decode"));
+  }
+  let raw_buffer: &mut [u8] = unsafe {
+    from_raw_parts_mut(buffer.as_ptr() as *mut u8, num_values * mem::size_of::<T>())
+  };
+  raw_buffer.copy_from_slice(&raw_data[*start..*start + bytes_to_decode]);
+  *start += bytes_to_decode;
+  Ok(num_values)
+}
+
+
 #[cfg(test)]
 mod tests {
   use super::*;
-  use std::slice::from_raw_parts;
   use schema::types::PrimitiveType;
 
   #[test]
   fn test_decode() {
-    let mut pty = PrimitiveType::new(
+    let pty = PrimitiveType::new(
       "foo", Repetition::OPTIONAL, PhysicalType::INT32,
       LogicalType::INT_32, 0, 0, 0, Some(0)).unwrap();
     let desc = ColumnDescriptor::new(ColumnPath::new(vec![String::from("foo")]), pty, 0, 0);
     let mut data = vec![42, 0, 0, 0, 18, 0, 0, 0, 52, 0, 0, 0];
-    let mut decoder = PlainDecoder::new(desc, Encoding::PLAIN, data.as_mut_slice(), 3, 4);
-    let mut buffer = Vec::new();
-    buffer.resize(4, 0);
-    let result = decoder.decode::<i32>(buffer.as_mut_slice(), 4);
+    let mut decoder: PlainDecoder<Int32Type> = PlainDecoder::new(desc, data.as_mut_slice(), 3, 4);
+    let mut buffer = vec![0; 4];
+    let result = decoder.decode(buffer.as_mut_slice(), 4);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 3);
+  }
+
+  #[test]
+  fn test_decode_numeric() {
+    let data = vec![42, 0, 0, 0, 18, 0, 0, 0, 52, 0, 0, 0];
+    let mut buffer = vec![0; 4];
+    let mut start = 0;
+
+    let mut result = decode_numeric(data.as_slice(), &mut start, 3, buffer.as_mut_slice(), 2);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 2);
+    assert_eq!(start, 8);
+
+    result = decode_numeric(data.as_slice(), &mut start, 1, buffer.as_mut_slice(), 2);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 1);
+    assert_eq!(start, 12);
   }
 }

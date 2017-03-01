@@ -253,27 +253,33 @@ impl Int96 {
   }
 }
 
-pub struct ByteArray<'a> {
-  data: &'a [u8]
+// TODO: it's probably not a good idea to make ByteArray and FixedLenByteArray
+// to own its data. Better to pass in a slice, but we then need to add lifetime
+// to them as well as DataType, which is not nice.
+pub struct ByteArray {
+  data: Vec<u8>
 }
 
-impl<'a> ByteArray<'a> {
-  pub fn new(data: &'a [u8]) -> Self {
-    ByteArray { data: data }
+impl ByteArray {
+  pub fn new() -> Self {
+    ByteArray { data: Vec::new() }
   }
 }
 
-pub struct FixedLenByteArray<'a> {
-  data: &'a [u8]
+pub struct FixedLenByteArray {
+  data: Vec<u8>
 }
 
-impl <'a> FixedLenByteArray<'a> {
-  pub fn new(data: &'a [u8]) -> Self {
-    FixedLenByteArray { data: data }
+impl FixedLenByteArray {
+  pub fn new(len: usize) -> Self {
+    let mut v = Vec::new();
+    v.resize(len, 0);
+    FixedLenByteArray { data: v }
   }
 }
 
-pub trait DataType<T> {
+pub trait DataType {
+  type T;
   fn get_physical_type() -> Type;
   fn get_type_size() -> usize;
 }
@@ -283,7 +289,9 @@ macro_rules! make_type {
     pub struct $name {
     }
 
-    impl DataType<$native_ty> for $name {
+    impl DataType for $name {
+      type T = $native_ty;
+
       fn get_physical_type() -> Type {
         $physical_ty
       }
@@ -307,20 +315,24 @@ make_type!(DoubleType, Type::DOUBLE, f64, 8);
 pub struct ByteArrayType {
 }
 
-impl<'a> DataType<ByteArray<'a>> for ByteArrayType {
+impl DataType for ByteArrayType {
+  type T = ByteArray;
+
   fn get_physical_type() -> Type {
     Type::BYTE_ARRAY
   }
 
   fn get_type_size() -> usize {
-    mem::size_of::<ByteArray<'a>>()
+    mem::size_of::<ByteArray>()
   }
 }
 
 pub struct FixedLenByteArrayType {
 }
 
-impl<'a> DataType<FixedLenByteArray<'a>> for FixedLenByteArrayType {
+impl DataType for FixedLenByteArrayType {
+  type T = FixedLenByteArray;
+
   fn get_physical_type() -> Type {
     Type::FIXED_LEN_BYTE_ARRAY
   }
