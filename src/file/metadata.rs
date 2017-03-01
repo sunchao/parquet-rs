@@ -234,6 +234,7 @@ impl ColumnChunkMetaData {
 }
 
 /// Represents a path in a nested schema
+#[derive(Clone, PartialEq)]
 pub struct ColumnPath {
   parts: Vec<String>
 }

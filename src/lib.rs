@@ -17,6 +17,7 @@
 
 #![feature(type_ascription)]
 #![feature(rustc_private)]
+#![feature(specialization)]
 
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
@@ -40,6 +41,7 @@ mod parquet_thrift;
 mod util;
 mod column;
 mod compression;
+mod encoding;
 
 pub mod schema;
 pub mod file;

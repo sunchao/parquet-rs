@@ -273,9 +273,9 @@ impl <'a> FixedLenByteArray<'a> {
   }
 }
 
-trait DataType<T> {
-  fn get_physical_type(&self) -> Type;
-  fn get_type_size(&self) -> usize;
+pub trait DataType<T> {
+  fn get_physical_type() -> Type;
+  fn get_type_size() -> usize;
 }
 
 macro_rules! make_type {
@@ -284,11 +284,11 @@ macro_rules! make_type {
     }
 
     impl DataType<$native_ty> for $name {
-      fn get_physical_type(&self) -> Type {
+      fn get_physical_type() -> Type {
         $physical_ty
       }
 
-      fn get_type_size(&self) -> usize {
+      fn get_type_size() -> usize {
         $size
       }
     }
@@ -308,11 +308,11 @@ pub struct ByteArrayType {
 }
 
 impl<'a> DataType<ByteArray<'a>> for ByteArrayType {
-  fn get_physical_type(&self) -> Type {
+  fn get_physical_type() -> Type {
     Type::BYTE_ARRAY
   }
 
-  fn get_type_size(&self) -> usize {
+  fn get_type_size() -> usize {
     mem::size_of::<ByteArray<'a>>()
   }
 }
@@ -321,11 +321,11 @@ pub struct FixedLenByteArrayType {
 }
 
 impl<'a> DataType<FixedLenByteArray<'a>> for FixedLenByteArrayType {
-  fn get_physical_type(&self) -> Type {
+  fn get_physical_type() -> Type {
     Type::FIXED_LEN_BYTE_ARRAY
   }
 
-  fn get_type_size(&self) -> usize {
+  fn get_type_size() -> usize {
     mem::size_of::<FixedLenByteArray>()
   }
 }
