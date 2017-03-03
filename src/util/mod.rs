@@ -17,3 +17,4 @@
 
 pub mod memory;
 pub mod test_common;
+pub mod bit_util;
