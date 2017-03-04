@@ -19,6 +19,9 @@ use std::mem::{size_of, transmute_copy};
 use std::cmp;
 use std::ptr::copy_nonoverlapping;
 
+/// Read `$size` of bytes from `$src`, and reinterpret them
+/// as type `$ty`. `$which` is used to specify endianness.
+/// This is copied and modified from byteoder crate.
 macro_rules! read_num_bytes {
   ($ty:ty, $size:expr, $src:expr, $which:ident) => ({
     assert!($size <= $src.len());
@@ -34,6 +37,7 @@ macro_rules! read_num_bytes {
 }
 
 
+/// Returns the `num_bits` least-significant bits of `v`
 #[inline]
 fn trailing_bits(v: u64, num_bits: usize) -> u64 {
   if num_bits == 0 {
@@ -47,17 +51,17 @@ fn trailing_bits(v: u64, num_bits: usize) -> u64 {
 }
 
 pub struct BitReader<'a> {
-  /// The buffer to read from, passed in by client
+  /// The byte buffer to read from, passed in by client
   buffer: &'a [u8],
 
-  /// Bytes are memcpy'd from buffer_ and values are read from this variable. This is
-  /// faster than reading values byte by byte directly from buffer_.
+  /// Bytes are memcpy'd from `buffer` and values are read from this variable.
+  /// This is faster than reading values byte by byte directly from `buffer`
   buffered_values: u64,
 
-  /// Byte offset in `buffer`
+  /// Current byte offset in `buffer`
   byte_offset: usize,
 
-  /// Bit offset in `buffered_values`
+  /// Current bit offset in `buffered_values`
   bit_offset: usize,
 
   /// Total number of bytes in `buffer`
@@ -106,6 +110,7 @@ impl<'a> BitReader<'a> {
       v |= trailing_bits(self.buffered_values, self.bit_offset) << (num_bits - self.bit_offset);
     }
 
+    // TODO: better to avoid copying here
     let result: T = unsafe {
       transmute_copy::<u64, T>(&v)
     };
@@ -133,5 +138,23 @@ mod tests {
     let v4 = bit_reader.get_value::<i32>(4);
     assert!(v4.is_some());
     assert_eq!(v4.unwrap(), 3);
+  }
+
+  #[test]
+  fn test_bit_reader_boundary() {
+    let mut buffer = vec![10, 0, 0, 0, 20, 0, 30, 0, 0, 0, 40, 0];
+    let mut bit_reader = BitReader::new(buffer.as_mut_slice());
+    let v1 = bit_reader.get_value::<i64>(32);
+    assert!(v1.is_some());
+    assert_eq!(v1.unwrap(), 10);
+    let v2 = bit_reader.get_value::<i16>(16);
+    assert!(v2.is_some());
+    assert_eq!(v2.unwrap(), 20);
+    let v3 = bit_reader.get_value::<i32>(32);
+    assert!(v3.is_some());
+    assert_eq!(v3.unwrap(), 30);
+    let v4 = bit_reader.get_value::<i32>(16);
+    assert!(v4.is_some());
+    assert_eq!(v4.unwrap(), 40);
   }
 }
