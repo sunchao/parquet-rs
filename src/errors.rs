@@ -24,18 +24,20 @@ quick_error! {
   #[derive(Debug)]
   pub enum ParquetError {
     Parse(message: String) {
-      from()
-      display("{}", message)
+      display("Parse error: {}", message)
       description(message)
     }
     Io(message: String, err: io::Error) {
-      from(err: io::Error) -> ("io error".to_owned(), err)
-      from(err: snap::Error) -> ("io error".to_owned(), io::Error::from(err))
-      display("{}, underlying IO error: {}", message, err)
+      from(err: io::Error) -> ("underlying IO error".to_owned(), err)
+      from(err: snap::Error) -> ("underlying snap error".to_owned(), io::Error::from(err))
+      display("IO error: {}, {}", message, err)
+    }
+    Decode(message: String) {
+      display("Decoding error: {}", message)
     }
     Thrift(message: String, err: thrift::Error) {
-      from(err: thrift::Error) -> ("thrift error".to_owned(), err)
-      display("{}, underlying Thrift error: {}", message, err)
+      from(err: thrift::Error) -> ("underlying Thrift error".to_owned(), err)
+      display("Thrift error: {}, {}", message, err)
     }
     Schema(message: String) {
       display("Schema error: {}", message)
@@ -57,6 +59,11 @@ macro_rules! parse_err {
 macro_rules! schema_err {
   ($fmt:expr) => (ParquetError::Schema($fmt.to_owned()));
   ($fmt:expr, $($args:expr),*) => (ParquetError::Schema(format!($fmt, $($args),*)));
+}
+
+macro_rules! decode_err {
+  ($fmt:expr) => (ParquetError::Decode($fmt.to_owned()));
+  ($fmt:expr, $($args:expr),*) => (ParquetError::Decode(format!($fmt, $($args),*)));
 }
 
 macro_rules! unsupported_err {
