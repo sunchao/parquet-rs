@@ -79,7 +79,7 @@ impl<'a, T: DataType> PlainDecoder<'a, T> {
 }
 
 impl<'a, T: DataType> Decoder<'a> for PlainDecoder<'a, T> {
-  type TargetType = T::T;
+  default type TargetType = T::T;
 
   #[inline]
   default fn set_data(&mut self, data: &'a mut[u8], num_values: usize) {
@@ -119,9 +119,10 @@ impl<'a, T: DataType> Decoder<'a> for PlainDecoder<'a, T> {
   }
 }
 
+
 #[inline]
 fn decode_numeric<T>(raw_data: &[u8], start: &mut usize, num_values: usize,
-                     buffer: &mut [T], max_values: usize) -> Result<(usize)> {
+                     buffer: &mut [T], max_values: usize) -> Result<usize> {
   assert!(buffer.len() >= max_values);
   let num_values = cmp::min(max_values, num_values);
   let bytes_left = raw_data.len() - *start;
@@ -134,6 +135,14 @@ fn decode_numeric<T>(raw_data: &[u8], start: &mut usize, num_values: usize,
   };
   raw_buffer.copy_from_slice(&raw_data[*start..*start + bytes_to_decode]);
   *start += bytes_to_decode;
+  Ok(num_values)
+}
+
+#[inline]
+fn decode_bool(raw_data: &[u8], start: &mut usize, num_values: usize,
+               buffer: &mut [bool], max_values: usize) -> Result<usize> {
+  assert!(buffer.len() >= max_values);
+  let num_values = cmp::min(max_values, num_values);
   Ok(num_values)
 }
 

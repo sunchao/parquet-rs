@@ -39,7 +39,7 @@ macro_rules! read_num_bytes {
 
 /// Returns the `num_bits` least-significant bits of `v`
 #[inline]
-fn trailing_bits(v: u64, num_bits: usize) -> u64 {
+pub fn trailing_bits(v: u64, num_bits: usize) -> u64 {
   if num_bits == 0 {
     return 0;
   }
@@ -49,6 +49,17 @@ fn trailing_bits(v: u64, num_bits: usize) -> u64 {
   let n = 64 - num_bits;
   (v << n) >> n
 }
+
+#[inline]
+pub fn set_array_bit(bits: &mut [u8], i: usize) {
+  bits[i / 8] |= 1 << (i % 8);
+}
+
+#[inline]
+pub fn unset_array_bit(bits: &mut [u8], i: usize) {
+  bits[i / 8] &= !(1 << (i % 8));
+}
+
 
 pub struct BitReader<'a> {
   /// The byte buffer to read from, passed in by client
@@ -156,5 +167,24 @@ mod tests {
     let v4 = bit_reader.get_value::<i32>(16);
     assert!(v4.is_some());
     assert_eq!(v4.unwrap(), 40);
+  }
+
+  #[test]
+  fn test_set_array_bit() {
+    let mut buffer = vec![0, 0, 0];
+    set_array_bit(&mut buffer[..], 1);
+    assert_eq!(buffer, vec![2, 0, 0]);
+    set_array_bit(&mut buffer[..], 4);
+    assert_eq!(buffer, vec![18, 0, 0]);
+    unset_array_bit(&mut buffer[..], 1);
+    assert_eq!(buffer, vec![16, 0, 0]);
+    set_array_bit(&mut buffer[..], 10);
+    assert_eq!(buffer, vec![16, 4, 0]);
+    set_array_bit(&mut buffer[..], 10);
+    assert_eq!(buffer, vec![16, 4, 0]);
+    set_array_bit(&mut buffer[..], 11);
+    assert_eq!(buffer, vec![16, 12, 0]);
+    unset_array_bit(&mut buffer[..], 10);
+    assert_eq!(buffer, vec![16, 8, 0]);
   }
 }
