@@ -17,7 +17,6 @@
 
 use std::mem::{size_of, transmute_copy};
 use std::cmp;
-use std::ptr::copy_nonoverlapping;
 
 /// Read `$size` of bytes from `$src`, and reinterpret them
 /// as type `$ty`. `$which` is used to specify endianness.
@@ -27,7 +26,7 @@ macro_rules! read_num_bytes {
     assert!($size <= $src.len());
     let mut data: $ty = 0;
     unsafe {
-      copy_nonoverlapping(
+      ::std::ptr::copy_nonoverlapping(
         $src.as_ptr(),
         &mut data as *mut $ty as *mut u8,
         $size);

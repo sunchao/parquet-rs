@@ -83,12 +83,12 @@ impl<'a, T: DataType> Decoder<'a, T> for PlainDecoder<'a, T> {
   }
 
   #[inline]
-  default fn values_left(&self) -> usize {
+  fn values_left(&self) -> usize {
     self.num_values
   }
 
   #[inline]
-  default fn encoding(&self) -> Encoding {
+  fn encoding(&self) -> Encoding {
     Encoding::PLAIN
   }
 
@@ -97,19 +97,22 @@ impl<'a, T: DataType> Decoder<'a, T> for PlainDecoder<'a, T> {
     &mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize> {
     assert!(buffer.len() >= max_values);
     assert!(self.data.is_some());
-    let mut data = self.data.as_mut().unwrap();
-    let type_length = mem::size_of::<T::T>();
+
+    let data = self.data.as_mut().unwrap();
     let num_values = cmp::min(max_values, self.num_values);
     let bytes_left = data.len() - self.start;
-    let bytes_to_decode = type_length * num_values;
+    let bytes_to_decode = mem::size_of::<T::T>() * num_values;
     if bytes_left < bytes_to_decode {
       return Err(decode_err!("Not enough bytes to decode"));
     }
+
     let raw_buffer: &mut [u8] = unsafe {
       from_raw_parts_mut(buffer.as_ptr() as *mut u8, bytes_to_decode)
     };
     raw_buffer.copy_from_slice(&data[self.start..self.start + bytes_to_decode]);
     self.start += bytes_to_decode;
+    self.num_values -= num_values;
+
     Ok(num_values)
   }
 }
@@ -123,6 +126,7 @@ impl<'a> Decoder<'a, BoolType> for PlainDecoder<'a, BoolType> {
   fn decode(&mut self, buffer: &mut [bool], max_values: usize) -> Result<usize> {
     assert!(buffer.len() >= max_values);
     assert!(self.bit_reader.is_some());
+
     let mut bit_reader = self.bit_reader.as_mut().unwrap();
     let num_values = cmp::min(max_values, self.num_values);
     for i in 0..num_values {
@@ -134,6 +138,7 @@ impl<'a> Decoder<'a, BoolType> for PlainDecoder<'a, BoolType> {
       }
     }
     self.num_values -= num_values;
+
     Ok(num_values)
   }
 }
@@ -153,10 +158,19 @@ mod tests {
     let mut data = vec![42, 0, 0, 0, 18, 0, 0, 0, 52, 0, 0, 0];
     let mut decoder: PlainDecoder<Int32Type> = PlainDecoder::new(desc);
     decoder.set_data(&mut data[..], 3);
+
     let mut buffer = vec![0; 4];
-    let result = decoder.decode(buffer.as_mut_slice(), 4);
+    let mut result = decoder.decode(&mut buffer[..], 2);
     assert!(result.is_ok());
-    assert_eq!(result.unwrap(), 3);
+    assert_eq!(result.unwrap(), 2);
+    assert_eq!(buffer, vec![42, 18, 0, 0]);
+    assert_eq!(decoder.values_left(), 1);
+
+    result = decoder.decode(&mut buffer[2..], 2);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), 1);
+    assert_eq!(buffer, vec![42, 18, 52, 0]);
+    assert_eq!(decoder.values_left(), 0);
   }
 
   #[test]
@@ -169,9 +183,10 @@ mod tests {
     let mut decoder: PlainDecoder<BoolType> = PlainDecoder::new(desc);
     decoder.set_data(&mut data[..], 8);
     let mut buffer = vec![false; 8];
-    let result = decoder.decode(buffer.as_mut_slice(), 8);
+    let result = decoder.decode(&mut buffer[..], 8);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 8);
     assert_eq!(buffer, vec![false, true, false, true, false, false, true, true]);
+    assert_eq!(decoder.values_left(), 0);
   }
 }
