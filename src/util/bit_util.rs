@@ -79,7 +79,7 @@ pub struct BitReader<'a> {
 }
 
 impl<'a> BitReader<'a> {
-  pub fn new(buffer: &'a mut [u8]) -> Self {
+  pub fn new(buffer: &'a [u8]) -> Self {
     let total_bytes = buffer.len();
     let num_bytes = cmp::min(8, total_bytes);
     let buffered_values = read_num_bytes!(u64, num_bytes, buffer, to_le);

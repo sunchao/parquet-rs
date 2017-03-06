@@ -256,29 +256,53 @@ impl Int96 {
 // TODO: it's probably not a good idea to make ByteArray and FixedLenByteArray
 // to own its data. Better to pass in a slice, but we then need to add lifetime
 // to them as well as DataType, which is not nice.
-pub struct ByteArray {
-  data: Vec<u8>
+#[derive(Clone)]
+pub struct ByteArray<'a> {
+  data: Option<&'a [u8]>
 }
 
-impl ByteArray {
+impl<'a> ByteArray<'a> {
   pub fn new() -> Self {
-    ByteArray { data: Vec::new() }
+    ByteArray { data: None }
+  }
+
+  pub fn get_data(&self) -> &[u8] {
+    assert!(self.data.is_some());
+    self.data.unwrap()
+  }
+
+  pub fn set_data(&mut self, data: &'a [u8]) {
+    self.data = Some(data)
   }
 }
 
-pub struct FixedLenByteArray {
-  data: Vec<u8>
+#[derive(Clone)]
+pub struct FixedLenByteArray<'a> {
+  data: Option<&'a [u8]>,
+  len: usize
 }
 
-impl FixedLenByteArray {
+impl<'a> FixedLenByteArray<'a> {
   pub fn new(len: usize) -> Self {
-    let mut v = Vec::new();
-    v.resize(len, 0);
-    FixedLenByteArray { data: v }
+    FixedLenByteArray { data: None, len: len }
+  }
+
+  pub fn get_data(&self) -> &[u8] {
+    assert!(self.data.is_some());
+    self.data.unwrap()
+  }
+
+  pub fn set_data(&mut self, data: &'a [u8]) {
+    assert!(data.len() == self.len);
+    self.data = Some(data)
+  }
+
+  pub fn get_len(&self) -> usize {
+    self.len
   }
 }
 
-pub trait DataType {
+pub trait DataType<'a> {
   type T;
   fn get_physical_type() -> Type;
   fn get_type_size() -> usize;
@@ -289,7 +313,7 @@ macro_rules! make_type {
     pub struct $name {
     }
 
-    impl DataType for $name {
+    impl<'a> DataType<'a> for $name {
       type T = $native_ty;
 
       fn get_physical_type() -> Type {
@@ -315,8 +339,8 @@ make_type!(DoubleType, Type::DOUBLE, f64, 8);
 pub struct ByteArrayType {
 }
 
-impl DataType for ByteArrayType {
-  type T = ByteArray;
+impl<'a> DataType<'a> for ByteArrayType {
+  type T = ByteArray<'a>;
 
   fn get_physical_type() -> Type {
     Type::BYTE_ARRAY
@@ -330,8 +354,8 @@ impl DataType for ByteArrayType {
 pub struct FixedLenByteArrayType {
 }
 
-impl DataType for FixedLenByteArrayType {
-  type T = FixedLenByteArray;
+impl<'a> DataType<'a> for FixedLenByteArrayType {
+  type T = FixedLenByteArray<'a>;
 
   fn get_physical_type() -> Type {
     Type::FIXED_LEN_BYTE_ARRAY
