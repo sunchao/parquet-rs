@@ -243,20 +243,39 @@ impl convert::From<parquet::PageType> for PageType {
 
 
 // TODO: alignment?
-pub struct Int96 {
-  value: Vec<u32>
+// TODO: we could also use [u32; 3], however it seems there is no easy way
+//   to convert [u32] to [u32; 3] in decoding.
+#[derive(Clone, Debug)]
+pub struct Int96<'a> {
+  value: Option<&'a [u32]>
 }
 
-impl Int96 {
+impl<'a> Int96<'a> {
   pub fn new() -> Self {
-    Int96 { value: vec![0, 0, 0] }
+    Int96 { value: None }
+  }
+
+  pub fn set_data(&mut self, v: &'a [u32]) {
+    assert_eq!(v.len(), 3);
+    self.value = Some(v);
+  }
+
+  pub fn get_data(&self) -> &[u32] {
+    assert!(self.value.is_some());
+    self.value.unwrap()
+  }
+}
+
+impl<'a> PartialEq for Int96<'a> {
+  fn eq(&self, other: &Int96<'a>) -> bool {
+    self.value == other.value
   }
 }
 
 // TODO: it's probably not a good idea to make ByteArray and FixedLenByteArray
 // to own its data. Better to pass in a slice, but we then need to add lifetime
 // to them as well as DataType, which is not nice.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ByteArray<'a> {
   data: Option<&'a [u8]>
 }
@@ -276,7 +295,13 @@ impl<'a> ByteArray<'a> {
   }
 }
 
-#[derive(Clone)]
+impl<'a> PartialEq for ByteArray<'a> {
+  fn eq(&self, other: &ByteArray<'a>) -> bool {
+    self.data == other.data
+  }
+}
+
+#[derive(Clone, Debug)]
 pub struct FixedLenByteArray<'a> {
   data: Option<&'a [u8]>,
   len: usize
@@ -302,8 +327,14 @@ impl<'a> FixedLenByteArray<'a> {
   }
 }
 
+impl<'a> PartialEq for FixedLenByteArray<'a> {
+  fn eq(&self, other: &FixedLenByteArray<'a>) -> bool {
+    self.data == other.data
+  }
+}
+
 pub trait DataType<'a> {
-  type T;
+  type T: ::std::cmp::PartialEq + ::std::fmt::Debug;
   fn get_physical_type() -> Type;
   fn get_type_size() -> usize;
 }
@@ -332,9 +363,24 @@ macro_rules! make_type {
 make_type!(BoolType, Type::BOOLEAN, bool, 1);
 make_type!(Int32Type, Type::INT32, i32, 4);
 make_type!(Int64Type, Type::INT64, i64, 8);
-make_type!(Int96Type, Type::INT96, Int96, 12);
 make_type!(FloatType, Type::FLOAT, f32, 4);
 make_type!(DoubleType, Type::DOUBLE, f64, 8);
+
+
+pub struct Int96Type {
+}
+
+impl<'a> DataType<'a> for Int96Type {
+  type T = Int96<'a>;
+
+  fn get_physical_type() -> Type {
+    Type::INT96
+  }
+
+  fn get_type_size() -> usize {
+    12
+  }
+}
 
 pub struct ByteArrayType {
 }
