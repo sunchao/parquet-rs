@@ -27,19 +27,29 @@ use thrift::transport::{TTransport, TBufferTransport};
 use thrift::protocol::TCompactInputProtocol;
 use parquet_thrift::parquet::FileMetaData as TFileMetaData;
 use schema::types;
+use column::page::PageReader;
 
+/// Parquet file reader API. With this, user can get metadata information
+/// about the Parquet file, and can get reader for each row group.
 pub trait ParquetFileReader {
-  /// Get the metadata about this file
+  /// Get metadata information about this file
   fn metadata(&mut self) -> Result<ParquetMetaData>;
 
   /// Get the `i`th row group reader. Note this doesn't do bound check.
-  fn get_row_group(&self, _: usize) -> Box<ParquetRowGroupReader>;
+  fn get_row_group(&self, i: usize) -> Box<ParquetRowGroupReader>;
 }
 
-/// TODO: add page reader
+/// Parquet row group reader API. With this, user can get metadata
+/// information about the row group, as well as readers for each individual
+/// column chunk
 pub trait ParquetRowGroupReader {
+  /// Get metadata information about this row group
   fn metadata(&self) -> RowGroupMetaData;
+
+  /// Get page reader for the `i`th column chunk
+  fn get_page_reader(&self, i: usize) -> Box<PageReader>;
 }
+
 
 pub struct SerializedParquetFileReader {
   buf: BufReader<File>

@@ -16,6 +16,7 @@
 // under the License.
 
 use basic::{PageType, Encoding};
+use errors::Result;
 use util::memory::Buffer;
 
 pub enum Page {
@@ -67,4 +68,11 @@ impl Page {
       &Page::DictionaryPage{ encoding, .. } => encoding
     }
   }
+}
+
+
+/// API for reading pages from a column chunk. This offers a iterator
+/// like API to get the next page.
+pub trait PageReader {
+  fn get_next_page(&self) -> Result<Page>;
 }
