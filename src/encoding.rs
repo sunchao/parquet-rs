@@ -239,6 +239,25 @@ mod tests {
     test_decode::<Int64Type>(desc, &data_bytes[..], 3, &mut buffer[..], &data[..]);
   }
 
+
+  #[test]
+  fn test_decode_float() {
+    let desc = test_descriptor(Type::FLOAT, 0);
+    let data = vec![3.14, 2.414, 12.51];
+    let data_bytes = <f32 as ToByteArray<f32>>::to_byte_array(&data[..]);
+    let mut buffer = vec![0.0; 3];
+    test_decode::<FloatType>(desc, &data_bytes[..], 3, &mut buffer[..], &data[..]);
+  }
+
+  #[test]
+  fn test_decode_double() {
+    let desc = test_descriptor(Type::DOUBLE, 0);
+    let data = vec![3.14f64, 2.414f64, 12.51f64];
+    let data_bytes = <f64 as ToByteArray<f64>>::to_byte_array(&data[..]);
+    let mut buffer = vec![0.0f64; 3];
+    test_decode::<DoubleType>(desc, &data_bytes[..], 3, &mut buffer[..], &data[..]);
+  }
+
   #[test]
   fn test_decode_int96() {
     let desc = test_descriptor(Type::INT96, 0);
