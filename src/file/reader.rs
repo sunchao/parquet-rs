@@ -31,18 +31,18 @@ use column::page::PageReader;
 
 /// Parquet file reader API. With this, user can get metadata information
 /// about the Parquet file, and can get reader for each row group.
-pub trait ParquetFileReader {
+pub trait FileReader {
   /// Get metadata information about this file
   fn metadata(&mut self) -> Result<ParquetMetaData>;
 
   /// Get the `i`th row group reader. Note this doesn't do bound check.
-  fn get_row_group(&self, i: usize) -> Box<ParquetRowGroupReader>;
+  fn get_row_group(&self, i: usize) -> Box<RowGroupReader>;
 }
 
 /// Parquet row group reader API. With this, user can get metadata
 /// information about the row group, as well as readers for each individual
 /// column chunk
-pub trait ParquetRowGroupReader {
+pub trait RowGroupReader {
   /// Get metadata information about this row group
   fn metadata(&self) -> RowGroupMetaData;
 
@@ -51,11 +51,11 @@ pub trait ParquetRowGroupReader {
 }
 
 
-pub struct SerializedParquetFileReader {
+pub struct SerializedFileReader {
   buf: BufReader<File>
 }
 
-impl SerializedParquetFileReader {
+impl SerializedFileReader {
   pub fn new(b: BufReader<File>) -> Self {
     Self { buf: b }
   }
@@ -64,7 +64,7 @@ impl SerializedParquetFileReader {
 const FOOTER_SIZE: usize = 8;
 const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
 
-impl ParquetFileReader for SerializedParquetFileReader {
+impl FileReader for SerializedFileReader {
   fn metadata(&mut self) -> Result<ParquetMetaData> {
     let file_size =
       match self.buf.get_ref().metadata() {
@@ -118,7 +118,7 @@ impl ParquetFileReader for SerializedParquetFileReader {
     Ok(ParquetMetaData::new(file_metadata, row_groups))
   }
 
-  fn get_row_group(&self, _: usize) -> Box<ParquetRowGroupReader> {
+  fn get_row_group(&self, _: usize) -> Box<RowGroupReader> {
     unimplemented!()
   }
 }
