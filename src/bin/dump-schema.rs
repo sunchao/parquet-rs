@@ -21,8 +21,6 @@ use std::env;
 use std::process;
 use std::fs::File;
 use std::path::Path;
-use std::error::Error;
-use std::io::BufReader;
 
 use parquet_rs::file::reader::{FileReader, SerializedFileReader};
 use parquet_rs::schema::printer::{print_parquet_metadata, print_file_metadata};
@@ -39,30 +37,28 @@ fn main() {
     match args[2].parse() {
       Ok(b) => verbose = b,
       Err(e) => panic!("Error when reading value for <verbose> \
-                        (expected either 'true' or 'false'): {}", Error::description(&e))
+                        (expected either 'true' or 'false'): {}", e)
     }
   }
   let file = match File::open(&path) {
     Err(e) => {
-      panic!("Error when opening file {}: {}", path.display(), Error::description(&e));
+      panic!("Error when opening file {}: {}", path.display(), e);
     },
     Ok(f) => f
   };
-  let buf = BufReader::new(file);
-  let mut parquet_reader = SerializedFileReader::new(buf);
-  let result = parquet_reader.metadata();
-  match result {
-    Ok(metadata) => {
+  match SerializedFileReader::new(&file) {
+    Err(e) => {
+      panic!("Error when parsing Parquet file: {}", e)
+    },
+    Ok(parquet_reader) => {
+      let metadata = parquet_reader.metadata();
       println!("Metadata for file: {}", &args[1]);
       println!("");
       if verbose {
-        print_parquet_metadata(&mut std::io::stdout(), &metadata);
+        print_parquet_metadata(&mut std::io::stdout(), metadata);
       } else {
         print_file_metadata(&mut std::io::stdout(), metadata.file_metadata());
       }
-    },
-    Err(e) => {
-      println!("Error while dumping metadata. Error is: {}", e);
     }
   }
 }

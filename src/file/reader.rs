@@ -29,45 +29,58 @@ use parquet_thrift::parquet::FileMetaData as TFileMetaData;
 use schema::types;
 use column::page::PageReader;
 
+// ----------------------------------------------------------------------
+// APIs for file & row group readers
+
 /// Parquet file reader API. With this, user can get metadata information
 /// about the Parquet file, and can get reader for each row group.
 pub trait FileReader {
   /// Get metadata information about this file
-  fn metadata(&mut self) -> Result<ParquetMetaData>;
+  fn metadata(&self) -> &ParquetMetaData;
 
   /// Get the `i`th row group reader. Note this doesn't do bound check.
-  fn get_row_group(&self, i: usize) -> Box<RowGroupReader>;
+  /// N.B.: Box<..> has 'static lifetime in default, but here we need
+  /// the lifetime to be the same as this. Otherwise, the row group metadata
+  /// stored in the row group reader may outlive the file reader.
+  fn get_row_group<'a>(&'a self, i: usize) -> Box<RowGroupReader + 'a>;
 }
 
 /// Parquet row group reader API. With this, user can get metadata
 /// information about the row group, as well as readers for each individual
 /// column chunk
-pub trait RowGroupReader {
-  /// Get metadata information about this row group
-  fn metadata(&self) -> RowGroupMetaData;
+/// The lifetime 'a is for the metadata inherited from the parent file reader
+pub trait RowGroupReader<'a> {
+  /// Get metadata information about this row group.
+  /// The result metadata is owned by the parent file reader.
+  fn metadata(&self) -> &'a RowGroupMetaData;
 
   /// Get page reader for the `i`th column chunk
   fn get_page_reader(&self, i: usize) -> Box<PageReader>;
 }
 
 
-pub struct SerializedFileReader {
-  buf: BufReader<File>
-}
-
-impl SerializedFileReader {
-  pub fn new(b: BufReader<File>) -> Self {
-    Self { buf: b }
-  }
-}
+// ----------------------------------------------------------------------
+// Serialized impl for file & row group readers
 
 const FOOTER_SIZE: usize = 8;
 const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
 
-impl FileReader for SerializedFileReader {
-  fn metadata(&mut self) -> Result<ParquetMetaData> {
+pub struct SerializedFileReader<'a> {
+  file: &'a File,
+  buf: BufReader<&'a File>,
+  metadata: ParquetMetaData
+}
+
+impl<'a> SerializedFileReader<'a> {
+  pub fn new(file: &'a File) -> Result<Self> {
+    let mut buf = BufReader::new(file);
+    let metadata = Self::parse_metadata(&mut buf)?;
+    Ok(Self { file: file, buf: buf, metadata: metadata })
+  }
+
+  fn parse_metadata(buf: &mut BufReader<&'a File>) -> Result<ParquetMetaData> {
     let file_size =
-      match self.buf.get_ref().metadata() {
+      match buf.get_ref().metadata() {
         Ok(file_info) => file_info.len(),
         Err(e) => return Err(io_err!(e, "Fail to get metadata for file"))
       };
@@ -75,8 +88,8 @@ impl FileReader for SerializedFileReader {
       return Err(parse_err!("Corrputed file, smaller than file footer"));
     }
     let mut footer_buffer: [u8; FOOTER_SIZE] = [0; FOOTER_SIZE];
-    self.buf.seek(SeekFrom::End(-(FOOTER_SIZE as i64)))?;
-    self.buf.read_exact(&mut footer_buffer)?;
+    buf.seek(SeekFrom::End(-(FOOTER_SIZE as i64)))?;
+    buf.read_exact(&mut footer_buffer)?;
     if footer_buffer[4..] != PARQUET_MAGIC {
       return Err(parse_err!("Invalid parquet file. Corrupt footer."));
     }
@@ -93,8 +106,8 @@ impl FileReader for SerializedFileReader {
         "Invalid parquet file. Metadata start is less than zero ({})",
         metadata_start))
     }
-    self.buf.seek(SeekFrom::Start(metadata_start as u64))?;
-    self.buf.read_exact(metadata_buffer.as_mut_slice())
+    buf.seek(SeekFrom::Start(metadata_start as u64))?;
+    buf.read_exact(metadata_buffer.as_mut_slice())
       .map_err(|e| io_err!(e, "Failed to read metadata"))?;
 
     // TODO: do row group filtering
@@ -117,8 +130,42 @@ impl FileReader for SerializedFileReader {
       schema);
     Ok(ParquetMetaData::new(file_metadata, row_groups))
   }
+}
 
-  fn get_row_group(&self, _: usize) -> Box<RowGroupReader> {
+impl<'b> FileReader for SerializedFileReader<'b> {
+  fn metadata(&self) -> &ParquetMetaData {
+    &self.metadata
+  }
+
+  fn get_row_group<'a>(&'a self, i: usize) -> Box<RowGroupReader + 'a> {
+    let row_group_metadata = self.metadata.row_group(i);
+    let row_group_reader = SerializedRowGroupReader::new(self.file, row_group_metadata);
+    Box::new(row_group_reader)
+  }
+}
+
+/// A serialized impl for row group reader
+/// Here 'a is the lifetime for the incoming file reader, 'b is
+/// the lifetime for the parent file reader
+pub struct SerializedRowGroupReader<'a, 'b> {
+  file: &'a File,
+  buf: BufReader<&'a File>,
+  metadata: &'b RowGroupMetaData
+}
+
+impl<'a, 'b> SerializedRowGroupReader<'a, 'b> {
+  pub fn new(file: &'a File, metadata: &'b RowGroupMetaData) -> Self {
+    let buf = BufReader::new(file);
+    Self { file: file, buf: buf, metadata: metadata }
+  }
+}
+
+impl<'a, 'b> RowGroupReader<'b> for SerializedRowGroupReader<'a, 'b> {
+  fn metadata(&self) -> &'b RowGroupMetaData {
+    self.metadata
+  }
+
+  fn get_page_reader(&self, i: usize) -> Box<PageReader> {
     unimplemented!()
   }
 }
