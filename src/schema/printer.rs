@@ -43,8 +43,8 @@ pub fn print_parquet_metadata(out: &mut io::Write, metadata: &ParquetMetaData) {
 pub fn print_file_metadata(out: &mut io::Write, file_metadata: &FileMetaData) {
   writeln!(out, "version: {}", file_metadata.version());
   writeln!(out, "num of rows: {}", file_metadata.num_rows());
-  if file_metadata.created_by().is_some() {
-    writeln!(out, "created by: {}", file_metadata.created_by().as_ref().unwrap());
+  if let Some(created_by) = file_metadata.created_by().as_ref() {
+    writeln!(out, "created by: {}", created_by);
   }
   let schema = file_metadata.schema();
   print_schema(out, schema);

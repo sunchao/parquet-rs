@@ -18,7 +18,7 @@
 use std::borrow::Borrow;
 use std::fmt;
 
-use basic::{Encoding, Type};
+use basic::{Encoding, Type, Compression};
 use errors::{Result, ParquetError};
 use schema::types::Type as SchemaType;
 use parquet_thrift::parquet::{ColumnChunk, ColumnMetaData, RowGroup};
@@ -128,6 +128,7 @@ pub struct ColumnChunkMetaData {
   file_path: Option<String>,
   file_offset: i64,
   num_values: i64,
+  compression: Compression,
   total_compressed_size: i64,
   total_uncompressed_size: i64,
   data_page_offset: i64,
@@ -164,11 +165,13 @@ impl ColumnChunkMetaData {
     &self.encodings
   }
 
-  /// TODO: add codec
-
   /// Total number of values in this column chunk
   pub fn num_values(&self) -> i64 {
     self.num_values
+  }
+
+  pub fn compression(&self) -> Compression {
+    self.compression
   }
 
   /// Get the total compressed data size of this column chunk
@@ -217,6 +220,7 @@ impl ColumnChunkMetaData {
     let column_type = Type::from(col_metadata.type_);
     let column_path = ColumnPath::new(col_metadata.path_in_schema);
     let encodings = col_metadata.encodings.drain(0..).map(Encoding::from).collect();
+    let compression = Compression::from(col_metadata.codec);
     let file_path = cc.file_path;
     let file_offset = cc.file_offset;
     let num_values = col_metadata.num_values;
@@ -227,7 +231,7 @@ impl ColumnChunkMetaData {
     let dictionary_page_offset = col_metadata.dictionary_page_offset;
     let result = ColumnChunkMetaData
     { column_type, column_path, encodings, file_path,
-      file_offset, num_values, total_compressed_size, total_uncompressed_size,
+      file_offset, num_values, compression, total_compressed_size, total_uncompressed_size,
       data_page_offset, index_page_offset, dictionary_page_offset };
     Ok(result)
   }

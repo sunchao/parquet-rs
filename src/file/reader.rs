@@ -16,18 +16,22 @@
 // under the License.
 
 use std::fs::File;
-use std::io::{Read, BufReader, Seek, SeekFrom};
+use std::io::{self, Read, BufReader, Seek, SeekFrom};
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use basic::{Compression, Encoding};
 use errors::{Result, ParquetError};
 use file::metadata::{RowGroupMetaData, FileMetaData, ParquetMetaData};
 use byteorder::{LittleEndian, ByteOrder};
 use thrift::transport::{TTransport, TBufferTransport};
 use thrift::protocol::TCompactInputProtocol;
 use parquet_thrift::parquet::FileMetaData as TFileMetaData;
+use parquet_thrift::parquet::{PageType, PageHeader};
 use schema::types;
-use column::page::PageReader;
+use column::page::{Page, PageReader};
+use compression::{Codec, create_codec};
+use util::memory::{Buffer, MutableBuffer, ByteBuffer};
 
 // ----------------------------------------------------------------------
 // APIs for file & row group readers
@@ -42,7 +46,7 @@ pub trait FileReader {
   /// N.B.: Box<..> has 'static lifetime in default, but here we need
   /// the lifetime to be the same as this. Otherwise, the row group metadata
   /// stored in the row group reader may outlive the file reader.
-  fn get_row_group<'a>(&'a self, i: usize) -> Box<RowGroupReader + 'a>;
+  fn get_row_group<'a>(&'a self, i: usize) -> Result<Box<RowGroupReader + 'a>>;
 }
 
 /// Parquet row group reader API. With this, user can get metadata
@@ -55,9 +59,40 @@ pub trait RowGroupReader<'a> {
   fn metadata(&self) -> &'a RowGroupMetaData;
 
   /// Get page reader for the `i`th column chunk
-  fn get_page_reader(&self, i: usize) -> Box<PageReader>;
+  fn get_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>>;
 }
 
+
+/// A thin wrapper on `BufReader` to be used by Thrift transport
+pub struct TMemoryBuffer<'a, T> where T: 'a + Read {
+  buf_reader: &'a mut BufReader<T>,
+  offset: usize
+}
+
+impl<'a, T: 'a + Read> TMemoryBuffer<'a, T> {
+  pub fn new(buf_reader: &'a mut BufReader<T>) -> Self {
+    Self { buf_reader: buf_reader, offset: 0 }
+  }
+}
+
+impl<'a, T: 'a + Read> Read for TMemoryBuffer<'a, T> {
+  fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    let bytes_read = self.buf_reader.read(buf)?;
+    self.offset += bytes_read;
+    Ok(bytes_read)
+
+  }
+}
+
+impl<'a, T: 'a + Read> io::Write for TMemoryBuffer<'a, T> {
+  fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+    panic!("Not implemented")
+  }
+
+  fn flush(&mut self) -> io::Result<()> {
+    panic!("Not implemented")
+  }
+}
 
 // ----------------------------------------------------------------------
 // Serialized impl for file & row group readers
@@ -65,25 +100,21 @@ pub trait RowGroupReader<'a> {
 const FOOTER_SIZE: usize = 8;
 const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
 
-pub struct SerializedFileReader<'a> {
-  file: &'a File,
-  buf: BufReader<&'a File>,
+pub struct SerializedFileReader {
+  buf: BufReader<File>,
   metadata: ParquetMetaData
 }
 
-impl<'a> SerializedFileReader<'a> {
-  pub fn new(file: &'a File) -> Result<Self> {
+impl SerializedFileReader {
+  pub fn new(file: File) -> Result<Self> {
     let mut buf = BufReader::new(file);
     let metadata = Self::parse_metadata(&mut buf)?;
-    Ok(Self { file: file, buf: buf, metadata: metadata })
+    Ok(Self { buf: buf, metadata: metadata })
   }
 
-  fn parse_metadata(buf: &mut BufReader<&'a File>) -> Result<ParquetMetaData> {
-    let file_size =
-      match buf.get_ref().metadata() {
-        Ok(file_info) => file_info.len(),
-        Err(e) => return Err(io_err!(e, "Fail to get metadata for file"))
-      };
+  fn parse_metadata(buf: &mut BufReader<File>) -> Result<ParquetMetaData> {
+    let file_metadata = buf.get_ref().metadata()?;
+    let file_size = file_metadata.len();
     if file_size < (FOOTER_SIZE as u64) {
       return Err(parse_err!("Corrputed file, smaller than file footer"));
     }
@@ -132,40 +163,165 @@ impl<'a> SerializedFileReader<'a> {
   }
 }
 
-impl<'b> FileReader for SerializedFileReader<'b> {
+impl FileReader for SerializedFileReader {
   fn metadata(&self) -> &ParquetMetaData {
     &self.metadata
   }
 
-  fn get_row_group<'a>(&'a self, i: usize) -> Box<RowGroupReader + 'a> {
+  fn get_row_group<'a>(&'a self, i: usize) -> Result<Box<RowGroupReader + 'a>> {
     let row_group_metadata = self.metadata.row_group(i);
-    let row_group_reader = SerializedRowGroupReader::new(self.file, row_group_metadata);
-    Box::new(row_group_reader)
+    let f = self.buf.get_ref().try_clone()?;
+    Ok(Box::new(SerializedRowGroupReader::new(f, row_group_metadata)))
   }
 }
 
 /// A serialized impl for row group reader
-/// Here 'a is the lifetime for the incoming file reader, 'b is
-/// the lifetime for the parent file reader
-pub struct SerializedRowGroupReader<'a, 'b> {
-  file: &'a File,
-  buf: BufReader<&'a File>,
-  metadata: &'b RowGroupMetaData
+/// Here 'a is the lifetime for the row group metadata, which is owned
+/// by the parent Parquet file reader
+pub struct SerializedRowGroupReader<'a> {
+  buf: BufReader<File>,
+  metadata: &'a RowGroupMetaData
 }
 
-impl<'a, 'b> SerializedRowGroupReader<'a, 'b> {
-  pub fn new(file: &'a File, metadata: &'b RowGroupMetaData) -> Self {
+impl<'a> SerializedRowGroupReader<'a> {
+  pub fn new(file: File, metadata: &'a RowGroupMetaData) -> Self {
     let buf = BufReader::new(file);
-    Self { file: file, buf: buf, metadata: metadata }
+    Self { buf: buf, metadata: metadata }
   }
 }
 
-impl<'a, 'b> RowGroupReader<'b> for SerializedRowGroupReader<'a, 'b> {
-  fn metadata(&self) -> &'b RowGroupMetaData {
+impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
+  fn metadata(&self) -> &'a RowGroupMetaData {
     self.metadata
   }
 
-  fn get_page_reader(&self, i: usize) -> Box<PageReader> {
-    unimplemented!()
+  // TODO: fix PARQUET-816
+  fn get_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>> {
+    let col = self.metadata.column(i);
+    let mut col_start = col.data_page_offset();
+    if col.has_dictionary_page() {
+      col_start = col.dictionary_page_offset().unwrap();
+    }
+    let col_length = col.compressed_size() as u64;
+    let f = self.buf.get_ref().try_clone()?;
+    let mut buf = BufReader::new(f);
+    let _ = buf.seek(SeekFrom::Start(col_start as u64));
+    let page_reader = SerializedPageReader::new(
+      buf.take(col_length).into_inner(), col.num_values(), col.compression())?;
+    Ok(Box::new(page_reader))
+  }
+}
+
+
+/// A serialized impl for Parquet page reader
+pub struct SerializedPageReader {
+  /// The buffer which contains exactly the bytes for the column trunk
+  /// to be read by this page reader
+  buf: BufReader<File>,
+
+  /// The compression codec for this column chunk. Only set for
+  /// non-PLAIN codec.
+  decompressor: Option<Box<Codec>>,
+
+  /// The number of values we have seen so far
+  seen_num_values: i64,
+
+  /// The number of total values in this column chunk
+  total_num_values: i64,
+}
+
+impl SerializedPageReader {
+  pub fn new(buf: BufReader<File>, total_num_values: i64,
+             compression: Compression) -> Result<Self> {
+    let decompressor = create_codec(compression)?;
+    let result =
+      Self { buf: buf, total_num_values: total_num_values, seen_num_values: 0,
+             decompressor: decompressor };
+    Ok(result)
+  }
+
+  fn read_page_header(&mut self) -> Result<PageHeader> {
+    let transport = Rc::new(RefCell::new(
+      Box::new(TMemoryBuffer::new(&mut self.buf)) as Box<TTransport>));
+    let mut prot = TCompactInputProtocol::new(transport);
+    let page_header = PageHeader::read_from_in_protocol(&mut prot)?;
+    Ok(page_header)
+  }
+}
+
+impl PageReader for SerializedPageReader {
+  fn get_next_page(&mut self) -> Result<Option<Page>> {
+    while self.seen_num_values < self.total_num_values {
+      let page_header = self.read_page_header()?;
+      let compressed_len = page_header.compressed_page_size as usize;
+      let uncompressed_len = page_header.uncompressed_page_size as usize;
+      let mut buffer = ByteBuffer::new(compressed_len);
+      self.buf.read_exact(buffer.mut_data())?;
+
+      // TODO: page header could be huge because of statistics. We should
+      // set a maximum page header size and abort if that is exceeded.
+      if let Some(decompressor) = self.decompressor.as_mut() {
+        let mut decompressed_buffer = vec!();
+        let decompressed_size = decompressor.decompress(buffer.data(), &mut decompressed_buffer)?;
+        if decompressed_size != uncompressed_len {
+          return Err(decode_err!("Actual decompressed size doesn't \
+            match the expected one ({} vs {})", decompressed_size, uncompressed_len));
+        }
+        buffer.set_data(decompressed_buffer);
+      }
+
+      // TODO: process statistics
+      let result = match page_header.type_ {
+        PageType::DICTIONARY_PAGE => {
+          assert!(page_header.dictionary_page_header.is_some());
+          let dict_header = page_header.dictionary_page_header.as_ref().unwrap();
+          let is_sorted = match dict_header.is_sorted {
+            None => false,
+            Some(b) => b
+          };
+          self.seen_num_values += dict_header.num_values as i64;
+          Page::DictionaryPage {
+            buf: Box::new(buffer), num_values: dict_header.num_values as u32,
+            encoding: Encoding::from(dict_header.encoding), is_sorted: is_sorted
+          }
+        },
+        PageType::DATA_PAGE => {
+          assert!(page_header.data_page_header.is_some());
+          let header = page_header.data_page_header.as_ref().unwrap();
+          self.seen_num_values += header.num_values as i64;
+          Page::DataPage {
+            buf: Box::new(buffer), num_values: header.num_values as u32,
+            encoding: Encoding::from(header.encoding),
+            def_level_encoding: Encoding::from(header.definition_level_encoding),
+            rep_level_encoding: Encoding::from(header.repetition_level_encoding)
+          }
+        },
+        PageType::DATA_PAGE_V2 => {
+          assert!(page_header.data_page_header_v2.is_some());
+          let header = page_header.data_page_header_v2.as_ref().unwrap();
+          let is_compressed = match header.is_compressed {
+            Some(b) => b,
+            None => true
+          };
+          self.seen_num_values += header.num_values as i64;
+          Page::DataPageV2 {
+            buf: Box::new(buffer), num_values: header.num_values as u32,
+            encoding: Encoding::from(header.encoding),
+            num_nulls: header.num_nulls as u32, num_rows: header.num_rows as u32,
+            def_levels_byte_len: header.definition_levels_byte_length as u32,
+            rep_levels_byte_len: header.repetition_levels_byte_length as u32,
+            is_compressed: is_compressed
+          }
+        },
+        _ => {
+          // For unknown page type (e.g., INDEX_PAGE), skip and read next.
+          continue;
+        }
+      };
+      return Ok(Some(result))
+    }
+
+    // We are at the end of this column chunk and no more page left. Return None.
+    Ok(None)
   }
 }

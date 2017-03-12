@@ -46,7 +46,7 @@ fn main() {
     },
     Ok(f) => f
   };
-  match SerializedFileReader::new(&file) {
+  match SerializedFileReader::new(file) {
     Err(e) => {
       panic!("Error when parsing Parquet file: {}", e)
     },

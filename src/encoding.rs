@@ -153,11 +153,10 @@ impl<'a> Decoder<'a, BoolType> for PlainDecoder<'a, BoolType> {
     let mut bit_reader = self.bit_reader.as_mut().unwrap();
     let num_values = cmp::min(max_values, self.num_values);
     for i in 0..num_values {
-      match bit_reader.get_value::<bool>(1) {
-        Some(b) => buffer[i] = b,
-        None => {
-          return Err(decode_err!("Cannot decode bool"));
-        }
+      if let Some(b) = bit_reader.get_value::<bool>(1) {
+        buffer[i] = b;
+      } else {
+        return Err(decode_err!("Cannot decode bool"));
       }
     }
     self.num_values -= num_values;

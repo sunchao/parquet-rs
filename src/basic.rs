@@ -272,9 +272,6 @@ impl<'a> PartialEq for Int96<'a> {
   }
 }
 
-// TODO: it's probably not a good idea to make ByteArray and FixedLenByteArray
-// to own its data. Better to pass in a slice, but we then need to add lifetime
-// to them as well as DataType, which is not nice.
 #[derive(Clone, Debug)]
 pub struct ByteArray<'a> {
   data: Option<&'a [u8]>

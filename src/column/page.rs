@@ -19,6 +19,10 @@ use basic::{PageType, Encoding};
 use errors::Result;
 use util::memory::Buffer;
 
+/// Parquet Page definition.
+/// These are basically 1-to-1 mapped from the equivalent Thrift
+/// definitions, except `buf` which used to store uncompressed bytes
+/// of the page.
 pub enum Page {
   DataPage {
     buf: Box<Buffer>, num_values: u32, encoding: Encoding,
@@ -68,7 +72,6 @@ impl Page {
     }
   }
 }
-
 
 /// API for reading pages from a column chunk. This offers a iterator
 /// like API to get the next page.
