@@ -45,6 +45,9 @@ pub trait Buffer {
 pub trait MutableBuffer: Buffer {
   /// Get a unique reference to the underlying data
   fn mut_data(&mut self) -> &mut [u8];
+
+  /// Set the internal buffer to be `new_data`, discarding the old buffer.
+  fn set_data(&mut self, new_data: Vec<u8>);
 }
 
 /// A type of buffer where the underlying data can grow and shrink
@@ -80,6 +83,10 @@ impl Buffer for ByteBuffer {
 impl MutableBuffer for ByteBuffer {
   fn mut_data(&mut self) -> &mut [u8] {
     self.data.as_mut_slice()
+  }
+
+  fn set_data(&mut self, new_data: Vec<u8>) {
+    self.data = new_data;
   }
 }
 
