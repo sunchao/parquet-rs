@@ -39,11 +39,15 @@ pub trait Codec {
 }
 
 
-pub fn create_codec(codec: CodecType) -> Result<Box<Codec>> {
+/// Given the compression type `codec`, return a codec used to
+/// compress & decompress bytes for the compression type.
+/// This returns `None` if the codec type is `UNCOMPRESSED`.
+pub fn create_codec(codec: CodecType) -> Result<Option<Box<Codec>>> {
   match codec {
-    CodecType::BROTLI => Ok(Box::new(BrotliCodec::new())),
-    CodecType::GZIP => Ok(Box::new(GZipCodec::new())),
-    CodecType::SNAPPY => Ok(Box::new(SnappyCodec::new())),
+    CodecType::BROTLI => Ok(Some(Box::new(BrotliCodec::new()))),
+    CodecType::GZIP => Ok(Some(Box::new(GZipCodec::new()))),
+    CodecType::SNAPPY => Ok(Some(Box::new(SnappyCodec::new()))),
+    CodecType::UNCOMPRESSED => Ok(None),
     _ => Err(unsupported_err!("The codec type {} is not supported yet", codec))
   }
 }
@@ -122,8 +126,8 @@ mod tests {
   use util::test_common::*;
 
   fn test_roundtrip(c: CodecType, data: &Vec<u8>) {
-    let mut c1 = create_codec(c).unwrap();
-    let mut c2 = create_codec(c).unwrap();
+    let mut c1 = create_codec(c).unwrap().unwrap();
+    let mut c2 = create_codec(c).unwrap().unwrap();
 
     // compress with c1
     let mut decompressed = Vec::new();
