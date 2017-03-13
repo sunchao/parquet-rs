@@ -20,19 +20,18 @@ use errors::Result;
 use util::memory::Buffer;
 
 pub enum Page {
-  DataPage{
+  DataPage {
     buf: Box<Buffer>, num_values: u32, encoding: Encoding,
-    def_level_encoding: Encoding, rep_level_encoding: Encoding,
-    uncompressed_size: Option<u64>
+    def_level_encoding: Encoding, rep_level_encoding: Encoding
   },
   DataPageV2 {
-    buf: Box<Buffer>, num_values: u32, num_nulls: u32, num_rows: u32,
-    encoding: Encoding, def_levels_byte_len: u32, rep_levels_byte_len: u32,
+    buf: Box<Buffer>, num_values: u32,  encoding: Encoding,
+    num_nulls: u32, num_rows: u32,
+    def_levels_byte_len: u32, rep_levels_byte_len: u32,
     is_compressed: bool
   },
   DictionaryPage {
-    buf: Box<Buffer>, num_values: u32, encoding: Encoding,
-    is_sorted: bool
+    buf: Box<Buffer>, num_values: u32, encoding: Encoding, is_sorted: bool
   }
 }
 
@@ -74,5 +73,7 @@ impl Page {
 /// API for reading pages from a column chunk. This offers a iterator
 /// like API to get the next page.
 pub trait PageReader {
-  fn get_next_page(&self) -> Result<Page>;
+  /// Get the next page in the column chunk associated with this reader.
+  /// Return `None` if there's no page left.
+  fn get_next_page(&mut self) -> Result<Option<Page>>;
 }
