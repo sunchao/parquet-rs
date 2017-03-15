@@ -340,3 +340,73 @@ impl PageReader for SerializedPageReader {
   }
 }
 
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use std::fs;
+  use std::env;
+
+  #[test]
+  fn test_file_reader() {
+    let test_file = get_test_file("alltypes_plain.parquet");
+    println!("test file = {:?}", test_file);
+    let reader_result = SerializedFileReader::new(test_file);
+    assert!(reader_result.is_ok());
+    let reader = reader_result.unwrap();
+
+    // Test contents in Parquet metadata
+    let metadata: &ParquetMetaData = reader.metadata();
+    assert_eq!(metadata.num_row_groups(), 1);
+
+    // Test contents in file metadata
+    let file_metadata: &FileMetaData = metadata.file_metadata();
+    assert!(file_metadata.created_by().is_some());
+    assert_eq!(file_metadata.created_by().as_ref().unwrap(),
+      "impala version 1.3.0-INTERNAL (build 8a48ddb1eff84592b3fc06bc6f51ec120e1fffc9)");
+    assert_eq!(file_metadata.num_rows(), 8);
+    assert_eq!(file_metadata.version(), 1);
+
+    // Test contents in row group metadata
+    let row_group_metadata: &RowGroupMetaData = metadata.row_group(0);
+    assert_eq!(row_group_metadata.num_columns(), 11);
+    assert_eq!(row_group_metadata.num_rows(), 8);
+    assert_eq!(row_group_metadata.total_byte_size(), 671);
+
+    // Test row group reader
+    let row_group_reader_result = reader.get_row_group(0);
+    assert!(row_group_reader_result.is_ok());
+    let row_group_reader: Box<RowGroupReader> = row_group_reader_result.unwrap();
+
+    // Test page readers
+    // TODO: test for every column
+    let page_reader_0_result = row_group_reader.get_page_reader(0);
+    assert!(page_reader_0_result.is_ok());
+    let mut page_reader_0: Box<PageReader> = page_reader_0_result.unwrap();
+    let mut page_count = 0;
+    while let Ok(Some(page)) = page_reader_0.get_next_page() {
+      let is_dict_type = match page {
+        Page::DictionaryPage{ buf, num_values, encoding, is_sorted } => {
+          assert_eq!(buf.size(), 32);
+          assert_eq!(num_values, 8);
+          assert_eq!(encoding, Encoding::PLAIN_DICTIONARY);
+          assert_eq!(is_sorted, false);
+          true
+        },
+        _ => false
+      };
+      assert!(is_dict_type);
+      page_count += 1;
+    }
+    assert_eq!(page_count, 1);
+  }
+
+  fn get_test_file<'a>(file_name: &str) -> fs::File {
+    let mut path_buf = env::current_dir().unwrap();
+    path_buf.push("data");
+    path_buf.push(file_name);
+    let file = File::open(path_buf.as_path());
+    assert!(file.is_ok());
+    file.unwrap()
+  }
+}
