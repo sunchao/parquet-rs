@@ -42,6 +42,9 @@ pub trait FileReader {
   /// Get metadata information about this file
   fn metadata(&self) -> &ParquetMetaData;
 
+  /// Get the total number of row groups for this file
+  fn num_row_groups(&self) -> usize;
+
   /// Get the `i`th row group reader. Note this doesn't do bound check.
   /// N.B.: Box<..> has 'static lifetime in default, but here we need
   /// the lifetime to be the same as this. Otherwise, the row group metadata
@@ -57,6 +60,9 @@ pub trait RowGroupReader<'a> {
   /// Get metadata information about this row group.
   /// The result metadata is owned by the parent file reader.
   fn metadata(&self) -> &'a RowGroupMetaData;
+
+  /// Get the total number of column chunks in this row group
+  fn num_columns(&self) -> usize;
 
   /// Get page reader for the `i`th column chunk
   fn get_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>>;
@@ -168,6 +174,10 @@ impl FileReader for SerializedFileReader {
     &self.metadata
   }
 
+  fn num_row_groups(&self) -> usize {
+    self.metadata.num_row_groups()
+  }
+
   fn get_row_group<'a>(&'a self, i: usize) -> Result<Box<RowGroupReader + 'a>> {
     let row_group_metadata = self.metadata.row_group(i);
     let f = self.buf.get_ref().try_clone()?;
@@ -193,6 +203,10 @@ impl<'a> SerializedRowGroupReader<'a> {
 impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
   fn metadata(&self) -> &'a RowGroupMetaData {
     self.metadata
+  }
+
+  fn num_columns(&self) -> usize {
+    self.metadata.num_columns()
   }
 
   // TODO: fix PARQUET-816
@@ -325,3 +339,4 @@ impl PageReader for SerializedPageReader {
     Ok(None)
   }
 }
+
