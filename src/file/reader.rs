@@ -65,7 +65,7 @@ pub trait RowGroupReader<'a> {
   fn num_columns(&self) -> usize;
 
   /// Get page reader for the `i`th column chunk
-  fn get_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>>;
+  fn get_column_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>>;
 }
 
 
@@ -210,7 +210,7 @@ impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
   }
 
   // TODO: fix PARQUET-816
-  fn get_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>> {
+  fn get_column_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>> {
     let col = self.metadata.column(i);
     let mut col_start = col.data_page_offset();
     if col.has_dictionary_page() {
@@ -380,7 +380,7 @@ mod tests {
 
     // Test page readers
     // TODO: test for every column
-    let page_reader_0_result = row_group_reader.get_page_reader(0);
+    let page_reader_0_result = row_group_reader.get_column_page_reader(0);
     assert!(page_reader_0_result.is_ok());
     let mut page_reader_0: Box<PageReader> = page_reader_0_result.unwrap();
     let mut page_count = 0;
