@@ -21,7 +21,6 @@ use std::marker::PhantomData;
 use std::slice::from_raw_parts_mut;
 use basic::*;
 use errors::{Result, ParquetError};
-use schema::types::ColumnDescriptor;
 use util::bit_util::BitReader;
 
 // ----------------------------------------------------------------------
@@ -44,10 +43,11 @@ pub trait Decoder<'a, T: DataType<'a>> {
   fn encoding(&self) -> Encoding;
 }
 
-pub struct PlainDecoder<'a, T: DataType<'a>> {
-  /// A column descriptor about the primitive type this decoder is for
-  descriptor: ColumnDescriptor,
 
+// ----------------------------------------------------------------------
+// Plain Decoders
+
+pub struct PlainDecoder<'a, T: DataType<'a>> {
   /// The remaining number of values in the byte array
   num_values: usize,
 
@@ -65,9 +65,9 @@ pub struct PlainDecoder<'a, T: DataType<'a>> {
 }
 
 impl<'a, T: DataType<'a>> PlainDecoder<'a, T> {
-  pub fn new(desc: ColumnDescriptor) -> Self {
+  pub fn new() -> Self {
     PlainDecoder {
-      descriptor: desc, data: None, bit_reader: None,
+      data: None, bit_reader: None,
       num_values: 0, start: 0, _phantom: PhantomData
     }
   }
@@ -187,7 +187,6 @@ impl<'a> Decoder<'a, ByteArrayType> for PlainDecoder<'a, ByteArrayType> {
   }
 }
 
-
 impl<'a> Decoder<'a, FixedLenByteArrayType> for PlainDecoder<'a, FixedLenByteArrayType> {
   fn decode(&mut self, buffer: &mut [FixedLenByteArray<'a>], max_values: usize) -> Result<usize> {
     assert!(buffer.len() >= max_values);
@@ -195,7 +194,7 @@ impl<'a> Decoder<'a, FixedLenByteArrayType> for PlainDecoder<'a, FixedLenByteArr
 
     let data = self.data.as_mut().unwrap();
     let num_values = cmp::min(max_values, self.num_values);
-    let type_length = self.descriptor.type_length() as usize;
+    let type_length = buffer[0].get_len();
     for i in 0..num_values {
       if data.len() < self.start + type_length {
         return Err(decode_err!("Not enough bytes to decode"));
@@ -210,56 +209,47 @@ impl<'a> Decoder<'a, FixedLenByteArrayType> for PlainDecoder<'a, FixedLenByteArr
 }
 
 
-
 #[cfg(test)]
 mod tests {
   use super::*;
   use std::mem;
-  use schema::types::PrimitiveType;
-  use basic::Type;
-  use file::metadata::ColumnPath;
   use util::bit_util::set_array_bit;
 
   #[test]
   fn test_decode_int32() {
-    let desc = test_descriptor(Type::INT32, 0);
     let data = vec![42, 18, 52];
     let data_bytes = <i32 as ToByteArray<i32>>::to_byte_array(&data[..]);
     let mut buffer = vec![0; 3];
-    test_decode::<Int32Type>(desc, &data_bytes[..], 3, &mut buffer[..], &data[..]);
+    test_decode::<Int32Type>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
   }
 
   #[test]
   fn test_decode_int64() {
-    let desc = test_descriptor(Type::INT64, 0);
     let data = vec![42, 18, 52];
     let data_bytes = <i64 as ToByteArray<i64>>::to_byte_array(&data[..]);
     let mut buffer = vec![0; 3];
-    test_decode::<Int64Type>(desc, &data_bytes[..], 3, &mut buffer[..], &data[..]);
+    test_decode::<Int64Type>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
   }
 
 
   #[test]
   fn test_decode_float() {
-    let desc = test_descriptor(Type::FLOAT, 0);
     let data = vec![3.14, 2.414, 12.51];
     let data_bytes = <f32 as ToByteArray<f32>>::to_byte_array(&data[..]);
     let mut buffer = vec![0.0; 3];
-    test_decode::<FloatType>(desc, &data_bytes[..], 3, &mut buffer[..], &data[..]);
+    test_decode::<FloatType>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
   }
 
   #[test]
   fn test_decode_double() {
-    let desc = test_descriptor(Type::DOUBLE, 0);
     let data = vec![3.14f64, 2.414f64, 12.51f64];
     let data_bytes = <f64 as ToByteArray<f64>>::to_byte_array(&data[..]);
     let mut buffer = vec![0.0f64; 3];
-    test_decode::<DoubleType>(desc, &data_bytes[..], 3, &mut buffer[..], &data[..]);
+    test_decode::<DoubleType>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
   }
 
   #[test]
   fn test_decode_int96() {
-    let desc = test_descriptor(Type::INT96, 0);
     let v0 = [11, 22, 33];
     let v1 = [44, 55, 66];
     let v2 = [10, 20, 30];
@@ -271,57 +261,47 @@ mod tests {
     data[3].set_data(&v3);
     let data_bytes = <Int96 as ToByteArray<Int96>>::to_byte_array(&data[..]);
     let mut buffer = vec![Int96::new(); 4];
-    test_decode::<Int96Type>(desc, &data_bytes[..], 4, &mut buffer[..], &data[..]);
+    test_decode::<Int96Type>(&data_bytes[..], 4, &mut buffer[..], &data[..]);
   }
 
   #[test]
   fn test_decode_bool() {
-    let desc = test_descriptor(Type::BOOLEAN, 0);
     let data = vec![false, true, false, false, true, false, true, true, false, true];
     let data_bytes = <bool as ToByteArray<bool>>::to_byte_array(&data[..]);
     let mut buffer = vec![false; 10];
-    test_decode::<BoolType>(desc, &data_bytes[..], 10, &mut buffer[..], &data[..]);
+    test_decode::<BoolType>(&data_bytes[..], 10, &mut buffer[..], &data[..]);
   }
 
   #[test]
   fn test_decode_byte_array() {
-    let desc = test_descriptor(Type::BYTE_ARRAY, 0);
     let mut data = vec!(ByteArray::new(); 2);
     data[0].set_data("hello".as_bytes());
     data[1].set_data("parquet".as_bytes());
     let data_bytes = <ByteArray as ToByteArray<ByteArray>>::to_byte_array(&data[..]);
     let mut buffer = vec![ByteArray::new(); 2];
-    test_decode::<ByteArrayType>(desc, &data_bytes[..], 2, &mut buffer[..], &data[..]);
+    test_decode::<ByteArrayType>(&data_bytes[..], 2, &mut buffer[..], &data[..]);
   }
 
   #[test]
   fn test_decode_fixed_len_byte_array() {
-    let desc = test_descriptor(Type::FIXED_LEN_BYTE_ARRAY, 4);
     let mut data = vec!(FixedLenByteArray::new(4); 3);
     data[0].set_data("bird".as_bytes());
     data[1].set_data("come".as_bytes());
     data[2].set_data("flow".as_bytes());
     let data_bytes = <FixedLenByteArray as ToByteArray<FixedLenByteArray>>::to_byte_array(&data[..]);
     let mut buffer = vec![FixedLenByteArray::new(4); 3];
-    test_decode::<FixedLenByteArrayType>(desc, &data_bytes[..], 3, &mut buffer[..], &data[..]);
+    test_decode::<FixedLenByteArrayType>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
   }
 
 
-  fn test_decode<'a, T: DataType<'a>>(desc: ColumnDescriptor, data: &'a [u8],
-                                      num_values: usize, buffer: &mut [T::T], expected: &[T::T]) {
-    let mut decoder: PlainDecoder<T> = PlainDecoder::new(desc);
+  fn test_decode<'a, T: DataType<'a>>(data: &'a [u8], num_values: usize,
+                                      buffer: &mut [T::T], expected: &[T::T]) {
+    let mut decoder: PlainDecoder<T> = PlainDecoder::new();
     decoder.set_data(&data[..], num_values);
     let result = decoder.decode(&mut buffer[..], num_values);
     assert!(result.is_ok());
     assert_eq!(decoder.values_left(), 0);
     assert_eq!(buffer, expected);
-  }
-
-  /// Get a dummy `ColumnDescriptor` for the testing purpose
-  fn test_descriptor(pty: Type, type_len: i32) -> ColumnDescriptor {
-    let pty = PrimitiveType::new(
-      "test", Repetition::OPTIONAL, pty, LogicalType::NONE, type_len, 0, 0, Some(0)).unwrap();
-    ColumnDescriptor::new(ColumnPath::new(vec![String::from("test")]), pty, 0, 0)
   }
 
   fn usize_to_bytes<'a>(v: usize) -> [u8; 4] {
