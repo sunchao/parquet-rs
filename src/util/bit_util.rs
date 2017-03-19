@@ -68,6 +68,10 @@ pub fn unset_array_bit(bits: &mut [u8], i: usize) {
   bits[i / 8] &= !(1 << (i % 8));
 }
 
+
+/// Maximum byte length for a VLQ encoded integer
+const MAX_VLQ_BYTE_LEN: usize = 5;
+
 pub struct BitReader<'a> {
   /// The byte buffer to read from, passed in by client
   buffer: &'a [u8],
@@ -160,6 +164,29 @@ impl<'a> BitReader<'a> {
       u64, bytes_remaining, self.buffer[self.byte_offset..]);
     Some(v)
   }
+
+  /// Read a VLQ encoded (in little endian order) int from the stream.
+  /// The encoded int must start at the beginning of a byte.
+  /// Returns `None` if the number of bytes exceed `MAX_VLQ_BYTE_LEN`, or
+  /// there's not enough bytes in the stream.
+  #[inline]
+  pub fn get_vlq_int(&mut self) -> Option<i64> {
+    let mut num_bytes = 0;
+    let mut shift = 0;
+    let mut v: i64 = 0;
+    while let Some(byte) = self.get_aligned::<u8>(1) {
+      num_bytes += 1;
+      if num_bytes >= MAX_VLQ_BYTE_LEN {
+        return None
+      }
+      v |= ((byte & 0x7F) as i64) << shift;
+      shift += 7;
+      if byte & 0x80 == 0 {
+        return Some(v);
+      }
+    }
+    return None;
+  }
 }
 
 #[cfg(test)]
@@ -183,7 +210,7 @@ mod tests {
 
   #[test]
   fn test_bit_reader_get_value() {
-    let mut buffer = vec![255, 0];
+    let buffer = vec![255, 0];
     let mut bit_reader = BitReader::new(&buffer);
     let v1 = bit_reader.get_value::<i32>(1);
     assert!(v1.is_some());
@@ -201,7 +228,7 @@ mod tests {
 
   #[test]
   fn test_bit_reader_get_value_boundary() {
-    let mut buffer = vec![10, 0, 0, 0, 20, 0, 30, 0, 0, 0, 40, 0];
+    let buffer = vec![10, 0, 0, 0, 20, 0, 30, 0, 0, 0, 40, 0];
     let mut bit_reader = BitReader::new(&buffer);
     let v1 = bit_reader.get_value::<i64>(32);
     assert!(v1.is_some());
@@ -219,8 +246,8 @@ mod tests {
 
   #[test]
   fn test_bit_reader_get_aligned() {
-    // 0 1 1 1 0 1 0 1  1 1 0 0 1 0 1 1
-    let mut buffer: Vec<u8> = vec!(117, 203);
+    // 01110101 11001011
+    let buffer: Vec<u8> = vec!(0x75, 0xCB);
     let mut bit_reader = BitReader::new(&buffer);
     let v1 = bit_reader.get_value::<i32>(3);
     assert!(v1.is_some());
@@ -234,6 +261,20 @@ mod tests {
     bit_reader.reset(&buffer);
     let v4 = bit_reader.get_aligned::<i32>(3);
     assert!(v4.is_none());
+  }
+
+  #[test]
+  fn test_bit_reader_get_vlq_int() {
+    // 10001001 00000001 11110010 10110101 00000110
+    let buffer: Vec<u8> = vec!(0x89, 0x01, 0xF2, 0xB5, 0x06);
+    let mut bit_reader = BitReader::new(&buffer);
+    let v1 = bit_reader.get_vlq_int();
+    assert!(v1.is_some());
+    assert_eq!(v1.unwrap(), 137);
+    println!("reading v2");
+    let v2 = bit_reader.get_vlq_int();
+    assert!(v2.is_some());
+    assert_eq!(v2.unwrap(), 105202);
   }
 
   #[test]
