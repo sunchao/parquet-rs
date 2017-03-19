@@ -19,22 +19,31 @@ use std::mem::{size_of, transmute_copy};
 use std::cmp;
 
 /// Read `$size` of bytes from `$src`, and reinterpret them
-/// as type `$ty`. `$which` is used to specify endianness.
-/// This is copied and modified from byteoder crate.
+/// as type `$ty`, in little-endian order. `$ty` must implement
+/// the `Default` trait. Otherwise this won't compile.
+/// This is copied and modified from byteorder crate.
 macro_rules! read_num_bytes {
-  ($ty:ty, $size:expr, $src:expr, $which:ident) => ({
+  ($ty:ty, $size:expr, $src:expr) => ({
     assert!($size <= $src.len());
-    let mut data: $ty = 0;
+    let mut data: $ty = Default::default();
     unsafe {
       ::std::ptr::copy_nonoverlapping(
         $src.as_ptr(),
         &mut data as *mut $ty as *mut u8,
         $size);
     }
-    data.$which()
+    data
   });
 }
 
+
+/// Return the ceil of value/divisor
+#[inline]
+pub fn ceil(value: i64, divisor: i64) -> i64 {
+  let mut result = value / divisor;
+  if value % divisor != 0 { result += 1 };
+  result
+}
 
 /// Returns the `num_bits` least-significant bits of `v`
 #[inline]
@@ -59,7 +68,6 @@ pub fn unset_array_bit(bits: &mut [u8], i: usize) {
   bits[i / 8] &= !(1 << (i % 8));
 }
 
-
 pub struct BitReader<'a> {
   /// The byte buffer to read from, passed in by client
   buffer: &'a [u8],
@@ -82,7 +90,7 @@ impl<'a> BitReader<'a> {
   pub fn new(buffer: &'a [u8]) -> Self {
     let total_bytes = buffer.len();
     let num_bytes = cmp::min(8, total_bytes);
-    let buffered_values = read_num_bytes!(u64, num_bytes, buffer, to_le);
+    let buffered_values = read_num_bytes!(u64, num_bytes, buffer);
     BitReader {
       buffer: buffer, buffered_values: buffered_values,
       byte_offset: 0, bit_offset: 0, total_bytes: total_bytes
@@ -98,7 +106,7 @@ impl<'a> BitReader<'a> {
 
 
   #[inline]
-  pub fn get_value<T>(&mut self, num_bits: usize) -> Option<T> {
+  pub fn get_value<T: Default>(&mut self, num_bits: usize) -> Option<T> {
     assert!(num_bits <= 32);
     assert!(num_bits <= size_of::<T>() * 8);
 
@@ -115,7 +123,7 @@ impl<'a> BitReader<'a> {
 
       let bytes_to_read = cmp::min(self.total_bytes - self.byte_offset, 8);
       self.buffered_values = read_num_bytes!(
-        u64, bytes_to_read, self.buffer[self.byte_offset..], to_le);
+        u64, bytes_to_read, self.buffer[self.byte_offset..]);
 
       v |= trailing_bits(self.buffered_values, self.bit_offset) << (num_bits - self.bit_offset);
     }
@@ -126,6 +134,32 @@ impl<'a> BitReader<'a> {
     };
     Some(result)
   }
+
+  /// Read a `num_bytes`-sized value from this buffer and return it.
+  /// `T` needs to be a little-endian native type. The value is assumed to
+  /// be byte aligned so the bit reader will be advanced to the start of
+  /// the next byte before reading the value. Return `None` if there's not
+  /// enough bytes left.
+  #[inline]
+  pub fn get_aligned<T: Default>(&mut self, num_bytes: usize) -> Option<T> {
+    let bytes_read = ceil(self.bit_offset as i64, 8) as usize;
+    if self.byte_offset + bytes_read + num_bytes > self.total_bytes {
+      // Not enough bytes left
+      return None
+    }
+
+    // Advance byte_offset to next unread byte and read num_bytes
+    self.byte_offset += bytes_read;
+    let v = read_num_bytes!(T, num_bytes, self.buffer[self.byte_offset..]);
+    self.byte_offset += num_bytes;
+
+    // Reset buffered_values
+    self.bit_offset = 0;
+    let bytes_remaining = cmp::min(self.total_bytes - self.byte_offset, 8);
+    self.buffered_values = read_num_bytes!(
+      u64, bytes_remaining, self.buffer[self.byte_offset..]);
+    Some(v)
+  }
 }
 
 #[cfg(test)]
@@ -133,9 +167,24 @@ mod tests {
   use super::*;
 
   #[test]
-  fn test_bit_reader() {
+  fn test_ceil() {
+    assert_eq!(ceil(0, 1), 0);
+    assert_eq!(ceil(1, 1), 1);
+    assert_eq!(ceil(1, 2), 1);
+    assert_eq!(ceil(1, 8), 1);
+    assert_eq!(ceil(7, 8), 1);
+    assert_eq!(ceil(8, 8), 1);
+    assert_eq!(ceil(9, 8), 2);
+    assert_eq!(ceil(9, 9), 1);
+    assert_eq!(ceil(10000000000, 10), 1000000000);
+    assert_eq!(ceil(10, 10000000000), 1);
+    assert_eq!(ceil(10000000000, 1000000000), 10);
+  }
+
+  #[test]
+  fn test_bit_reader_get_value() {
     let mut buffer = vec![255, 0];
-    let mut bit_reader = BitReader::new(buffer.as_mut_slice());
+    let mut bit_reader = BitReader::new(&buffer);
     let v1 = bit_reader.get_value::<i32>(1);
     assert!(v1.is_some());
     assert_eq!(v1.unwrap(), 1);
@@ -151,9 +200,9 @@ mod tests {
   }
 
   #[test]
-  fn test_bit_reader_boundary() {
+  fn test_bit_reader_get_value_boundary() {
     let mut buffer = vec![10, 0, 0, 0, 20, 0, 30, 0, 0, 0, 40, 0];
-    let mut bit_reader = BitReader::new(buffer.as_mut_slice());
+    let mut bit_reader = BitReader::new(&buffer);
     let v1 = bit_reader.get_value::<i64>(32);
     assert!(v1.is_some());
     assert_eq!(v1.unwrap(), 10);
@@ -166,6 +215,25 @@ mod tests {
     let v4 = bit_reader.get_value::<i32>(16);
     assert!(v4.is_some());
     assert_eq!(v4.unwrap(), 40);
+  }
+
+  #[test]
+  fn test_bit_reader_get_aligned() {
+    // 0 1 1 1 0 1 0 1  1 1 0 0 1 0 1 1
+    let mut buffer: Vec<u8> = vec!(117, 203);
+    let mut bit_reader = BitReader::new(&buffer);
+    let v1 = bit_reader.get_value::<i32>(3);
+    assert!(v1.is_some());
+    assert_eq!(v1.unwrap(), 5);
+    let v2 = bit_reader.get_aligned::<i32>(1);
+    assert!(v2.is_some());
+    assert_eq!(v2.unwrap(), 203);
+    let v3 = bit_reader.get_value::<i32>(1);
+    assert!(v3.is_none());
+
+    bit_reader.reset(&buffer);
+    let v4 = bit_reader.get_aligned::<i32>(3);
+    assert!(v4.is_none());
   }
 
   #[test]
@@ -186,4 +254,5 @@ mod tests {
     unset_array_bit(&mut buffer[..], 10);
     assert_eq!(buffer, vec![16, 8, 0]);
   }
+
 }
