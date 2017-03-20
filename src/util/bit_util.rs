@@ -104,10 +104,12 @@ impl<'a> BitReader<'a> {
   #[inline]
   pub fn reset(&mut self, buffer: &'a [u8]) {
     self.buffer = buffer;
+    self.total_bytes = buffer.len();
+    let num_bytes = cmp::min(8, self.total_bytes);
+    self.buffered_values = read_num_bytes!(u64, num_bytes, buffer);
     self.byte_offset = 0;
     self.bit_offset = 0;
   }
-
 
   #[inline]
   pub fn get_value<T: Default>(&mut self, num_bits: usize) -> Option<T> {
@@ -118,6 +120,11 @@ impl<'a> BitReader<'a> {
       return None;
     }
 
+    //
+    // |...|.........|...........|
+    //     ^         ^           ^
+    //     num_bits  bit_offset  byte_offset
+    //
     let mut v = trailing_bits(self.buffered_values, self.bit_offset + num_bits) >> self.bit_offset;
     self.bit_offset += num_bits;
 
@@ -271,7 +278,6 @@ mod tests {
     let v1 = bit_reader.get_vlq_int();
     assert!(v1.is_some());
     assert_eq!(v1.unwrap(), 137);
-    println!("reading v2");
     let v2 = bit_reader.get_vlq_int();
     assert!(v2.is_some());
     assert_eq!(v2.unwrap(), 105202);

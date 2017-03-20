@@ -266,6 +266,10 @@ impl<'a> Int96<'a> {
   }
 }
 
+impl<'a> Default for Int96<'a> {
+  fn default() -> Self { Int96 { value: None } }
+}
+
 impl<'a> PartialEq for Int96<'a> {
   fn eq(&self, other: &Int96<'a>) -> bool {
     self.value == other.value
@@ -291,6 +295,11 @@ impl<'a> ByteArray<'a> {
     self.data = Some(data)
   }
 }
+
+impl<'a> Default for ByteArray<'a> {
+  fn default() -> Self { ByteArray { data: None } }
+}
+
 
 impl<'a> PartialEq for ByteArray<'a> {
   fn eq(&self, other: &ByteArray<'a>) -> bool {
@@ -324,6 +333,10 @@ impl<'a> FixedLenByteArray<'a> {
   }
 }
 
+impl<'a> Default for FixedLenByteArray<'a> {
+  fn default() -> Self { FixedLenByteArray { data: None, len: 0 } }
+}
+
 impl<'a> PartialEq for FixedLenByteArray<'a> {
   fn eq(&self, other: &FixedLenByteArray<'a>) -> bool {
     self.data == other.data
@@ -331,7 +344,8 @@ impl<'a> PartialEq for FixedLenByteArray<'a> {
 }
 
 pub trait DataType<'a> {
-  type T: ::std::cmp::PartialEq + ::std::fmt::Debug;
+  type T: ::std::cmp::PartialEq + ::std::fmt::Debug + ::std::default::Default
+    + ::std::clone::Clone;
   fn get_physical_type() -> Type;
   fn get_type_size() -> usize;
 }

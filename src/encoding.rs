@@ -21,7 +21,7 @@ use std::marker::PhantomData;
 use std::slice::from_raw_parts_mut;
 use basic::*;
 use errors::{Result, ParquetError};
-use util::bit_util::BitReader;
+use util::bit_util::{self, BitReader};
 
 // ----------------------------------------------------------------------
 // Decoders
@@ -35,9 +35,6 @@ pub trait Decoder<'a, T: DataType<'a>> {
   /// the result to `buffer`.. Return the actual number of values written.
   /// N.B., `buffer.len()` must at least be `max_values`.
   fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize>;
-
-  /// Return the number of values left in the current buffer to decode
-  fn values_left(&self) -> usize;
 
   /// Return the encoding for this decoder
   fn encoding(&self) -> Encoding;
@@ -71,6 +68,11 @@ impl<'a, T: DataType<'a>> PlainDecoder<'a, T> {
       num_values: 0, start: 0, _phantom: PhantomData
     }
   }
+
+  #[inline]
+  fn values_left(&self) -> usize {
+    self.num_values
+  }
 }
 
 impl<'a, T: DataType<'a>> Decoder<'a, T> for PlainDecoder<'a, T> {
@@ -78,11 +80,6 @@ impl<'a, T: DataType<'a>> Decoder<'a, T> for PlainDecoder<'a, T> {
   default fn set_data(&mut self, data: &'a [u8], num_values: usize) {
     self.num_values = num_values;
     self.data = Some(data);
-  }
-
-  #[inline]
-  fn values_left(&self) -> usize {
-    self.num_values
   }
 
   #[inline]
@@ -173,7 +170,7 @@ impl<'a> Decoder<'a, ByteArrayType> for PlainDecoder<'a, ByteArrayType> {
     let data = self.data.as_mut().unwrap();
     let num_values = cmp::min(max_values, self.num_values);
     for i in 0..num_values {
-      let len: usize = read_num_bytes!(u32, 4, &data[self.start..], to_le) as usize;
+      let len: usize = read_num_bytes!(u32, 4, &data[self.start..]) as usize;
       self.start += mem::size_of::<u32>();
       if data.len() < self.start + len {
         return Err(decode_err!("Not enough bytes to decode"));
@@ -209,6 +206,111 @@ impl<'a> Decoder<'a, FixedLenByteArrayType> for PlainDecoder<'a, FixedLenByteArr
 }
 
 
+// ----------------------------------------------------------------------
+// RLE/Bit-Packing Hybrid Decoders
+
+pub struct RleDecoder<'a, T: DataType<'a>> {
+  /// Number of bits used to encode the value
+  bit_width: usize,
+
+  /// Bit reader loaded with input buffer.
+  bit_reader: Option<BitReader<'a>>,
+
+  /// The remaining number of values in RLE for this run
+  rle_left: i64,
+
+  /// The remaining number of values in Bit-Packing for this run
+  bit_packing_left: i64,
+
+  /// The current value for the case of RLE mode
+  current_value: Option<T::T>,
+
+  /// To allow `T` in the generic parameter for this struct. This doesn't take any space.
+  _phantom: PhantomData<T>
+}
+
+impl<'a, T: DataType<'a>> RleDecoder<'a, T> {
+  pub fn new(bit_width: usize) -> Self {
+    RleDecoder { bit_width: bit_width, rle_left: 0, bit_packing_left: 0,
+                 bit_reader: None, current_value: None, _phantom: PhantomData }
+  }
+
+  fn reload(&mut self) -> bool {
+    assert!(self.bit_reader.is_some());
+    if let Some(ref mut bit_reader) = self.bit_reader {
+      if let Some(indicator_value) = bit_reader.get_vlq_int() {
+        if indicator_value & 1 == 1 {
+          self.bit_packing_left = (indicator_value >> 1) * 8;
+        } else {
+          self.rle_left = indicator_value >> 1;
+          let value_width = bit_util::ceil(self.bit_width as i64, 8);
+          self.current_value = bit_reader.get_aligned::<T::T>(value_width as usize);
+          assert!(self.current_value.is_some());
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+impl<'a, T: DataType<'a>> Decoder<'a, T> for RleDecoder<'a, T> {
+  /// For RleDecoder, the `num_values` is not used.
+  fn set_data(&mut self, data: &'a [u8], _: usize) {
+    if let Some(ref mut bit_reader) = self.bit_reader {
+      bit_reader.reset(data);
+    } else {
+      self.bit_reader = Some(BitReader::new(data));
+    }
+
+    let _ = self.reload();
+  }
+
+  fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize> {
+    assert!(buffer.len() >= max_values);
+    assert!(self.bit_reader.is_some());
+
+    let mut values_read = 0;
+    while values_read < max_values {
+      if self.rle_left > 0 {
+        assert!(self.current_value.is_some());
+        let repeated_value = self.current_value.as_mut().unwrap();
+        let num_values = cmp::min(max_values - values_read, self.rle_left as usize);
+        for i in 0..num_values {
+          buffer[values_read + i] = repeated_value.clone();
+        }
+        self.rle_left -= num_values as i64;
+        values_read += num_values;
+      } else if self.bit_packing_left > 0 {
+        let num_values = cmp::min(max_values - values_read, self.bit_packing_left as usize);
+        if let Some(ref mut bit_reader) = self.bit_reader {
+          for i in 0..num_values {
+            if let Some(v) = bit_reader.get_value(self.bit_width) {
+              buffer[values_read + i] = v;
+            } else {
+              return Err(decode_err!("Error when reading bit-packed value"));
+            }
+          }
+          self.bit_packing_left -= num_values as i64;
+          values_read += num_values;
+        } else {
+          return Err(decode_err!("Bit reader should not be None"));
+        }
+      } else {
+        if !self.reload() {
+          break;
+        }
+      }
+    }
+
+    Ok(values_read)
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::RLE
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -216,40 +318,40 @@ mod tests {
   use util::bit_util::set_array_bit;
 
   #[test]
-  fn test_decode_int32() {
+  fn test_plain_decode_int32() {
     let data = vec![42, 18, 52];
     let data_bytes = <i32 as ToByteArray<i32>>::to_byte_array(&data[..]);
     let mut buffer = vec![0; 3];
-    test_decode::<Int32Type>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
+    test_plain_decode::<Int32Type>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
   }
 
   #[test]
-  fn test_decode_int64() {
+  fn test_plain_decode_int64() {
     let data = vec![42, 18, 52];
     let data_bytes = <i64 as ToByteArray<i64>>::to_byte_array(&data[..]);
     let mut buffer = vec![0; 3];
-    test_decode::<Int64Type>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
+    test_plain_decode::<Int64Type>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
   }
 
 
   #[test]
-  fn test_decode_float() {
+  fn test_plain_decode_float() {
     let data = vec![3.14, 2.414, 12.51];
     let data_bytes = <f32 as ToByteArray<f32>>::to_byte_array(&data[..]);
     let mut buffer = vec![0.0; 3];
-    test_decode::<FloatType>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
+    test_plain_decode::<FloatType>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
   }
 
   #[test]
-  fn test_decode_double() {
+  fn test_plain_decode_double() {
     let data = vec![3.14f64, 2.414f64, 12.51f64];
     let data_bytes = <f64 as ToByteArray<f64>>::to_byte_array(&data[..]);
     let mut buffer = vec![0.0f64; 3];
-    test_decode::<DoubleType>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
+    test_plain_decode::<DoubleType>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
   }
 
   #[test]
-  fn test_decode_int96() {
+  fn test_plain_decode_int96() {
     let v0 = [11, 22, 33];
     let v1 = [44, 55, 66];
     let v2 = [10, 20, 30];
@@ -261,46 +363,102 @@ mod tests {
     data[3].set_data(&v3);
     let data_bytes = <Int96 as ToByteArray<Int96>>::to_byte_array(&data[..]);
     let mut buffer = vec![Int96::new(); 4];
-    test_decode::<Int96Type>(&data_bytes[..], 4, &mut buffer[..], &data[..]);
+    test_plain_decode::<Int96Type>(&data_bytes[..], 4, &mut buffer[..], &data[..]);
   }
 
   #[test]
-  fn test_decode_bool() {
+  fn test_plain_decode_bool() {
     let data = vec![false, true, false, false, true, false, true, true, false, true];
     let data_bytes = <bool as ToByteArray<bool>>::to_byte_array(&data[..]);
     let mut buffer = vec![false; 10];
-    test_decode::<BoolType>(&data_bytes[..], 10, &mut buffer[..], &data[..]);
+    test_plain_decode::<BoolType>(&data_bytes[..], 10, &mut buffer[..], &data[..]);
   }
 
   #[test]
-  fn test_decode_byte_array() {
+  fn test_plain_decode_byte_array() {
     let mut data = vec!(ByteArray::new(); 2);
     data[0].set_data("hello".as_bytes());
     data[1].set_data("parquet".as_bytes());
     let data_bytes = <ByteArray as ToByteArray<ByteArray>>::to_byte_array(&data[..]);
     let mut buffer = vec![ByteArray::new(); 2];
-    test_decode::<ByteArrayType>(&data_bytes[..], 2, &mut buffer[..], &data[..]);
+    test_plain_decode::<ByteArrayType>(&data_bytes[..], 2, &mut buffer[..], &data[..]);
   }
 
   #[test]
-  fn test_decode_fixed_len_byte_array() {
+  fn test_plain_decode_fixed_len_byte_array() {
     let mut data = vec!(FixedLenByteArray::new(4); 3);
     data[0].set_data("bird".as_bytes());
     data[1].set_data("come".as_bytes());
     data[2].set_data("flow".as_bytes());
     let data_bytes = <FixedLenByteArray as ToByteArray<FixedLenByteArray>>::to_byte_array(&data[..]);
     let mut buffer = vec![FixedLenByteArray::new(4); 3];
-    test_decode::<FixedLenByteArrayType>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
+    test_plain_decode::<FixedLenByteArrayType>(&data_bytes[..], 3, &mut buffer[..], &data[..]);
   }
 
 
-  fn test_decode<'a, T: DataType<'a>>(data: &'a [u8], num_values: usize,
-                                      buffer: &mut [T::T], expected: &[T::T]) {
+  fn test_plain_decode<'a, T: DataType<'a>>(data: &'a [u8], num_values: usize,
+                                            buffer: &mut [T::T], expected: &[T::T]) {
     let mut decoder: PlainDecoder<T> = PlainDecoder::new();
     decoder.set_data(&data[..], num_values);
     let result = decoder.decode(&mut buffer[..], num_values);
     assert!(result.is_ok());
     assert_eq!(decoder.values_left(), 0);
+    assert_eq!(buffer, expected);
+  }
+
+  #[test]
+  fn test_rle_decode_int32() {
+    // test data: 0-7 with bit width 3
+    // 00000011 10001000 11000110 11111010
+    let data = vec!(0x03, 0x88, 0xC6, 0xFA);
+    let mut decoder: RleDecoder<Int32Type> = RleDecoder::new(3);
+    decoder.set_data(&data, 0);
+    let mut buffer = vec!(0; 8);
+    let expected = vec!(0, 1, 2, 3, 4, 5, 6, 7);
+    let result = decoder.decode(&mut buffer, 8);
+    assert!(result.is_ok());
+    assert_eq!(buffer, expected);
+  }
+
+  #[test]
+  fn test_rle_decode_bool() {
+    // rle test data: 50 1s followed by 50 0s
+    // 01100100 00000001 01100100 00000000
+    let data1 = vec!(0x64, 0x01, 0x64, 0x00);
+
+    // bit-packing test data: alternating 1s and 0s, 100 total
+    // 100 / 8 = 13 groups
+    // 00011011 10101010 ... 00001010
+    let data2 = vec!(0x1B, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
+                     0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x0A);
+
+    let mut decoder: RleDecoder<BoolType> = RleDecoder::new(1);
+    decoder.set_data(&data1, 0);
+    let mut buffer = vec!(false; 100);
+    let mut expected = vec!();
+    for i in 0..100 {
+      if i < 50 {
+        expected.push(true);
+      } else {
+        expected.push(false);
+      }
+    }
+    let result = decoder.decode(&mut buffer, 100);
+    assert!(result.is_ok());
+    assert_eq!(buffer, expected);
+
+    decoder.set_data(&data2, 0);
+    let mut buffer = vec!(false; 100);
+    let mut expected = vec!();
+    for i in 0..100 {
+      if i % 2 == 0 {
+        expected.push(false);
+      } else {
+        expected.push(true);
+      }
+    }
+    let result = decoder.decode(&mut buffer, 100);
+    assert!(result.is_ok());
     assert_eq!(buffer, expected);
   }
 
