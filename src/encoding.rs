@@ -21,7 +21,7 @@ use std::marker::PhantomData;
 use std::slice::from_raw_parts_mut;
 use basic::*;
 use errors::{Result, ParquetError};
-use util::bit_util::{self, BitReader};
+use util::bit_util::BitReader;
 
 // ----------------------------------------------------------------------
 // Decoders
@@ -35,6 +35,9 @@ pub trait Decoder<'a, T: DataType<'a>> {
   /// the result to `buffer`.. Return the actual number of values written.
   /// N.B., `buffer.len()` must at least be `max_values`.
   fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize>;
+
+  /// Number of values left in this decoder stream
+  fn values_left(&self) -> usize;
 
   /// Return the encoding for this decoder
   fn encoding(&self) -> Encoding;
@@ -68,11 +71,6 @@ impl<'a, T: DataType<'a>> PlainDecoder<'a, T> {
       num_values: 0, start: 0, _phantom: PhantomData
     }
   }
-
-  #[inline]
-  fn values_left(&self) -> usize {
-    self.num_values
-  }
 }
 
 impl<'a, T: DataType<'a>> Decoder<'a, T> for PlainDecoder<'a, T> {
@@ -80,6 +78,11 @@ impl<'a, T: DataType<'a>> Decoder<'a, T> for PlainDecoder<'a, T> {
   default fn set_data(&mut self, data: &'a [u8], num_values: usize) {
     self.num_values = num_values;
     self.data = Some(data);
+  }
+
+  #[inline]
+  fn values_left(&self) -> usize {
+    self.num_values
   }
 
   #[inline]
@@ -206,111 +209,6 @@ impl<'a> Decoder<'a, FixedLenByteArrayType> for PlainDecoder<'a, FixedLenByteArr
 }
 
 
-// ----------------------------------------------------------------------
-// RLE/Bit-Packing Hybrid Decoders
-
-pub struct RleDecoder<'a, T: DataType<'a>> {
-  /// Number of bits used to encode the value
-  bit_width: usize,
-
-  /// Bit reader loaded with input buffer.
-  bit_reader: Option<BitReader<'a>>,
-
-  /// The remaining number of values in RLE for this run
-  rle_left: i64,
-
-  /// The remaining number of values in Bit-Packing for this run
-  bit_packing_left: i64,
-
-  /// The current value for the case of RLE mode
-  current_value: Option<T::T>,
-
-  /// To allow `T` in the generic parameter for this struct. This doesn't take any space.
-  _phantom: PhantomData<T>
-}
-
-impl<'a, T: DataType<'a>> RleDecoder<'a, T> {
-  pub fn new(bit_width: usize) -> Self {
-    RleDecoder { bit_width: bit_width, rle_left: 0, bit_packing_left: 0,
-                 bit_reader: None, current_value: None, _phantom: PhantomData }
-  }
-
-  fn reload(&mut self) -> bool {
-    assert!(self.bit_reader.is_some());
-    if let Some(ref mut bit_reader) = self.bit_reader {
-      if let Some(indicator_value) = bit_reader.get_vlq_int() {
-        if indicator_value & 1 == 1 {
-          self.bit_packing_left = (indicator_value >> 1) * 8;
-        } else {
-          self.rle_left = indicator_value >> 1;
-          let value_width = bit_util::ceil(self.bit_width as i64, 8);
-          self.current_value = bit_reader.get_aligned::<T::T>(value_width as usize);
-          assert!(self.current_value.is_some());
-        }
-        return true;
-      }
-    }
-    return false;
-  }
-}
-
-impl<'a, T: DataType<'a>> Decoder<'a, T> for RleDecoder<'a, T> {
-  /// For RleDecoder, the `num_values` is not used.
-  fn set_data(&mut self, data: &'a [u8], _: usize) {
-    if let Some(ref mut bit_reader) = self.bit_reader {
-      bit_reader.reset(data);
-    } else {
-      self.bit_reader = Some(BitReader::new(data));
-    }
-
-    let _ = self.reload();
-  }
-
-  fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize> {
-    assert!(buffer.len() >= max_values);
-    assert!(self.bit_reader.is_some());
-
-    let mut values_read = 0;
-    while values_read < max_values {
-      if self.rle_left > 0 {
-        assert!(self.current_value.is_some());
-        let repeated_value = self.current_value.as_mut().unwrap();
-        let num_values = cmp::min(max_values - values_read, self.rle_left as usize);
-        for i in 0..num_values {
-          buffer[values_read + i] = repeated_value.clone();
-        }
-        self.rle_left -= num_values as i64;
-        values_read += num_values;
-      } else if self.bit_packing_left > 0 {
-        let num_values = cmp::min(max_values - values_read, self.bit_packing_left as usize);
-        if let Some(ref mut bit_reader) = self.bit_reader {
-          for i in 0..num_values {
-            if let Some(v) = bit_reader.get_value(self.bit_width) {
-              buffer[values_read + i] = v;
-            } else {
-              return Err(decode_err!("Error when reading bit-packed value"));
-            }
-          }
-          self.bit_packing_left -= num_values as i64;
-          values_read += num_values;
-        } else {
-          return Err(decode_err!("Bit reader should not be None"));
-        }
-      } else {
-        if !self.reload() {
-          break;
-        }
-      }
-    }
-
-    Ok(values_read)
-  }
-
-  fn encoding(&self) -> Encoding {
-    Encoding::RLE
-  }
-}
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -406,61 +304,6 @@ mod tests {
     assert_eq!(buffer, expected);
   }
 
-  #[test]
-  fn test_rle_decode_int32() {
-    // test data: 0-7 with bit width 3
-    // 00000011 10001000 11000110 11111010
-    let data = vec!(0x03, 0x88, 0xC6, 0xFA);
-    let mut decoder: RleDecoder<Int32Type> = RleDecoder::new(3);
-    decoder.set_data(&data, 0);
-    let mut buffer = vec!(0; 8);
-    let expected = vec!(0, 1, 2, 3, 4, 5, 6, 7);
-    let result = decoder.decode(&mut buffer, 8);
-    assert!(result.is_ok());
-    assert_eq!(buffer, expected);
-  }
-
-  #[test]
-  fn test_rle_decode_bool() {
-    // rle test data: 50 1s followed by 50 0s
-    // 01100100 00000001 01100100 00000000
-    let data1 = vec!(0x64, 0x01, 0x64, 0x00);
-
-    // bit-packing test data: alternating 1s and 0s, 100 total
-    // 100 / 8 = 13 groups
-    // 00011011 10101010 ... 00001010
-    let data2 = vec!(0x1B, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
-                     0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x0A);
-
-    let mut decoder: RleDecoder<BoolType> = RleDecoder::new(1);
-    decoder.set_data(&data1, 0);
-    let mut buffer = vec!(false; 100);
-    let mut expected = vec!();
-    for i in 0..100 {
-      if i < 50 {
-        expected.push(true);
-      } else {
-        expected.push(false);
-      }
-    }
-    let result = decoder.decode(&mut buffer, 100);
-    assert!(result.is_ok());
-    assert_eq!(buffer, expected);
-
-    decoder.set_data(&data2, 0);
-    let mut buffer = vec!(false; 100);
-    let mut expected = vec!();
-    for i in 0..100 {
-      if i % 2 == 0 {
-        expected.push(false);
-      } else {
-        expected.push(true);
-      }
-    }
-    let result = decoder.decode(&mut buffer, 100);
-    assert!(result.is_ok());
-    assert_eq!(buffer, expected);
-  }
 
   fn usize_to_bytes<'a>(v: usize) -> [u8; 4] {
     unsafe { mem::transmute::<u32, [u8; 4]>(v as u32) }

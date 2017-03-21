@@ -43,6 +43,7 @@ mod util;
 mod column;
 mod compression;
 mod encoding;
+mod rle_encoding;
 
 pub mod schema;
 pub mod file;
