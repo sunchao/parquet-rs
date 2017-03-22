@@ -101,6 +101,48 @@ impl<'a> RleDecoder<'a> {
     Ok(values_read)
   }
 
+  pub fn decode_with_dict<T>(&mut self, dict: &[T], buffer: &mut [T],
+                             max_values: usize) -> Result<usize> where T: Default + Clone {
+    assert!(buffer.len() >= max_values);
+    assert!(self.bit_width > 0);
+
+    let mut values_read = 0;
+    while values_read < max_values {
+      if self.rle_left > 0 {
+        assert!(self.current_value.is_some());
+        let num_values = cmp::min(max_values - values_read, self.rle_left as usize);
+        let dict_idx = self.current_value.unwrap() as usize;
+        println!("current value: {}, values_read: {}", dict_idx, values_read);
+        for i in 0..num_values {
+          buffer[values_read + i] = dict[dict_idx].clone();
+        }
+        self.rle_left -= num_values as i64;
+        values_read += num_values;
+      } else if self.bit_packing_left > 0 {
+        let num_values = cmp::min(max_values - values_read, self.bit_packing_left as usize);
+        if let Some(ref mut bit_reader) = self.bit_reader {
+          for i in 0..num_values {
+            if let Some(v) = bit_reader.get_value::<i32>(self.bit_width) {
+              buffer[values_read + i] = dict[v as usize].clone();
+            } else {
+              return Err(decode_err!("Error when reading bit-packed value"));
+            }
+          }
+          self.bit_packing_left -= num_values as i64;
+          values_read += num_values;
+        } else {
+          return Err(decode_err!("Bit reader should not be None"));
+        }
+      } else {
+        if !self.reload() {
+          break;
+        }
+      }
+    }
+
+    Ok(values_read)
+  }
+
   fn reload(&mut self) -> bool {
     assert!(self.bit_reader.is_some());
     if let Some(ref mut bit_reader) = self.bit_reader {
@@ -178,5 +220,35 @@ mod tests {
     let result = decoder.decode::<bool>(&mut buffer, 100);
     assert!(result.is_ok());
     assert_eq!(buffer, expected);
+  }
+
+  #[test]
+  fn test_rle_decode_with_dict_int32() {
+    // test RLE encoding: 3 0s followed by 4 1s followed by 5 2s
+    // 00000110 00000000 00001000 00000001 00001010 00000010
+    let dict = vec!(10, 20, 30);
+    let data = vec!(0x06, 0x00, 0x08, 0x01, 0x0A, 0x02);
+    let mut decoder: RleDecoder = RleDecoder::new(3);
+    decoder.set_data(&data);
+    let mut buffer = vec!(0; 12);
+    let expected = vec!(10, 10, 10, 20, 20, 20, 20, 30, 30, 30, 30, 30);
+    let result = decoder.decode_with_dict::<i32>(&dict, &mut buffer, 12);
+    assert!(result.is_ok());
+    assert_eq!(buffer, expected);
+
+    // test bit-pack encoding: 345345345455 (2 groups: 8 and 4)
+    // 011 100 101 011 100 101 011 100 101 100 101 101
+    // 00000011 01100011 11000111 10001110 00000011 01100101 00001011
+    let dict = vec!("aaa", "bbb", "ccc", "ddd", "eee", "fff");
+    let data = vec!(0x03, 0x63, 0xC7, 0x8E, 0x03, 0x65, 0x0B);
+    let mut decoder: RleDecoder = RleDecoder::new(3);
+    decoder.set_data(&data);
+    let mut buffer = vec!(""; 12);
+    let expected = vec!("ddd", "eee", "fff", "ddd", "eee", "fff",
+                        "ddd", "eee", "fff", "eee", "fff", "fff");
+    let result = decoder.decode_with_dict::<&str>(dict.as_slice(), buffer.as_mut_slice(), 12);
+    assert!(result.is_ok());
+    assert_eq!(buffer, expected);
+
   }
 }
