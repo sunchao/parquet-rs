@@ -22,6 +22,7 @@ use std::slice::from_raw_parts_mut;
 use basic::*;
 use errors::{Result, ParquetError};
 use util::bit_util::BitReader;
+use rle_encoding::RleDecoder;
 
 // ----------------------------------------------------------------------
 // Decoders
@@ -206,6 +207,57 @@ impl<'a> Decoder<'a, FixedLenByteArrayType> for PlainDecoder<'a, FixedLenByteArr
 
     Ok(num_values)
   }
+}
+
+
+// ----------------------------------------------------------------------
+// Dictionary Decoders
+
+pub struct DictDecoder<'a, T: DataType<'a>> {
+  /// The dictionary, which maps ids to the values
+  dictionary: Vec<T::T>,
+
+  /// The decoder for the value ids
+  rle_decoder: Option<RleDecoder<'a>>,
+
+  /// Number of values left in the data stream
+  num_values: usize
+}
+
+impl<'a, T: DataType<'a>> DictDecoder<'a, T> {
+  pub fn new(dict: Vec<T::T>) -> Self {
+    Self { dictionary: dict, rle_decoder: None, num_values: 0 }
+  }
+}
+
+impl<'a, T: DataType<'a>> Decoder<'a, T> for DictDecoder<'a, T> {
+  fn set_data(&mut self, data: &'a [u8], num_values: usize) {
+    // first byte in `data` is bit width
+    let bit_width = data[0] as usize;
+    let mut rle_decoder = RleDecoder::new(bit_width);
+    rle_decoder.set_data(&data[1..]);
+    self.num_values = num_values;
+    self.rle_decoder = Some(rle_decoder);
+  }
+
+  fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize> {
+    assert!(buffer.len() >= max_values);
+    assert!(self.rle_decoder.is_some());
+
+    let mut rle = self.rle_decoder.as_mut().unwrap();
+    let num_values = cmp::min(max_values, self.num_values);
+    rle.decode_with_dict(&self.dictionary[..], buffer, num_values)
+  }
+
+  /// Number of values left in this decoder stream
+  fn values_left(&self) -> usize {
+    self.num_values
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::PLAIN_DICTIONARY
+  }
+
 }
 
 
