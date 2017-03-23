@@ -33,10 +33,10 @@ pub struct RleDecoder<'a> {
   bit_reader: Option<BitReader<'a>>,
 
   /// The remaining number of values in RLE for this run
-  rle_left: i64,
+  rle_left: u32,
 
   /// The remaining number of values in Bit-Packing for this run
-  bit_packing_left: i64,
+  bit_packing_left: u32,
 
   /// The current value for the case of RLE mode
   current_value: Option<u64>,
@@ -74,7 +74,7 @@ impl<'a> RleDecoder<'a> {
           };
           buffer[values_read + i] = repeated_value;
         }
-        self.rle_left -= num_values as i64;
+        self.rle_left -= num_values as u32;
         values_read += num_values;
       } else if self.bit_packing_left > 0 {
         let num_values = cmp::min(max_values - values_read, self.bit_packing_left as usize);
@@ -86,7 +86,7 @@ impl<'a> RleDecoder<'a> {
               return Err(decode_err!("Error when reading bit-packed value"));
             }
           }
-          self.bit_packing_left -= num_values as i64;
+          self.bit_packing_left -= num_values as u32;
           values_read += num_values;
         } else {
           return Err(decode_err!("Bit reader should not be None"));
@@ -116,7 +116,7 @@ impl<'a> RleDecoder<'a> {
         for i in 0..num_values {
           buffer[values_read + i] = dict[dict_idx].clone();
         }
-        self.rle_left -= num_values as i64;
+        self.rle_left -= num_values as u32;
         values_read += num_values;
       } else if self.bit_packing_left > 0 {
         let num_values = cmp::min(max_values - values_read, self.bit_packing_left as usize);
@@ -128,7 +128,7 @@ impl<'a> RleDecoder<'a> {
               return Err(decode_err!("Error when reading bit-packed value"));
             }
           }
-          self.bit_packing_left -= num_values as i64;
+          self.bit_packing_left -= num_values as u32;
           values_read += num_values;
         } else {
           return Err(decode_err!("Bit reader should not be None"));
@@ -143,14 +143,15 @@ impl<'a> RleDecoder<'a> {
     Ok(values_read)
   }
 
+
   fn reload(&mut self) -> bool {
     assert!(self.bit_reader.is_some());
     if let Some(ref mut bit_reader) = self.bit_reader {
       if let Some(indicator_value) = bit_reader.get_vlq_int() {
         if indicator_value & 1 == 1 {
-          self.bit_packing_left = (indicator_value >> 1) * 8;
+          self.bit_packing_left = ((indicator_value >> 1) * 8) as u32;
         } else {
-          self.rle_left = indicator_value >> 1;
+          self.rle_left = (indicator_value >> 1) as u32;
           let value_width = bit_util::ceil(self.bit_width as i64, 8);
           self.current_value = bit_reader.get_aligned::<u64>(value_width as usize);
           assert!(self.current_value.is_some());

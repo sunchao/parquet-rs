@@ -177,16 +177,16 @@ impl<'a> BitReader<'a> {
   /// Returns `None` if the number of bytes exceed `MAX_VLQ_BYTE_LEN`, or
   /// there's not enough bytes in the stream.
   #[inline]
-  pub fn get_vlq_int(&mut self) -> Option<i64> {
+  pub fn get_vlq_int(&mut self) -> Option<i32> {
     let mut num_bytes = 0;
     let mut shift = 0;
-    let mut v: i64 = 0;
+    let mut v: i32 = 0;
     while let Some(byte) = self.get_aligned::<u8>(1) {
       num_bytes += 1;
       if num_bytes >= MAX_VLQ_BYTE_LEN {
         return None
       }
-      v |= ((byte & 0x7F) as i64) << shift;
+      v |= ((byte & 0x7F) as i32) << shift;
       shift += 7;
       if byte & 0x80 == 0 {
         return Some(v);
