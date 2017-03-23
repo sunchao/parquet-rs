@@ -194,6 +194,22 @@ impl<'a> BitReader<'a> {
     }
     return None;
   }
+
+  /// Read a zigzag-VLQ encoded (in little endian order) int from the stream
+  /// Zigzag-VLQ is a variant of VLQ encoding where negative and positive
+  /// numbers are encoded in a zigzag fashion.
+  /// See: https://developers.google.com/protocol-buffers/docs/encoding
+  ///
+  /// The encoded int must start at the beginning of a byte.
+  /// Returns `None` if the number of bytes exceed `MAX_VLQ_BYTE_LEN`, or
+  /// there's not enough bytes in the stream.
+  #[inline]
+  pub fn get_zigzag_vlq_int(&mut self) -> Option<i32> {
+    self.get_vlq_int().map(|v| {
+      let u = v as u32;
+      ((u >> 1) as i32 ^ -((u & 1) as i32))
+    })
+  }
 }
 
 #[cfg(test)]
@@ -281,6 +297,28 @@ mod tests {
     let v2 = bit_reader.get_vlq_int();
     assert!(v2.is_some());
     assert_eq!(v2.unwrap(), 105202);
+  }
+
+  #[test]
+  fn test_bit_reader_get_zigzag_vlq_int() {
+    let buffer: Vec<u8> = vec!(0, 1, 2, 3);
+    let mut bit_reader = BitReader::new(&buffer);
+
+    let v = bit_reader.get_zigzag_vlq_int();
+    assert!(v.is_some());
+    assert_eq!(v.unwrap(), 0);
+
+    let v = bit_reader.get_zigzag_vlq_int();
+    assert!(v.is_some());
+    assert_eq!(v.unwrap(), -1);
+
+    let v = bit_reader.get_zigzag_vlq_int();
+    assert!(v.is_some());
+    assert_eq!(v.unwrap(), 1);
+
+    let v = bit_reader.get_zigzag_vlq_int();
+    assert!(v.is_some());
+    assert_eq!(v.unwrap(), -2);
   }
 
   #[test]
