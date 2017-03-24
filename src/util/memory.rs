@@ -90,6 +90,13 @@ impl MutableBuffer for ByteBuffer {
   }
 }
 
+impl ResizableBuffer for ByteBuffer {
+  fn resize(&mut self, new_cap: usize) -> Result<()> {
+    self.data.resize(new_cap, 0);
+    Ok(())
+  }
+}
+
 
 // ----------------------------------------------------------------------
 // MemoryPool classes
