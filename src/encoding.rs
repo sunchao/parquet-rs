@@ -101,7 +101,7 @@ impl<'a, T: DataType<'a>> Decoder<'a, T> for PlainDecoder<'a, T> {
     let bytes_left = data.len() - self.start;
     let bytes_to_decode = mem::size_of::<T::T>() * num_values;
     if bytes_left < bytes_to_decode {
-      return Err(decode_err!("Not enough bytes to decode"));
+      return general_err!("Not enough bytes to decode");
     }
     let raw_buffer: &mut [u8] = unsafe {
       from_raw_parts_mut(buffer.as_ptr() as *mut u8, bytes_to_decode)
@@ -124,7 +124,7 @@ impl<'a> Decoder<'a, Int96Type> for PlainDecoder<'a, Int96Type> {
     let bytes_left = data.len() - self.start;
     let bytes_to_decode = 12 * num_values;
     if bytes_left < bytes_to_decode {
-      return Err(decode_err!("Not enough bytes to decode"));
+      return general_err!("Not enough bytes to decode");
     }
     for i in 0..num_values {
       buffer[i].set_data(
@@ -157,7 +157,7 @@ impl<'a> Decoder<'a, BoolType> for PlainDecoder<'a, BoolType> {
       if let Some(b) = bit_reader.get_value::<bool>(1) {
         buffer[i] = b;
       } else {
-        return Err(decode_err!("Cannot decode bool"));
+        return general_err!("Cannot decode bool");
       }
     }
     self.num_values -= num_values;
@@ -177,7 +177,7 @@ impl<'a> Decoder<'a, ByteArrayType> for PlainDecoder<'a, ByteArrayType> {
       let len: usize = read_num_bytes!(u32, 4, &data[self.start..]) as usize;
       self.start += mem::size_of::<u32>();
       if data.len() < self.start + len {
-        return Err(decode_err!("Not enough bytes to decode"));
+        return general_err!("Not enough bytes to decode");
       }
       buffer[i].set_data(&data[self.start..self.start + len]);
       self.start += len;
@@ -198,7 +198,7 @@ impl<'a> Decoder<'a, FixedLenByteArrayType> for PlainDecoder<'a, FixedLenByteArr
     let type_length = buffer[0].get_len();
     for i in 0..num_values {
       if data.len() < self.start + type_length {
-        return Err(decode_err!("Not enough bytes to decode"));
+        return general_err!("Not enough bytes to decode");
       }
       buffer[i].set_data(&data[self.start..self.start + type_length]);
       self.start += type_length;
@@ -259,6 +259,7 @@ impl<'a, T: DataType<'a>> Decoder<'a, T> for DictDecoder<'a, T> {
   }
 
 }
+
 
 
 #[cfg(test)]

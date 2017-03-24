@@ -83,13 +83,13 @@ impl<'a> RleDecoder<'a> {
             if let Some(v) = bit_reader.get_value(self.bit_width) {
               buffer[values_read + i] = v;
             } else {
-              return Err(decode_err!("Error when reading bit-packed value"));
+              return general_err!("Error when reading bit-packed value");
             }
           }
           self.bit_packing_left -= num_values as u32;
           values_read += num_values;
         } else {
-          return Err(decode_err!("Bit reader should not be None"));
+          return general_err!("Bit reader should not be None");
         }
       } else {
         if !self.reload() {
@@ -125,13 +125,13 @@ impl<'a> RleDecoder<'a> {
             if let Some(v) = bit_reader.get_value::<i32>(self.bit_width) {
               buffer[values_read + i] = dict[v as usize].clone();
             } else {
-              return Err(decode_err!("Error when reading bit-packed value"));
+              return general_err!("Error when reading bit-packed value");
             }
           }
           self.bit_packing_left -= num_values as u32;
           values_read += num_values;
         } else {
-          return Err(decode_err!("Bit reader should not be None"));
+          return general_err!("Bit reader should not be None");
         }
       } else {
         if !self.reload() {

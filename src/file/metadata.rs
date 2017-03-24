@@ -214,7 +214,7 @@ impl ColumnChunkMetaData {
   /// Conversion from Thrift
   pub fn from_thrift(cc: ColumnChunk) -> Result<Self> {
     if cc.meta_data.is_none() {
-      return Err(schema_err!("Expected to have column metadata"))
+      return general_err!("Expected to have column metadata")
     }
     let mut col_metadata: ColumnMetaData = cc.meta_data.unwrap();
     let column_type = Type::from(col_metadata.type_);

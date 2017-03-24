@@ -122,30 +122,30 @@ impl SerializedFileReader {
     let file_metadata = buf.get_ref().metadata()?;
     let file_size = file_metadata.len();
     if file_size < (FOOTER_SIZE as u64) {
-      return Err(parse_err!("Corrputed file, smaller than file footer"));
+      return general_err!("Corrputed file, smaller than file footer");
     }
     let mut footer_buffer: [u8; FOOTER_SIZE] = [0; FOOTER_SIZE];
     buf.seek(SeekFrom::End(-(FOOTER_SIZE as i64)))?;
     buf.read_exact(&mut footer_buffer)?;
     if footer_buffer[4..] != PARQUET_MAGIC {
-      return Err(parse_err!("Invalid parquet file. Corrupt footer."));
+      return general_err!("Invalid parquet file. Corrupt footer.");
     }
     let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]);
     if metadata_len < 0 {
-      return Err(parse_err!(
+      return general_err!(
         "Invalid parquet file. Metadata length is less than zero ({})",
-        metadata_len));
+        metadata_len);
     }
     let mut metadata_buffer = vec![0; metadata_len as usize];
     let metadata_start: i64 = file_size as i64 - FOOTER_SIZE as i64 - metadata_len as i64;
     if metadata_start < 0 {
-      return Err(parse_err!(
+      return general_err!(
         "Invalid parquet file. Metadata start is less than zero ({})",
-        metadata_start))
+        metadata_start)
     }
     buf.seek(SeekFrom::Start(metadata_start as u64))?;
     buf.read_exact(metadata_buffer.as_mut_slice())
-      .map_err(|e| io_err!(e, "Failed to read metadata"))?;
+      .map_err(|e| ParquetError::General(format!("Failed to read metadata: {}", e)))?;
 
     // TODO: do row group filtering
     let mut transport = TBufferTransport::with_capacity(metadata_len as usize, 0);
@@ -153,7 +153,7 @@ impl SerializedFileReader {
     let transport = Rc::new(RefCell::new(Box::new(transport) as Box<TTransport>));
     let mut prot = TCompactInputProtocol::new(transport);
     let mut t_file_metadata: TFileMetaData = TFileMetaData::read_from_in_protocol(&mut prot)
-      .map_err(|e| thrift_err!(e, "Could not parse metadata"))?;
+      .map_err(|e| ParquetError::General(format!("Could not parse metadata: {}", e)))?;
     let schema: Box<types::Type> = types::from_thrift(&mut t_file_metadata.schema)?;
     let mut row_groups = Vec::new();
     for rg in t_file_metadata.row_groups {
@@ -278,8 +278,8 @@ impl PageReader for SerializedPageReader {
         let mut decompressed_buffer = vec!();
         let decompressed_size = decompressor.decompress(buffer.data(), &mut decompressed_buffer)?;
         if decompressed_size != uncompressed_len {
-          return Err(decode_err!("Actual decompressed size doesn't \
-            match the expected one ({} vs {})", decompressed_size, uncompressed_len));
+          return general_err!("Actual decompressed size doesn't \
+            match the expected one ({} vs {})", decompressed_size, uncompressed_len);
         }
         buffer.set_data(decompressed_buffer);
       }

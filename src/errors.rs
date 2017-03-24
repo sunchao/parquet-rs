@@ -23,27 +23,16 @@ use snap;
 quick_error! {
   #[derive(Debug)]
   pub enum ParquetError {
-    Parse(message: String) {
-      display("Parse error: {}", message)
+    General(message: String) {
+      display("Parquet error: {}", message)
       description(message)
+      from(e: io::Error) -> (format!("underlying IO error: {}", e))
+      from(e: snap::Error) -> (format!("underlying snap error: {}", e))
+      from(e: thrift::Error) -> (format!("underlying Thrift error: {}", e))
     }
-    Io(message: String, err: io::Error) {
-      from(err: io::Error) -> ("underlying IO error".to_owned(), err)
-      from(err: snap::Error) -> ("underlying snap error".to_owned(), io::Error::from(err))
-      display("IO error: {}, {}", message, err)
-    }
-    Decode(message: String) {
-      display("Decoding error: {}", message)
-    }
-    Thrift(message: String, err: thrift::Error) {
-      from(err: thrift::Error) -> ("underlying Thrift error".to_owned(), err)
-      display("Thrift error: {}, {}", message, err)
-    }
-    Schema(message: String) {
-      display("Schema error: {}", message)
-    }
-    Unsupported(message: String) {
-      display("Unsupported error: {}", message)
+    NYI(message: String) {
+      display("NYI: {}", message)
+      description(message)
     }
   }
 }
@@ -51,34 +40,16 @@ quick_error! {
 pub type Result<T> = result::Result<T, ParquetError>;
 
 /// Convenient macros for different errors
-macro_rules! parse_err {
-  ($fmt:expr) => (ParquetError::Parse($fmt.to_owned()));
-  ($fmt:expr, $($args:tt),*) => (ParquetError::Parse(format!($fmt, $($args),*)));
-}
-
-macro_rules! schema_err {
-  ($fmt:expr) => (ParquetError::Schema($fmt.to_owned()));
-  ($fmt:expr, $($args:expr),*) => (ParquetError::Schema(format!($fmt, $($args),*)));
-}
-
-macro_rules! decode_err {
-  ($fmt:expr) => (ParquetError::Decode($fmt.to_owned()));
-  ($fmt:expr, $($args:expr),*) => (ParquetError::Decode(format!($fmt, $($args),*)));
-}
-
-macro_rules! unsupported_err {
-  ($fmt:expr) => (ParquetError::Unsupported($fmt.to_owned()));
-  ($fmt:expr, $($args:expr),*) => (ParquetError::Unsupported(format!($fmt, $($args),*)));
-}
-
-macro_rules! io_err {
-  ($e:expr, $fmt:expr) => (ParquetError::Io($fmt.to_owned(), $e));
+macro_rules! general_err {
+  ($fmt:expr) => (Err(ParquetError::General($fmt.to_owned())));
+  ($fmt:expr, $($args:expr),*) => (Err(ParquetError::General(format!($fmt, $($args),*))));
+  ($e:expr, $fmt:expr) => (Err(ParquetError::General($fmt.to_owned(), $e)));
   ($e:ident, $fmt:expr, $($args:tt),*) => (
-    ParquetError::Io(&format!($fmt, $($args),*), $e));
+    Err(ParquetError::General(&format!($fmt, $($args),*), $e)));
 }
 
-macro_rules! thrift_err {
-  ($e:ident, $fmt:expr) => (ParquetError::Thrift($fmt.to_owned(), $e));
-  ($e:ident, $fmt:expr, $($args:tt),*) => (
-    ParquetError::Thrift(format!($fmt, $($args),*), $e));
+
+macro_rules! nyi_err {
+  ($fmt:expr) => (Err(ParquetError::NYI($fmt.to_owned())));
+  ($fmt:expr, $($args:expr),*) => (Err(ParquetError::NYI(format!($fmt, $($args),*))));
 }

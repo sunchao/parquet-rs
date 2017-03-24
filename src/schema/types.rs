@@ -109,7 +109,7 @@ impl PrimitiveType {
       },
       LogicalType::UTF8 | LogicalType::BSON | LogicalType::JSON => {
         if physical_type != PhysicalType::BYTE_ARRAY {
-          return Err(parse_err!("{} can only annotate BYTE_ARRAY fields", logical_type))
+          return general_err!("{} can only annotate BYTE_ARRAY fields", logical_type)
         }
       },
       LogicalType::DECIMAL => {
@@ -117,50 +117,50 @@ impl PrimitiveType {
           PhysicalType::INT32 | PhysicalType::INT64 | PhysicalType::BYTE_ARRAY |
           PhysicalType::FIXED_LEN_BYTE_ARRAY => (),
           _ => {
-            return Err(parse_err!("DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED"))
+            return general_err!("DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED")
           }
         };
         if precision < 0 {
-          return Err(parse_err!("Invalid DECIMAL precision: {}", precision))
+          return general_err!("Invalid DECIMAL precision: {}", precision)
         }
         if scale < 0 {
-          return Err(parse_err!("Invalid DECIMAL scale: {}", scale))
+          return general_err!("Invalid DECIMAL scale: {}", scale)
         }
         if scale > precision {
-          return Err(parse_err!(
+          return general_err!(
             "Invalid DECIMAL: scale ({}) cannot be greater than precision ({})",
-            scale, precision))
+            scale, precision)
         }
       }
       LogicalType::DATE | LogicalType::TIME_MILLIS | LogicalType::UINT_8 |
       LogicalType::UINT_16 | LogicalType::UINT_32 |
       LogicalType::INT_8 | LogicalType::INT_16 | LogicalType::INT_32 => {
         if physical_type != PhysicalType::INT32 {
-          return Err(parse_err!("{} can only annotate INT32", logical_type))
+          return general_err!("{} can only annotate INT32", logical_type)
         }
       }
       LogicalType::TIME_MICROS | LogicalType::TIMESTAMP_MILLIS |
       LogicalType::TIMESTAMP_MICROS | LogicalType::UINT_64 | LogicalType::INT_64 => {
         if physical_type != PhysicalType::INT64 {
-          return Err(parse_err!("{} can only annotate INT64", logical_type))
+          return general_err!("{} can only annotate INT64", logical_type)
         }
       }
       LogicalType::INTERVAL => {
         if physical_type != PhysicalType::FIXED_LEN_BYTE_ARRAY || length != 12 {
-          return Err(parse_err!("INTERVAL can only annotate FIXED(12)"))
+          return general_err!("INTERVAL can only annotate FIXED(12)")
         }
       }
       LogicalType::ENUM => {
         if physical_type != PhysicalType::BYTE_ARRAY {
-          return Err(parse_err!("ENUM can only annotate BYTE_ARRAY fields"))
+          return general_err!("ENUM can only annotate BYTE_ARRAY fields")
         }
       }
       _ => {
-        return Err(parse_err!("{} cannot be applied to a primitive type", logical_type))
+        return general_err!("{} cannot be applied to a primitive type", logical_type)
       }
     };
     if physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY && length < 0 {
-      return Err(parse_err!("Invalid FIXED_LEN_BYTE_ARRAY length: {}", length))
+      return general_err!("Invalid FIXED_LEN_BYTE_ARRAY length: {}", length)
     }
     Ok(PrimitiveType{
       basic_info: basic_info,
@@ -304,7 +304,7 @@ pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<Box<Type>> {
     schema_nodes.push(t.1);
   }
   if schema_nodes.len() != 1 {
-    return Err(schema_err!("Expected exactly one root node, but found {}", schema_nodes.len()))
+    return general_err!("Expected exactly one root node, but found {}", schema_nodes.len())
   }
   Ok(schema_nodes.remove(0))
 }
@@ -315,7 +315,7 @@ pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<Box<Type>> {
 /// The second result is the result Type.
 fn from_thrift_helper(elements: &mut [SchemaElement], index: usize) -> Result<(usize, Box<Type>)> {
   if index > elements.len() {
-    return Err(schema_err!("Index out of bound, index = {}, len = {}", index, elements.len()))
+    return general_err!("Index out of bound, index = {}, len = {}", index, elements.len())
   }
   let logical_type = LogicalType::from(elements[index].converted_type);
   let field_id = elements[index].field_id;
@@ -323,7 +323,7 @@ fn from_thrift_helper(elements: &mut [SchemaElement], index: usize) -> Result<(u
     None => {
       // primitive type
       if elements[index].repetition_type.is_none() {
-        return Err(schema_err!("Repetition level must be defined for a primitive type"));
+        return general_err!("Repetition level must be defined for a primitive type");
       }
       let repetition = Repetition::from(elements[index].repetition_type.unwrap());
       let physical_type = PhysicalType::from(elements[index].type_.unwrap());
