@@ -18,7 +18,7 @@
 use std::cmp;
 use std::mem::{size_of, transmute_copy};
 
-use errors::{Result, ParquetError};
+use errors::Result;
 use util::bit_util::{self, BitReader};
 
 

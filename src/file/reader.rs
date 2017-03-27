@@ -24,7 +24,7 @@ use basic::{Compression, Encoding};
 use errors::{Result, ParquetError};
 use file::metadata::{RowGroupMetaData, FileMetaData, ParquetMetaData};
 use byteorder::{LittleEndian, ByteOrder};
-use thrift::transport::{TTransport, TBufferTransport};
+use thrift::transport::TTransport;
 use thrift::protocol::TCompactInputProtocol;
 use parquet_thrift::parquet::FileMetaData as TFileMetaData;
 use parquet_thrift::parquet::{PageType, PageHeader};
@@ -71,22 +71,17 @@ pub trait RowGroupReader<'a> {
 
 /// A thin wrapper on `BufReader` to be used by Thrift transport
 pub struct TMemoryBuffer<'a, T> where T: 'a + Read {
-  buf_reader: &'a mut BufReader<T>,
-  offset: usize
+  data: &'a mut T
 }
 
 impl<'a, T: 'a + Read> TMemoryBuffer<'a, T> {
-  pub fn new(buf_reader: &'a mut BufReader<T>) -> Self {
-    Self { buf_reader: buf_reader, offset: 0 }
-  }
+  pub fn new(data: &'a mut T) -> Self { Self { data: data } }
 }
 
 impl<'a, T: 'a + Read> Read for TMemoryBuffer<'a, T> {
   fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    let bytes_read = self.buf_reader.read(buf)?;
-    self.offset += bytes_read;
+    let bytes_read = self.data.read(buf)?;
     Ok(bytes_read)
-
   }
 }
 
@@ -118,6 +113,13 @@ impl SerializedFileReader {
     Ok(Self { buf: buf, metadata: metadata })
   }
 
+  //
+  // Layout of Parquet file
+  // +---------------------------+---+-----+
+  // |      Rest of file         | B |  A  |
+  // +---------------------------+---+-----+
+  // where A: parquet footer, B: parquet metadata.
+  //
   fn parse_metadata(buf: &mut BufReader<File>) -> Result<ParquetMetaData> {
     let file_metadata = buf.get_ref().metadata()?;
     let file_size = file_metadata.len();
@@ -130,27 +132,24 @@ impl SerializedFileReader {
     if footer_buffer[4..] != PARQUET_MAGIC {
       return general_err!("Invalid parquet file. Corrupt footer.");
     }
-    let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]);
+    let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]) as i64;
     if metadata_len < 0 {
       return general_err!(
         "Invalid parquet file. Metadata length is less than zero ({})",
         metadata_len);
     }
-    let mut metadata_buffer = vec![0; metadata_len as usize];
-    let metadata_start: i64 = file_size as i64 - FOOTER_SIZE as i64 - metadata_len as i64;
+    let metadata_start: i64 = file_size as i64 - FOOTER_SIZE as i64 - metadata_len;
     if metadata_start < 0 {
       return general_err!(
         "Invalid parquet file. Metadata start is less than zero ({})",
         metadata_start)
     }
     buf.seek(SeekFrom::Start(metadata_start as u64))?;
-    buf.read_exact(metadata_buffer.as_mut_slice())
-      .map_err(|e| ParquetError::General(format!("Failed to read metadata: {}", e)))?;
-
-    // TODO: do row group filtering
-    let mut transport = TBufferTransport::with_capacity(metadata_len as usize, 0);
-    transport.set_readable_bytes(metadata_buffer.as_mut_slice());
+    let metadata_buf = buf.take(metadata_len as u64).into_inner();
+    let transport = TMemoryBuffer::new(metadata_buf);
     let transport = Rc::new(RefCell::new(Box::new(transport) as Box<TTransport>));
+
+    // TODO: row group filtering
     let mut prot = TCompactInputProtocol::new(transport);
     let mut t_file_metadata: TFileMetaData = TFileMetaData::read_from_in_protocol(&mut prot)
       .map_err(|e| ParquetError::General(format!("Could not parse metadata: {}", e)))?;
