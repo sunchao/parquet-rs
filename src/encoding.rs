@@ -30,7 +30,7 @@ use rle_encoding::RleDecoder;
 pub trait Decoder<'a, T: DataType<'a>> {
   /// Set the data to decode to be `data`, which should contain `num_values` of
   /// values to decode
-  fn set_data(&mut self, data: &'a [u8], num_values: usize);
+  fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()>;
 
   /// Try to consume at most `max_values` from this decoder and write
   /// the result to `buffer`.. Return the actual number of values written.
@@ -76,9 +76,10 @@ impl<'a, T: DataType<'a>> PlainDecoder<'a, T> {
 
 impl<'a, T: DataType<'a>> Decoder<'a, T> for PlainDecoder<'a, T> {
   #[inline]
-  default fn set_data(&mut self, data: &'a [u8], num_values: usize) {
+  default fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()> {
     self.num_values = num_values;
     self.data = Some(data);
+    Ok(())
   }
 
   #[inline]
@@ -142,9 +143,10 @@ impl<'a> Decoder<'a, Int96Type> for PlainDecoder<'a, Int96Type> {
 }
 
 impl<'a> Decoder<'a, BoolType> for PlainDecoder<'a, BoolType> {
-  fn set_data(&mut self, data: &'a [u8], num_values: usize) {
+  fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()> {
     self.num_values = num_values;
     self.bit_reader = Some(BitReader::new(data));
+    Ok(())
   }
 
   fn decode(&mut self, buffer: &mut [bool], max_values: usize) -> Result<usize> {
@@ -229,13 +231,14 @@ impl<'a, T: DataType<'a>> DictDecoder<'a, T> {
 }
 
 impl<'a, T: DataType<'a>> Decoder<'a, T> for DictDecoder<'a, T> {
-  fn set_data(&mut self, data: &'a [u8], num_values: usize) {
+  fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()> {
     // first byte in `data` is bit width
     let bit_width = data[0] as usize;
     let mut rle_decoder = RleDecoder::new(bit_width);
     rle_decoder.set_data(&data[1..]);
     self.num_values = num_values;
     self.rle_decoder = Some(rle_decoder);
+    Ok(())
   }
 
   fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize> {
@@ -347,7 +350,8 @@ mod tests {
   fn test_plain_decode<'a, T: DataType<'a>>(data: &'a [u8], num_values: usize,
                                             buffer: &mut [T::T], expected: &[T::T]) {
     let mut decoder: PlainDecoder<T> = PlainDecoder::new();
-    decoder.set_data(&data[..], num_values);
+    let result = decoder.set_data(&data[..], num_values);
+    assert!(result.is_ok());
     let result = decoder.decode(&mut buffer[..], num_values);
     assert!(result.is_ok());
     assert_eq!(decoder.values_left(), 0);
