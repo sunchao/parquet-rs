@@ -69,7 +69,7 @@ pub trait RowGroupReader<'a> {
 }
 
 
-/// A thin wrapper on `BufReader` to be used by Thrift transport
+/// A thin wrapper on `T: Read` to be used by Thrift transport. Write is not supported
 pub struct TMemoryBuffer<'a, T> where T: 'a + Read {
   data: &'a mut T
 }

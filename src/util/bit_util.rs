@@ -72,6 +72,7 @@ pub fn unset_array_bit(bits: &mut [u8], i: usize) {
 
 
 /// Maximum byte length for a VLQ encoded integer
+// TODO: why maximum is 5?
 const MAX_VLQ_BYTE_LEN: usize = 5;
 
 pub struct BitReader<'a> {
@@ -178,17 +179,15 @@ impl<'a> BitReader<'a> {
   /// Returns `None` if the number of bytes exceed `MAX_VLQ_BYTE_LEN`, or
   /// there's not enough bytes in the stream.
   #[inline]
-  pub fn get_vlq_int(&mut self) -> Result<i32> {
-    let mut num_bytes = 0;
+  pub fn get_vlq_int(&mut self) -> Result<i64> {
     let mut shift = 0;
-    let mut v: i32 = 0;
+    let mut v: i64 = 0;
     while let Ok(byte) = self.get_aligned::<u8>(1) {
-      num_bytes += 1;
-      if num_bytes >= MAX_VLQ_BYTE_LEN {
+      v |= ((byte & 0x7F) as i64) << shift;
+      shift += 7;
+      if shift > MAX_VLQ_BYTE_LEN * 7 {
         return general_err!("Num of bytes exceed MAX_VLQ_BYTE_LEN ({})", MAX_VLQ_BYTE_LEN);
       }
-      v |= ((byte & 0x7F) as i32) << shift;
-      shift += 7;
       if byte & 0x80 == 0 {
         return Ok(v);
       }
@@ -205,10 +204,10 @@ impl<'a> BitReader<'a> {
   /// Returns `None` if the number of bytes exceed `MAX_VLQ_BYTE_LEN`, or
   /// there's not enough bytes in the stream.
   #[inline]
-  pub fn get_zigzag_vlq_int(&mut self) -> Result<i32> {
+  pub fn get_zigzag_vlq_int(&mut self) -> Result<i64> {
     self.get_vlq_int().map(|v| {
-      let u = v as u32;
-      ((u >> 1) as i32 ^ -((u & 1) as i32))
+      let u = v as u64;
+      ((u >> 1) as i64 ^ -((u & 1) as i64))
     })
   }
 }
@@ -216,6 +215,7 @@ impl<'a> BitReader<'a> {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use std::error::Error;
 
   #[test]
   fn test_ceil() {
@@ -292,12 +292,31 @@ mod tests {
     // 10001001 00000001 11110010 10110101 00000110
     let buffer: Vec<u8> = vec!(0x89, 0x01, 0xF2, 0xB5, 0x06);
     let mut bit_reader = BitReader::new(&buffer);
-    let v1 = bit_reader.get_vlq_int();
-    assert!(v1.is_ok());
-    assert_eq!(v1.unwrap(), 137);
-    let v2 = bit_reader.get_vlq_int();
-    assert!(v2.is_ok());
-    assert_eq!(v2.unwrap(), 105202);
+    let v = bit_reader.get_vlq_int();
+    assert!(v.is_ok());
+    assert_eq!(v.unwrap(), 137);
+    let v = bit_reader.get_vlq_int();
+    assert!(v.is_ok());
+    assert_eq!(v.unwrap(), 105202);
+  }
+
+  #[test]
+  fn test_bit_reader_get_vlq_int_overflow() {
+    // 10001001 10000001 11110010 10110101 00000110
+    let buffer: Vec<u8> = vec!(0x89, 0x81, 0xF2, 0xB5, 0x06);
+    let mut bit_reader = BitReader::new(&buffer);
+    let v = bit_reader.get_vlq_int();
+    assert!(v.is_ok());
+    assert_eq!(v.unwrap(), 1723629705);
+
+
+    // 10001001 10000001 11110010 10110101 10000110 00000001
+    let buffer = vec!(0x89, 0x81, 0xF2, 0xB5, 0x86, 0x01);
+    let mut bit_reader = BitReader::new(&buffer);
+    let v = bit_reader.get_vlq_int();
+    assert!(v.is_err());
+    assert_eq!(v.unwrap_err().description(),
+      format!("Num of bytes exceed MAX_VLQ_BYTE_LEN ({})", MAX_VLQ_BYTE_LEN));
   }
 
   #[test]
