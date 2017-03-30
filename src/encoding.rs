@@ -47,7 +47,7 @@ pub trait Decoder<'a, T: DataType<'a>> {
 
 
 // ----------------------------------------------------------------------
-// Plain Decoders
+// PLAIN Decoding
 
 pub struct PlainDecoder<'a, T: DataType<'a>> {
   /// The remaining number of values in the byte array
@@ -212,7 +212,7 @@ impl<'a> Decoder<'a, FixedLenByteArrayType> for PlainDecoder<'a, FixedLenByteArr
 
 
 // ----------------------------------------------------------------------
-// Dictionary Decoders
+// PLAIN_DICTIONARY Decoding
 
 pub struct DictDecoder<'a, T: DataType<'a>> {
   /// The dictionary, which maps ids to the values
@@ -264,7 +264,7 @@ impl<'a, T: DataType<'a>> Decoder<'a, T> for DictDecoder<'a, T> {
 
 
 // ----------------------------------------------------------------------
-// Delta Binary Packed Decoders
+// DELTA_BINARY_PACKED Decoding
 
 pub struct DeltaBitPackDecoder<'a, T: DataType<'a>> {
   bit_reader: Option<BitReader<'a>>,
