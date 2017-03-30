@@ -23,7 +23,7 @@ use basic::*;
 use errors::{Result, ParquetError};
 use util::bit_util::BitReader;
 use util::memory::{Buffer, ByteBuffer, MutableBuffer};
-use rle_encoding::RleDecoder;
+use super::rle_encoding::RleDecoder;
 
 // ----------------------------------------------------------------------
 // Decoders
