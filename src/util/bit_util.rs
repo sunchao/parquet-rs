@@ -114,6 +114,12 @@ impl<'a> BitReader<'a> {
     self.bit_offset = 0;
   }
 
+  /// Get the current byte offset
+  #[inline]
+  pub fn get_byte_offset(&self) -> usize {
+    self.byte_offset + self.bit_offset / 8 + 1
+  }
+
   #[inline]
   pub fn get_value<T: Default>(&mut self, num_bits: usize) -> Result<T> {
     assert!(num_bits <= 32);

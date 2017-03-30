@@ -298,6 +298,13 @@ impl<'a, T: DataType<'a>> DeltaBitPackDecoder<'a, T> {
            current_value: 0, _phantom: PhantomData }
   }
 
+  pub fn get_offset(&self) -> usize {
+    assert!(self.bit_reader.is_some());
+    let reader = self.bit_reader.as_ref().unwrap();
+    reader.get_byte_offset()
+  }
+
+  #[inline]
   fn init_block(&mut self) -> Result<()> {
     assert!(self.bit_reader.is_some());
     let mut bit_reader = self.bit_reader.as_mut().unwrap();
@@ -327,6 +334,7 @@ impl<'a> Decoder<'a, Int64Type> for DeltaBitPackDecoder<'a, Int64Type> {
     self.first_value = bit_reader.get_zigzag_vlq_int()?;
     self.first_value_read = false;
     self.values_per_mini_block = (block_size / self.num_mini_blocks) as i64;
+    assert!(self.values_per_mini_block % 8 == 0);
 
     self.bit_reader = Some(bit_reader);
     Ok(())
@@ -382,6 +390,75 @@ impl<'a> Decoder<'a, Int64Type> for DeltaBitPackDecoder<'a, Int64Type> {
     Encoding::DELTA_BINARY_PACKED
   }
 
+}
+
+// ----------------------------------------------------------------------
+// DELTA_LENGTH_BYTE_ARRAY Decoding
+
+pub struct DeltaByteArrayDecoder<'a, T: DataType<'a>> {
+  // Lengths for each byte array in `data`
+  // TODO: add memory tracker to this
+  lengths: Vec<i64>,
+
+  // Current index into `lengths`
+  current_idx: usize,
+
+  // Concatenated byte array data
+  data: Option<&'a [u8]>,
+
+  // Offset into `data`, always point to the beginning of next byte array.
+  offset: usize,
+
+  num_values: usize,
+  _phantom: PhantomData<T>
+}
+
+impl<'a, T: DataType<'a>> DeltaByteArrayDecoder<'a, T> {
+  pub fn new() -> Self {
+    Self { lengths: vec!(), current_idx: 0, data: None, offset: 0,
+           num_values: 0, _phantom: PhantomData }
+  }
+}
+
+impl<'a> Decoder<'a, ByteArrayType> for DeltaByteArrayDecoder<'a, ByteArrayType> {
+  fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()> {
+    let mut len_decoder = DeltaBitPackDecoder::new();
+    len_decoder.set_data(data, num_values)?;
+    let num_lengths = len_decoder.values_left();
+    self.lengths.resize(num_lengths, 0);
+    len_decoder.decode(&mut self.lengths[..], num_lengths)?;
+
+    self.data = Some(&data[len_decoder.get_offset()..]);
+    self.offset = 0;
+    self.num_values = num_lengths;
+    self.current_idx = 0;
+    Ok(())
+  }
+
+  fn decode(&mut self, buffer: &mut [ByteArray<'a>], max_values: usize) -> Result<usize> {
+    assert!(self.data.is_some());
+    assert!(buffer.len() >= max_values);
+
+    let data = self.data.as_ref().unwrap();
+    let num_values = cmp::min(self.num_values, max_values);
+    for i in 0..num_values {
+      let len = self.lengths[self.current_idx] as usize;
+      buffer[i].set_data(&data[self.offset..self.offset + len]);
+      self.offset += len;
+      self.current_idx += 1;
+    }
+
+    self.num_values -= num_values;
+    Ok(num_values)
+  }
+
+  fn values_left(&self) -> usize {
+    self.num_values
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::DELTA_LENGTH_BYTE_ARRAY
+  }
 }
 
 
