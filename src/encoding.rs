@@ -22,6 +22,7 @@ use std::slice::from_raw_parts_mut;
 use basic::*;
 use errors::{Result, ParquetError};
 use util::bit_util::BitReader;
+use util::memory::{Buffer, ByteBuffer, MutableBuffer};
 use rle_encoding::RleDecoder;
 
 // ----------------------------------------------------------------------
@@ -257,6 +258,128 @@ impl<'a, T: DataType<'a>> Decoder<'a, T> for DictDecoder<'a, T> {
 
   fn encoding(&self) -> Encoding {
     Encoding::PLAIN_DICTIONARY
+  }
+
+}
+
+
+// ----------------------------------------------------------------------
+// Delta Binary Packed Decoders
+
+pub struct DeltaBitPackDecoder<'a, T: DataType<'a>> {
+  bit_reader: Option<BitReader<'a>>,
+
+  // Header info
+  num_values: usize,
+  num_mini_blocks: i64,
+  values_per_mini_block: i64,
+  values_current_mini_block: i64,
+  first_value: i64,
+  first_value_read: bool,
+
+  // Per block info
+  min_delta: i64,
+  mini_block_idx: usize,
+  delta_bit_width: u8,
+  delta_bit_widths: ByteBuffer,
+
+  current_value: i64,
+
+  _phantom: PhantomData<T>
+}
+
+impl<'a, T: DataType<'a>> DeltaBitPackDecoder<'a, T> {
+  pub fn new() -> Self {
+    Self { bit_reader: None, num_values: 0, num_mini_blocks: 0,
+           values_per_mini_block: 0, values_current_mini_block: 0,
+           first_value: 0, first_value_read: false,
+           min_delta: 0, mini_block_idx: 0, delta_bit_width: 0,
+           delta_bit_widths: ByteBuffer::new(0),
+           current_value: 0, _phantom: PhantomData }
+  }
+
+  fn init_block(&mut self) -> Result<()> {
+    assert!(self.bit_reader.is_some());
+    let mut bit_reader = self.bit_reader.as_mut().unwrap();
+
+    self.min_delta = bit_reader.get_zigzag_vlq_int()?;
+    let mut widths = vec!();
+    for _ in 0..self.num_mini_blocks {
+      let w = bit_reader.get_aligned::<u8>(1)?;
+      widths.push(w);
+    }
+    self.delta_bit_widths.set_data(widths);
+    self.mini_block_idx = 0;
+    self.values_current_mini_block = self.values_per_mini_block;
+    self.current_value = self.first_value; // TODO: double check this
+    Ok(())
+  }
+}
+
+impl<'a> Decoder<'a, Int64Type> for DeltaBitPackDecoder<'a, Int64Type> {
+  // # of total values is derived from encoding
+  fn set_data(&mut self, data: &'a [u8], _: usize) -> Result<()> {
+    let mut bit_reader = BitReader::new(data);
+
+    let block_size = bit_reader.get_vlq_int()?;
+    self.num_mini_blocks = bit_reader.get_vlq_int()?;
+    self.num_values = bit_reader.get_vlq_int()? as usize;
+    self.first_value = bit_reader.get_zigzag_vlq_int()?;
+    self.first_value_read = false;
+    self.values_per_mini_block = (block_size / self.num_mini_blocks) as i64;
+
+    self.bit_reader = Some(bit_reader);
+    Ok(())
+  }
+
+  // TODO: same impl for i32?
+  fn decode(&mut self, buffer: &mut [i64], max_values: usize) -> Result<usize> {
+    assert!(buffer.len() >= max_values);
+    assert!(self.bit_reader.is_some());
+
+    let num_values = cmp::min(max_values, self.num_values);
+    for i in 0..num_values {
+      if !self.first_value_read {
+        buffer[i] = self.first_value;
+        self.first_value_read = true;
+        continue;
+      }
+
+      if self.values_current_mini_block == 0 {
+        self.mini_block_idx += 1;
+        if self.mini_block_idx < self.delta_bit_widths.size() {
+          self.delta_bit_width = self.delta_bit_widths.data()[self.mini_block_idx];
+          self.values_current_mini_block = self.values_per_mini_block;
+        } else {
+          self.init_block()?;
+        }
+      }
+
+      // we can't move this outside the loop since it needs to
+      // "carve out" the permission of `self.bit_reader` which makes
+      // `self.init_block()` call impossible (the latter requires the
+      // whole permission of `self`)
+      // TODO: evaluate the performance impact of this.
+      let bit_reader = self.bit_reader.as_mut().unwrap();
+
+      // TODO: use SIMD to optimize this?
+      let delta = bit_reader.get_value(self.delta_bit_width as usize)?;
+      self.current_value += self.min_delta;
+      self.current_value += delta;
+      buffer[i] = self.current_value;
+      self.values_current_mini_block -= 1;
+    }
+
+    self.num_values -= num_values;
+    Ok(num_values)
+  }
+
+  fn values_left(&self) -> usize {
+    self.num_values
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::DELTA_BINARY_PACKED
   }
 
 }
