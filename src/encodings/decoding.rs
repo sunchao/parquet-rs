@@ -395,7 +395,7 @@ impl<'a> Decoder<'a, Int64Type> for DeltaBitPackDecoder<'a, Int64Type> {
 // ----------------------------------------------------------------------
 // DELTA_LENGTH_BYTE_ARRAY Decoding
 
-pub struct DeltaLengthByteArrayDecoder<'a, T: DataType<'a>> {
+pub struct DeltaLengthByteArrayDecoder<'a> {
   // Lengths for each byte array in `data`
   // TODO: add memory tracker to this
   lengths: Vec<i64>,
@@ -410,17 +410,15 @@ pub struct DeltaLengthByteArrayDecoder<'a, T: DataType<'a>> {
   offset: usize,
 
   num_values: usize,
-  _phantom: PhantomData<T>
 }
 
-impl<'a, T: DataType<'a>> DeltaLengthByteArrayDecoder<'a, T> {
+impl<'a> DeltaLengthByteArrayDecoder<'a> {
   pub fn new() -> Self {
-    Self { lengths: vec!(), current_idx: 0, data: None, offset: 0,
-           num_values: 0, _phantom: PhantomData }
+    Self { lengths: vec!(), current_idx: 0, data: None, offset: 0, num_values: 0 }
   }
 }
 
-impl<'a> Decoder<'a, ByteArrayType> for DeltaLengthByteArrayDecoder<'a, ByteArrayType> {
+impl<'a> Decoder<'a, ByteArrayType> for DeltaLengthByteArrayDecoder<'a> {
   fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()> {
     let mut len_decoder = DeltaBitPackDecoder::new();
     len_decoder.set_data(data, num_values)?;
