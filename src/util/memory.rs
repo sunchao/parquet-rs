@@ -151,7 +151,7 @@ pub struct DefaultMemoryPool {
 }
 
 impl DefaultMemoryPool {
-  fn new() -> Self {
+  pub fn new() -> Self {
     let arena = TypedArena::new();
     DefaultMemoryPool{ arena: arena, cur_bytes_allocated: 0, max_bytes_allocated: 0 }
   }
