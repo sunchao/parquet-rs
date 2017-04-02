@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp;
 use arena::TypedArena;
 
 use errors::Result;
@@ -48,12 +49,14 @@ pub trait MutableBuffer: Buffer {
 
   /// Set the internal buffer to be `new_data`, discarding the old buffer.
   fn set_data(&mut self, new_data: Vec<u8>);
-}
 
-/// A type of buffer where the underlying data can grow and shrink
-pub trait ResizableBuffer: MutableBuffer {
+  /// Adjust the internal buffer's capacity to be `new_cap`.
+  /// If the current size of the buffer is smaller than `new_cap`, data
+  /// will be truncated.
   fn resize(&mut self, new_cap: usize) -> Result<()>;
 }
+
+// A mutable byte buffer struct
 
 pub struct ByteBuffer {
   data: Vec<u8>
@@ -88,12 +91,31 @@ impl MutableBuffer for ByteBuffer {
   fn set_data(&mut self, new_data: Vec<u8>) {
     self.data = new_data;
   }
-}
 
-impl ResizableBuffer for ByteBuffer {
   fn resize(&mut self, new_cap: usize) -> Result<()> {
     self.data.resize(new_cap, 0);
     Ok(())
+  }
+}
+
+
+// A immutable byte buffer struct
+
+pub struct ImmutableByteBuffer<'a> {
+  data: &'a [u8]
+}
+
+impl<'a> Buffer for ImmutableByteBuffer<'a> {
+  fn data(&self) -> &[u8] {
+    self.data
+  }
+
+  fn capacity(&self) -> usize {
+    self.data.len()
+  }
+
+  fn size(&self) -> usize {
+    self.data.len()
   }
 }
 
@@ -103,17 +125,17 @@ impl ResizableBuffer for ByteBuffer {
 
 
 /// A central place for managing memory.
-/// NOTE: client can only acquire byte buffers through this API, but not releasing.
+/// NOTE: client can only acquire bytes through this API, but not releasing.
 /// All the memory will be released once the instance of this trait goes out of scope.
 pub trait MemoryPool {
   /// Acquire a new byte buffer of at least `size` bytes
   /// Return a unique reference to the buffer
-  fn acquire(&mut self, size: usize) -> Result<&mut Box<Buffer>>;
+  fn acquire(&mut self, size: usize) -> Result<&mut [u8]>;
 
   /// Consume `buf` and add it to this memory pool
   /// After the call, `buf` has the same lifetime as the pool.
   /// Return a unique reference to the consumed buffer.
-  fn consume(&mut self, buf: Box<Buffer>) -> &mut Box<Buffer>;
+  fn consume(&mut self, buf: Vec<u8>) -> &mut [u8];
 
   /// Return the total number of bytes allocated so far
   fn cur_allocated(&self) -> i64;
@@ -123,7 +145,7 @@ pub trait MemoryPool {
 }
 
 pub struct DefaultMemoryPool {
-  arena: TypedArena<Box<Buffer>>,
+  arena: TypedArena<Vec<u8>>,
   cur_bytes_allocated: i64,
   max_bytes_allocated: i64
 }
@@ -133,17 +155,25 @@ impl DefaultMemoryPool {
     let arena = TypedArena::new();
     DefaultMemoryPool{ arena: arena, cur_bytes_allocated: 0, max_bytes_allocated: 0 }
   }
+
+  fn arena_alloc(&mut self, buf: Vec<u8>) -> &mut [u8] {
+    let buf_len = buf.len() as i64;
+    let result = self.arena.alloc(buf);
+    self.cur_bytes_allocated += buf_len as i64;
+    self.max_bytes_allocated = cmp::max(self.max_bytes_allocated, self.cur_bytes_allocated);
+    result.as_mut_slice()
+  }
 }
 
 impl MemoryPool for DefaultMemoryPool {
-  fn acquire(&mut self, size: usize) -> Result<&mut Box<Buffer>> {
-    let buf = Box::new(ByteBuffer::new(size));
-    let result: &mut Box<Buffer> = self.arena.alloc(buf);
+  fn acquire(&mut self, size: usize) -> Result<&mut [u8]> {
+    let buf = vec![0; size];
+    let result = self.arena_alloc(buf);
     Ok(result)
   }
 
-  fn consume(&mut self, buf: Box<Buffer>) -> &mut Box<Buffer> {
-    self.arena.alloc(buf)
+  fn consume(&mut self, buf: Vec<u8>) -> &mut [u8] {
+    self.arena_alloc(buf)
   }
 
   fn cur_allocated(&self) -> i64 {
