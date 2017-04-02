@@ -47,6 +47,21 @@ pub fn ceil(value: i64, divisor: i64) -> i64 {
   result
 }
 
+/// Return ceil(log2(x))
+#[inline]
+pub fn log2(mut x: u64) -> i32 {
+  if x == 1 {
+    return 0;
+  }
+  x -= 1;
+  let mut result = 0;
+  while x > 0 {
+    x >>= 1;
+    result += 1;
+  }
+  result
+}
+
 /// Returns the `num_bits` least-significant bits of `v`
 #[inline]
 pub fn trailing_bits(v: u64, num_bits: usize) -> u64 {
@@ -364,6 +379,20 @@ mod tests {
     assert_eq!(buffer, vec![16, 12, 0]);
     unset_array_bit(&mut buffer[..], 10);
     assert_eq!(buffer, vec![16, 8, 0]);
+  }
+
+  #[test]
+  fn test_log2() {
+    assert_eq!(log2(1), 0);
+    assert_eq!(log2(2), 1);
+    assert_eq!(log2(3), 2);
+    assert_eq!(log2(4), 2);
+    assert_eq!(log2(5), 3);
+    assert_eq!(log2(5), 3);
+    assert_eq!(log2(6), 3);
+    assert_eq!(log2(7), 3);
+    assert_eq!(log2(8), 3);
+    assert_eq!(log2(9), 4);
   }
 
 }
