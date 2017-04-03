@@ -23,7 +23,8 @@ use basic::*;
 use errors::{Result, ParquetError};
 use util::bit_util::BitReader;
 use util::memory::{Buffer, ByteBuffer, MutableBuffer};
-use super::rle_encoding::RleDecoder;
+use super::rle_encoding::RawRleDecoder;
+
 
 // ----------------------------------------------------------------------
 // Decoders
@@ -219,7 +220,7 @@ pub struct DictDecoder<'a, T: DataType<'a>> {
   dictionary: Vec<T::T>,
 
   /// The decoder for the value ids
-  rle_decoder: Option<RleDecoder<'a>>,
+  rle_decoder: Option<RawRleDecoder<'a>>,
 
   /// Number of values left in the data stream
   num_values: usize
@@ -235,7 +236,7 @@ impl<'a, T: DataType<'a>> Decoder<'a, T> for DictDecoder<'a, T> {
   fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()> {
     // first byte in `data` is bit width
     let bit_width = data[0] as usize;
-    let mut rle_decoder = RleDecoder::new(bit_width);
+    let mut rle_decoder = RawRleDecoder::new(bit_width);
     rle_decoder.set_data(&data[1..]);
     self.num_values = num_values;
     self.rle_decoder = Some(rle_decoder);
@@ -260,6 +261,47 @@ impl<'a, T: DataType<'a>> Decoder<'a, T> for DictDecoder<'a, T> {
     Encoding::PLAIN_DICTIONARY
   }
 
+}
+
+
+// ----------------------------------------------------------------------
+// RLE Decoding
+
+/// A RLE/Bit-Packing hybrid decoder. This is a wrapper on `rle_encoding::RawRleDecoder`.
+pub struct RleDecoder<'a> {
+  bit_width: usize,
+  decoder: RawRleDecoder<'a>,
+  num_values: usize
+}
+
+impl<'a> RleDecoder<'a> {
+  pub fn new(bit_width: usize) -> Self {
+    Self { bit_width: bit_width, decoder: RawRleDecoder::new(bit_width), num_values: 0 }
+  }
+}
+
+impl<'a> Decoder<'a, Int32Type> for RleDecoder<'a> {
+  fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()> {
+    let i32_size = mem::size_of::<i32>();
+    let num_bytes = read_num_bytes!(i32, i32_size, data) as usize;
+    self.decoder.set_data(&data[i32_size..i32_size + num_bytes]);
+    self.num_values = num_values;
+    Ok(())
+  }
+
+  fn decode(&mut self, buffer: &mut [i32], max_values: usize) -> Result<usize> {
+    let values_read = self.decoder.decode(buffer, max_values)?;
+    self.num_values -= values_read;
+    Ok(values_read)
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::RLE
+  }
+
+  fn values_left(&self) -> usize {
+    self.num_values
+  }
 }
 
 
@@ -391,6 +433,7 @@ impl<'a> Decoder<'a, Int64Type> for DeltaBitPackDecoder<'a, Int64Type> {
   }
 
 }
+
 
 // ----------------------------------------------------------------------
 // DELTA_LENGTH_BYTE_ARRAY Decoding

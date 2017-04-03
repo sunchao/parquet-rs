@@ -22,10 +22,8 @@ use errors::Result;
 use util::bit_util::{self, BitReader};
 
 
-// ----------------------------------------------------------------------
-// RLE/Bit-Packing Hybrid Decoders
-
-pub struct RleDecoder<'a> {
+/// A RLE/Bit-Packing hybrid decoder.
+pub struct RawRleDecoder<'a> {
   /// Number of bits used to encode the value
   bit_width: usize,
 
@@ -42,9 +40,9 @@ pub struct RleDecoder<'a> {
   current_value: Option<u64>,
 }
 
-impl<'a> RleDecoder<'a> {
+impl<'a> RawRleDecoder<'a> {
   pub fn new(bit_width: usize) -> Self {
-    RleDecoder { bit_width: bit_width, rle_left: 0, bit_packing_left: 0,
+    RawRleDecoder { bit_width: bit_width, rle_left: 0, bit_packing_left: 0,
                  bit_reader: None, current_value: None }
   }
 
@@ -165,7 +163,7 @@ mod tests {
     // test data: 0-7 with bit width 3
     // 00000011 10001000 11000110 11111010
     let data = vec!(0x03, 0x88, 0xC6, 0xFA);
-    let mut decoder: RleDecoder = RleDecoder::new(3);
+    let mut decoder: RawRleDecoder = RawRleDecoder::new(3);
     decoder.set_data(&data);
     let mut buffer = vec!(0; 8);
     let expected = vec!(0, 1, 2, 3, 4, 5, 6, 7);
@@ -186,7 +184,7 @@ mod tests {
     let data2 = vec!(0x1B, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
                      0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x0A);
 
-    let mut decoder: RleDecoder = RleDecoder::new(1);
+    let mut decoder: RawRleDecoder = RawRleDecoder::new(1);
     decoder.set_data(&data1);
     let mut buffer = vec!(false; 100);
     let mut expected = vec!();
@@ -222,7 +220,7 @@ mod tests {
     // 00000110 00000000 00001000 00000001 00001010 00000010
     let dict = vec!(10, 20, 30);
     let data = vec!(0x06, 0x00, 0x08, 0x01, 0x0A, 0x02);
-    let mut decoder: RleDecoder = RleDecoder::new(3);
+    let mut decoder: RawRleDecoder = RawRleDecoder::new(3);
     decoder.set_data(&data);
     let mut buffer = vec!(0; 12);
     let expected = vec!(10, 10, 10, 20, 20, 20, 20, 30, 30, 30, 30, 30);
@@ -235,7 +233,7 @@ mod tests {
     // 00000011 01100011 11000111 10001110 00000011 01100101 00001011
     let dict = vec!("aaa", "bbb", "ccc", "ddd", "eee", "fff");
     let data = vec!(0x03, 0x63, 0xC7, 0x8E, 0x03, 0x65, 0x0B);
-    let mut decoder: RleDecoder = RleDecoder::new(3);
+    let mut decoder: RawRleDecoder = RawRleDecoder::new(3);
     decoder.set_data(&data);
     let mut buffer = vec!(""; 12);
     let expected = vec!("ddd", "eee", "fff", "ddd", "eee", "fff",
