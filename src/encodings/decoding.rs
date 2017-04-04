@@ -15,13 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::mem;
 use std::cmp;
+use std::fmt;
+use std::mem;
 use std::marker::PhantomData;
 use std::slice::from_raw_parts_mut;
 use basic::*;
 use errors::{Result, ParquetError};
-use util::bit_util::BitReader;
+use schema::types::ColumnDescriptor;
+use util::bit_util::{log2, BitReader};
 use util::memory::{Buffer, ByteBuffer, MutableBuffer};
 use super::rle_encoding::RawRleDecoder;
 
@@ -44,6 +46,51 @@ pub trait Decoder<'a, T: DataType<'a>> {
 
   /// Return the encoding for this decoder
   fn encoding(&self) -> Encoding;
+}
+
+
+#[derive(Debug)]
+pub enum ValueType {
+  DEF_LEVEL,
+  REP_LEVEL,
+  VALUE
+}
+
+impl fmt::Display for ValueType {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}", self)
+  }
+}
+
+
+/// Get a decoder for the particular data type `T` and encoding `encoding`.
+/// `descr` and `value_type` currently are only used when getting a `RleDecoder`
+/// and is used to decide whether this is for definition level or repetition level.
+// TODO: is `where T: 'a` correct?
+pub fn get_decoder<'a, T: DataType<'a>>(
+  descr: &ColumnDescriptor,
+  encoding: Encoding,
+  value_type: ValueType) -> Result<Box<Decoder<'a, T> + 'a>> where T: 'a {
+  let decoder = match encoding {
+    // TODO: why Rust cannot infer result type without the `as Box<...>`?
+    Encoding::PLAIN => Box::new(PlainDecoder::new()) as Box<Decoder<'a, T> + 'a>,
+    Encoding::RLE => {
+      let level = match value_type {
+        ValueType::DEF_LEVEL => descr.max_def_level(),
+        ValueType::REP_LEVEL => descr.max_rep_level(),
+        t => return general_err!("Unexpected value type {}", t)
+      };
+      let level_bit_width = log2(level as u64);
+      Box::new(RleDecoder::new(level_bit_width as usize))
+    },
+    Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackDecoder::new()),
+    Encoding::DELTA_LENGTH_BYTE_ARRAY => Box::new(DeltaLengthByteArrayDecoder::new()),
+    Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
+      return general_err!("Cannot initialize this encoding through this function")
+    },
+    e => return nyi_err!("Encoding {} is not supported.", e)
+  };
+  Ok(decoder)
 }
 
 
@@ -268,31 +315,26 @@ impl<'a, T: DataType<'a>> Decoder<'a, T> for DictDecoder<'a, T> {
 // RLE Decoding
 
 /// A RLE/Bit-Packing hybrid decoder. This is a wrapper on `rle_encoding::RawRleDecoder`.
-pub struct RleDecoder<'a> {
+pub struct RleDecoder<'a, T: DataType<'a>> {
   bit_width: usize,
   decoder: RawRleDecoder<'a>,
-  num_values: usize
+  num_values: usize,
+  _phantom: PhantomData<T>
 }
 
-impl<'a> RleDecoder<'a> {
+impl<'a, T: DataType<'a>> RleDecoder<'a, T> {
   pub fn new(bit_width: usize) -> Self {
-    Self { bit_width: bit_width, decoder: RawRleDecoder::new(bit_width), num_values: 0 }
+    Self { bit_width: bit_width, decoder: RawRleDecoder::new(bit_width), num_values: 0, _phantom: PhantomData }
   }
 }
 
-impl<'a> Decoder<'a, Int32Type> for RleDecoder<'a> {
-  fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()> {
-    let i32_size = mem::size_of::<i32>();
-    let num_bytes = read_num_bytes!(i32, i32_size, data) as usize;
-    self.decoder.set_data(&data[i32_size..i32_size + num_bytes]);
-    self.num_values = num_values;
-    Ok(())
+impl<'a, T: DataType<'a>> Decoder<'a, T> for RleDecoder<'a, T> {
+  default fn set_data(&mut self, _: &'a [u8], _: usize) -> Result<()> {
+    general_err!("RleDecoder only support Int32Type")
   }
 
-  fn decode(&mut self, buffer: &mut [i32], max_values: usize) -> Result<usize> {
-    let values_read = self.decoder.decode(buffer, max_values)?;
-    self.num_values -= values_read;
-    Ok(values_read)
+  default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+    general_err!("RleDecoder only support Int32Type")
   }
 
   fn encoding(&self) -> Encoding {
@@ -301,6 +343,25 @@ impl<'a> Decoder<'a, Int32Type> for RleDecoder<'a> {
 
   fn values_left(&self) -> usize {
     self.num_values
+  }
+}
+
+
+impl<'a> Decoder<'a, Int32Type> for RleDecoder<'a, Int32Type> {
+  #[inline]
+  fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()> {
+    let i32_size = mem::size_of::<i32>();
+    let num_bytes = read_num_bytes!(i32, i32_size, data) as usize;
+    self.decoder.set_data(&data[i32_size..i32_size + num_bytes]);
+    self.num_values = num_values;
+    Ok(())
+  }
+
+  #[inline]
+  fn decode(&mut self, buffer: &mut [i32], max_values: usize) -> Result<usize> {
+    let values_read = self.decoder.decode(buffer, max_values)?;
+    self.num_values -= values_read;
+    Ok(values_read)
   }
 }
 
@@ -365,6 +426,24 @@ impl<'a, T: DataType<'a>> DeltaBitPackDecoder<'a, T> {
   }
 }
 
+impl<'a, T: DataType<'a>> Decoder<'a, T> for DeltaBitPackDecoder<'a, T> {
+  default fn set_data(&mut self, _: &'a [u8], _: usize) -> Result<()> {
+    general_err!("DeltaBitPackDecoder only support Int64Type")
+  }
+
+  default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+    general_err!("DeltaBitPackDecoder only support Int64Type")
+  }
+
+  fn values_left(&self) -> usize {
+    self.num_values
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::DELTA_BINARY_PACKED
+  }
+}
+
 impl<'a> Decoder<'a, Int64Type> for DeltaBitPackDecoder<'a, Int64Type> {
   // # of total values is derived from encoding
   fn set_data(&mut self, data: &'a [u8], _: usize) -> Result<()> {
@@ -423,22 +502,13 @@ impl<'a> Decoder<'a, Int64Type> for DeltaBitPackDecoder<'a, Int64Type> {
     self.num_values -= num_values;
     Ok(num_values)
   }
-
-  fn values_left(&self) -> usize {
-    self.num_values
-  }
-
-  fn encoding(&self) -> Encoding {
-    Encoding::DELTA_BINARY_PACKED
-  }
-
 }
 
 
 // ----------------------------------------------------------------------
 // DELTA_LENGTH_BYTE_ARRAY Decoding
 
-pub struct DeltaLengthByteArrayDecoder<'a> {
+pub struct DeltaLengthByteArrayDecoder<'a, T: DataType<'a>> {
   // Lengths for each byte array in `data`
   // TODO: add memory tracker to this
   lengths: Vec<i64>,
@@ -452,16 +522,38 @@ pub struct DeltaLengthByteArrayDecoder<'a> {
   // Offset into `data`, always point to the beginning of next byte array.
   offset: usize,
 
+  // Number of values left in this decoder stream
   num_values: usize,
+
+  // Placeholder to allow `T` as generic parameter
+  _phantom: PhantomData<T>
 }
 
-impl<'a> DeltaLengthByteArrayDecoder<'a> {
+impl<'a, T: DataType<'a>> DeltaLengthByteArrayDecoder<'a, T> {
   pub fn new() -> Self {
-    Self { lengths: vec!(), current_idx: 0, data: None, offset: 0, num_values: 0 }
+    Self { lengths: vec!(), current_idx: 0, data: None, offset: 0, num_values: 0, _phantom: PhantomData }
   }
 }
 
-impl<'a> Decoder<'a, ByteArrayType> for DeltaLengthByteArrayDecoder<'a> {
+impl<'a, T: DataType<'a>> Decoder<'a, T> for DeltaLengthByteArrayDecoder<'a, T> {
+  default fn set_data(&mut self, _: &'a [u8], _: usize) -> Result<()> {
+    general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType")
+  }
+
+  default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+    general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType")
+  }
+
+  fn values_left(&self) -> usize {
+    self.num_values
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::DELTA_LENGTH_BYTE_ARRAY
+  }
+}
+
+impl<'a> Decoder<'a, ByteArrayType> for DeltaLengthByteArrayDecoder<'a, ByteArrayType> {
   fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()> {
     let mut len_decoder = DeltaBitPackDecoder::new();
     len_decoder.set_data(data, num_values)?;
@@ -491,14 +583,6 @@ impl<'a> Decoder<'a, ByteArrayType> for DeltaLengthByteArrayDecoder<'a> {
 
     self.num_values -= num_values;
     Ok(num_values)
-  }
-
-  fn values_left(&self) -> usize {
-    self.num_values
-  }
-
-  fn encoding(&self) -> Encoding {
-    Encoding::DELTA_LENGTH_BYTE_ARRAY
   }
 }
 
