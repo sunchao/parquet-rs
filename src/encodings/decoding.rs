@@ -24,7 +24,7 @@ use basic::*;
 use errors::{Result, ParquetError};
 use schema::types::ColumnDescriptor;
 use util::bit_util::{log2, BitReader};
-use util::memory::{Buffer, ByteBuffer, MutableBuffer};
+use util::memory::{Buffer, ByteBuffer, MutableBuffer, MemoryPool};
 use super::rle_encoding::RawRleDecoder;
 
 
@@ -67,10 +67,11 @@ impl fmt::Display for ValueType {
 /// `descr` and `value_type` currently are only used when getting a `RleDecoder`
 /// and is used to decide whether this is for definition level or repetition level.
 // TODO: is `where T: 'a` correct?
-pub fn get_decoder<'a, T: DataType<'a>>(
+pub fn get_decoder<'a, 'b: 'a, T: DataType<'a>>(
   descr: &ColumnDescriptor,
   encoding: Encoding,
-  value_type: ValueType) -> Result<Box<Decoder<'a, T> + 'a>> where T: 'a {
+  value_type: ValueType,
+  mem_pool: &'b MemoryPool) -> Result<Box<Decoder<'a, T> + 'a>> where T: 'a {
   let decoder = match encoding {
     // TODO: why Rust cannot infer result type without the `as Box<...>`?
     Encoding::PLAIN => Box::new(PlainDecoder::new()) as Box<Decoder<'a, T> + 'a>,
@@ -85,6 +86,7 @@ pub fn get_decoder<'a, T: DataType<'a>>(
     },
     Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackDecoder::new()),
     Encoding::DELTA_LENGTH_BYTE_ARRAY => Box::new(DeltaLengthByteArrayDecoder::new()),
+    Encoding::DELTA_BYTE_ARRAY => Box::new(DeltaByteArrayDecoder::new(mem_pool)),
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
       return general_err!("Cannot initialize this encoding through this function")
     },
@@ -585,6 +587,112 @@ impl<'a> Decoder<'a, ByteArrayType> for DeltaLengthByteArrayDecoder<'a, ByteArra
     Ok(num_values)
   }
 }
+
+// ----------------------------------------------------------------------
+// DELTA_BYTE_ARRAY Decoding
+
+pub struct DeltaByteArrayDecoder<'a, 'b: 'a, T: DataType<'a>> {
+  // Prefix lengths for each byte array
+  // TODO: add memory tracker to this
+  prefix_lengths: Vec<i64>,
+
+  // The current index into `prefix_lengths`,
+  current_idx: usize,
+
+  // Decoder for all suffixs, the # of which should be the same as `prefix_lengths.len()`
+  suffix_decoder: Option<DeltaLengthByteArrayDecoder<'a, ByteArrayType>>,
+
+  // The last byte array, used to derive the current prefix
+  previous_value: Option<&'a [u8]>,
+
+  // Memory pool that used to track allocated bytes in this struct.
+  // The lifetime of this is longer than 'a.
+  mem_pool: &'b MemoryPool,
+
+  // Number of values left
+  num_values: usize,
+
+  // Placeholder to allow `T` as generic parameter
+  _phantom: PhantomData<T>
+}
+
+impl<'a, 'b: 'a, T: DataType<'a>> DeltaByteArrayDecoder<'a, 'b, T> {
+  pub fn new(mem_pool: &'b MemoryPool) -> Self {
+    Self { prefix_lengths: vec!(), current_idx: 0, suffix_decoder: None,
+           previous_value: None, mem_pool: mem_pool, num_values: 0, _phantom: PhantomData }
+  }
+}
+
+impl<'a, 'b: 'a, T: DataType<'a>> Decoder<'a, T> for DeltaByteArrayDecoder<'a, 'b, T> {
+  default fn set_data(&mut self, _: &'a [u8], _: usize) -> Result<()> {
+    general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType")
+  }
+
+  default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+    general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType")
+  }
+
+  fn values_left(&self) -> usize {
+    self.num_values
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::DELTA_BYTE_ARRAY
+  }
+}
+
+impl<'a, 'b: 'a> Decoder<'a, ByteArrayType> for DeltaByteArrayDecoder<'a, 'b, ByteArrayType> {
+  fn set_data(&mut self, data: &'a [u8], num_values: usize) -> Result<()> {
+    let mut prefix_len_decoder = DeltaBitPackDecoder::new();
+    prefix_len_decoder.set_data(data, num_values)?;
+    let num_prefixes = prefix_len_decoder.values_left();
+    self.prefix_lengths.resize(num_prefixes, 0);
+    prefix_len_decoder.decode(&mut self.prefix_lengths[..], num_prefixes)?;
+
+    let mut suffix_decoder = DeltaLengthByteArrayDecoder::new();
+    suffix_decoder.set_data(&data[prefix_len_decoder.get_offset()..], num_values)?;
+    self.suffix_decoder = Some(suffix_decoder);
+    self.num_values = num_prefixes;
+    Ok(())
+  }
+
+  fn decode(&mut self, buffer: &mut [ByteArray<'a>], max_values: usize) -> Result<usize> {
+    assert!(buffer.len() >= max_values);
+    assert!(self.suffix_decoder.is_some());
+
+    let num_values = cmp::min(self.num_values, max_values);
+    for i in 0..num_values {
+      // Process prefix
+      let mut prefix_slice: Option<&[u8]> = None;
+      let prefix_len = self.prefix_lengths[self.current_idx];
+      if prefix_len != 0 {
+        assert!(self.previous_value.is_some());
+        let previous = self.previous_value.as_ref().unwrap();
+        prefix_slice = Some(&previous[0..prefix_len as usize]);
+      }
+      // Process suffix
+      // TODO: this is awkward - maybe we should add a non-vectorized API?
+      let mut suffix = vec![ByteArray::new(); 1];
+      let suffix_decoder = self.suffix_decoder.as_mut().unwrap();
+      suffix_decoder.decode(&mut suffix[..], 1)?;
+
+      // Concatenate prefix with suffix
+      let result: Vec<u8> = match prefix_slice {
+        Some(prefix) => [prefix, suffix[0].get_data()].concat(),
+        None => Vec::from(suffix[0].get_data())
+      };
+
+      let byte_array = self.mem_pool.consume(result);
+      buffer[i].set_data(byte_array);
+      self.previous_value = Some(byte_array);
+    }
+
+    self.num_values -= num_values;
+    Ok(num_values)
+  }
+}
+
+
 
 
 #[cfg(test)]

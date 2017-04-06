@@ -16,6 +16,7 @@
 // under the License.
 
 use std::cmp;
+use std::cell::Cell;
 use arena::TypedArena;
 
 use errors::Result;
@@ -127,60 +128,48 @@ impl<'a> Buffer for ImmutableByteBuffer<'a> {
 /// A central place for managing memory.
 /// NOTE: client can only acquire bytes through this API, but not releasing.
 /// All the memory will be released once the instance of this trait goes out of scope.
-pub trait MemoryPool {
+pub struct MemoryPool {
+  arena: TypedArena<Vec<u8>>,
+
+  // NOTE: these need to be in `Cell` since all public APIs of
+  // this struct take `&self`, instead of `&mut self`. Otherwise, we cannot make the
+  // lifetime of outputs to be the same as this memory pool.
+  cur_bytes_allocated: Cell<i64>,
+  max_bytes_allocated: Cell<i64>
+}
+
+impl MemoryPool {
+  pub fn new() -> Self {
+    let arena = TypedArena::new();
+    Self { arena: arena, cur_bytes_allocated: Cell::new(0), max_bytes_allocated: Cell::new(0) }
+  }
+
   /// Acquire a new byte buffer of at least `size` bytes
   /// Return a unique reference to the buffer
-  fn acquire(&mut self, size: usize) -> Result<&mut [u8]>;
+  pub fn acquire(&self, size: usize) -> &mut [u8] {
+    let buf = vec![0; size];
+    self.consume(buf)
+  }
 
   /// Consume `buf` and add it to this memory pool
   /// After the call, `buf` has the same lifetime as the pool.
   /// Return a unique reference to the consumed buffer.
-  fn consume(&mut self, buf: Vec<u8>) -> &mut [u8];
+  pub fn consume(&self, data: Vec<u8>) -> &mut [u8] {
+    let bytes_allocated = data.capacity();
+    let result = self.arena.alloc(data);
+    self.cur_bytes_allocated.set(self.cur_bytes_allocated.get() + bytes_allocated as i64);
+    self.max_bytes_allocated.set(
+      cmp::max(self.max_bytes_allocated.get(), self.cur_bytes_allocated.get()));
+    result
+  }
 
   /// Return the total number of bytes allocated so far
-  fn cur_allocated(&self) -> i64;
+  fn cur_allocated(&self) -> i64 {
+    self.cur_bytes_allocated.get()
+  }
 
   /// Return the maximum number of bytes allocated so far
-  fn max_allocated(&self) -> i64;
-}
-
-pub struct DefaultMemoryPool {
-  arena: TypedArena<Vec<u8>>,
-  cur_bytes_allocated: i64,
-  max_bytes_allocated: i64
-}
-
-impl DefaultMemoryPool {
-  pub fn new() -> Self {
-    let arena = TypedArena::new();
-    DefaultMemoryPool{ arena: arena, cur_bytes_allocated: 0, max_bytes_allocated: 0 }
-  }
-
-  fn arena_alloc(&mut self, buf: Vec<u8>) -> &mut [u8] {
-    let buf_len = buf.len() as i64;
-    let result = self.arena.alloc(buf);
-    self.cur_bytes_allocated += buf_len as i64;
-    self.max_bytes_allocated = cmp::max(self.max_bytes_allocated, self.cur_bytes_allocated);
-    result.as_mut_slice()
-  }
-}
-
-impl MemoryPool for DefaultMemoryPool {
-  fn acquire(&mut self, size: usize) -> Result<&mut [u8]> {
-    let buf = vec![0; size];
-    let result = self.arena_alloc(buf);
-    Ok(result)
-  }
-
-  fn consume(&mut self, buf: Vec<u8>) -> &mut [u8] {
-    self.arena_alloc(buf)
-  }
-
-  fn cur_allocated(&self) -> i64 {
-    self.cur_bytes_allocated
-  }
-
   fn max_allocated(&self) -> i64 {
-    self.max_bytes_allocated
+    self.max_bytes_allocated.get()
   }
 }
