@@ -245,17 +245,15 @@ impl Type for GroupType {
 }
 
 
-pub struct ColumnDescriptor {
-  path: ColumnPath,
-  primitive_type: PrimitiveType,
+pub struct ColumnDescriptor<'a> {
+  primitive_type: &'a PrimitiveType,
   max_def_level: i16,
   max_rep_level: i16
 }
 
-impl ColumnDescriptor {
-  pub fn new(path: ColumnPath, primitive_type: PrimitiveType,
-             max_def_level: i16, max_rep_level: i16) -> Self {
-    Self { path, primitive_type, max_def_level, max_rep_level }
+impl<'a> ColumnDescriptor<'a> {
+  pub fn new(primitive_type: &'a PrimitiveType, max_def_level: i16, max_rep_level: i16) -> Self {
+    Self { primitive_type, max_def_level, max_rep_level }
   }
 
   pub fn max_def_level(&self) -> i16 {
@@ -276,10 +274,6 @@ impl ColumnDescriptor {
 
   pub fn name(&self) -> &str {
     self.primitive_type.get_basic_info().name.as_str()
-  }
-
-  pub fn path(&self) -> &ColumnPath {
-    &self.path
   }
 
   pub fn type_length(&self) -> i32 {
