@@ -137,13 +137,15 @@ impl <'a> Printer<'a> {
 
 #[allow(unused_must_use)]
 impl <'a> TypeVisitor for Printer<'a> {
-  fn visit_primitive_type(&mut self, tp: &PrimitiveType) {
+  fn visit_type(&mut self, _: &Type) {
     self.print_indent();
+  }
+
+  fn visit_primitive_type(&mut self, tp: &PrimitiveType) {
     write!(self.output, "{} {} {};", tp.repetition().unwrap(), tp.physical_type(), tp.name());
   }
 
   fn visit_group_type(&mut self, tp: &GroupType) {
-    self.print_indent();
     match tp.repetition() {
       None => {
         writeln!(self.output, "message {} {{", tp.name());

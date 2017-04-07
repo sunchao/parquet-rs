@@ -30,6 +30,7 @@ enum TypeKind {
 // This seems tricky since Rust doesn't allow generic methods for trait objects.
 // TODO: add a mutable `TypeVisitor`
 pub trait TypeVisitor {
+  fn visit_type(&mut self, tp: &Type);
   fn visit_primitive_type(&mut self, tp: &PrimitiveType);
   fn visit_group_type(&mut self, tp: &GroupType);
 }
@@ -194,7 +195,8 @@ impl Type for PrimitiveType {
   }
 
   fn accept(&self, visitor: &mut TypeVisitor) {
-    visitor.visit_primitive_type(self)
+    visitor.visit_type(self);
+    visitor.visit_primitive_type(self);
   }
 }
 
@@ -237,7 +239,8 @@ impl Type for GroupType {
   }
 
   fn accept(&self, visitor: &mut TypeVisitor) {
-    visitor.visit_group_type(self)
+    visitor.visit_type(self);
+    visitor.visit_group_type(self);
   }
 }
 
