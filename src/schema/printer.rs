@@ -19,7 +19,7 @@ use std::fmt;
 use std::io;
 
 use basic::LogicalType;
-use schema::types::{Type, PrimitiveType, GroupType, TypeVisitor};
+use schema::types::Type;
 use file::metadata::{ParquetMetaData, FileMetaData, RowGroupMetaData, ColumnChunkMetaData};
 
 /// Print Parquet metadata
@@ -57,7 +57,7 @@ pub fn print_schema(out: &mut io::Write, tp: &Type) {
   let mut s = String::new();
   {
     let mut printer = Printer::new(&mut s);
-    tp.accept(&mut printer);
+    printer.print(tp);
   }
   write!(out, "{}", s);
 }
@@ -136,36 +136,35 @@ impl <'a> Printer<'a> {
 }
 
 #[allow(unused_must_use)]
-impl <'a> TypeVisitor for Printer<'a> {
-  fn visit_type(&mut self, _: &Type) {
+impl<'a> Printer<'a> {
+  pub fn print(&mut self, tp: &Type) {
     self.print_indent();
-  }
-
-  fn visit_primitive_type(&mut self, tp: &PrimitiveType) {
-    write!(self.output, "{} {} {};", tp.repetition().unwrap(), tp.physical_type(), tp.name());
-  }
-
-  fn visit_group_type(&mut self, tp: &GroupType) {
-    match tp.repetition() {
-      None => {
-        writeln!(self.output, "message {} {{", tp.name());
+    match tp {
+      &Type::PrimitiveType{ ref basic_info, physical_type, .. } => {
+        write!(self.output, "{} {} {};", basic_info.repetition(), physical_type, basic_info.name());
       },
-      Some(r) => {
-        write!(self.output, "{} group {} ", r, tp.name());
-        if tp.logical_type() != LogicalType::NONE {
-          write!(self.output, "({}) ", tp.logical_type());
+      &Type::GroupType{ ref basic_info, ref fields } => {
+        if basic_info.has_repetition() {
+          let r = basic_info.repetition();
+          write!(self.output, "{} group {} ", r, basic_info.name());
+          if basic_info.logical_type() != LogicalType::NONE {
+            write!(self.output, "({}) ", basic_info.logical_type());
+          }
+          writeln!(self.output, "{{");
+        } else {
+          writeln!(self.output, "message {} {{", basic_info.name());
         }
-        writeln!(self.output, "{{");
+
+        self.indent += INDENT_WIDTH;
+        for c in fields {
+          self.print(&c);
+          writeln!(self.output, "");
+        }
+        self.indent -= INDENT_WIDTH;
+        self.print_indent();
+        write!(self.output, "}}");
       }
     }
-    self.indent += INDENT_WIDTH;
-    for c in tp.fields() {
-      c.accept(self);
-      writeln!(self.output, "");
-    }
-    self.indent -= INDENT_WIDTH;
-    self.print_indent();
-    write!(self.output, "}}");
   }
 }
 
@@ -180,10 +179,10 @@ mod tests {
     let mut s = String::new();
     {
       let mut p = Printer::new(&mut s);
-      let foo = PrimitiveType::new(
+      let foo = Type::new_primitive_type(
         "foo", Repetition::REQUIRED, PhysicalType::INT32,
         LogicalType::INT_32, 0, 0, 0, None).unwrap();
-      foo.accept(&mut p);
+      p.print(&foo);
     }
     assert_eq!(&mut s, "REQUIRED INT32 foo;");
   }
@@ -193,26 +192,26 @@ mod tests {
     let mut s = String::new();
     {
       let mut p = Printer::new(&mut s);
-      let f1 = PrimitiveType::new(
+      let f1 = Type::new_primitive_type(
         "f1", Repetition::REQUIRED, PhysicalType::INT32,
         LogicalType::INT_32, 0, 0, 0, Some(0));
-      let f2 = PrimitiveType::new(
+      let f2 = Type::new_primitive_type(
         "f2", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
         LogicalType::UTF8, 0, 0, 0, Some(1));
-      let f3 = PrimitiveType::new(
+      let f3 = Type::new_primitive_type(
         "f3", Repetition::REPEATED, PhysicalType::FIXED_LEN_BYTE_ARRAY,
         LogicalType::INTERVAL, 12, 0, 0, Some(2));
-      let mut struct_fields: Vec<Box<Type>> = Vec::new();
-      struct_fields.push(Box::new(f1.unwrap()));
-      struct_fields.push(Box::new(f2.unwrap()));
-      let foo = GroupType::new(
+      let mut struct_fields = Vec::new();
+      struct_fields.push(f1.unwrap());
+      struct_fields.push(f2.unwrap());
+      let foo = Type::new_group_type(
         "foo", Some(Repetition::OPTIONAL), LogicalType::NONE, struct_fields, Some(1)).unwrap();
-      let mut fields: Vec<Box<Type>> = Vec::new();
-      fields.push(Box::new(foo));
-      fields.push(Box::new(f3.unwrap()));
-      let message = GroupType::new(
+      let mut fields = Vec::new();
+      fields.push(foo);
+      fields.push(f3.unwrap());
+      let message = Type::new_group_type(
         "schema", None, LogicalType::NONE, fields, Some(2)).unwrap();
-      message.accept(&mut p);
+      p.print(&message);
     }
     let expected =
 "message schema {
