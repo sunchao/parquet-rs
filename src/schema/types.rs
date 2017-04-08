@@ -23,18 +23,24 @@ use parquet_thrift::parquet::SchemaElement;
 /// Representation of a Parquet type. Note that the top-level schema type
 /// is represented using `GroupType` whose repetition is `None`.
 pub enum Type {
-  PrimitiveType { basic_info: BasicTypeInfo, physical_type: PhysicalType,
-                  type_length: i32, scale: i32, precision: i32 },
-  GroupType { basic_info: BasicTypeInfo, fields: Vec<Type> }
+  PrimitiveType {
+    basic_info: BasicTypeInfo, physical_type: PhysicalType,
+    type_length: i32, scale: i32, precision: i32
+  },
+  GroupType {
+    basic_info: BasicTypeInfo, fields: Vec<Type>
+  }
 }
 
 impl Type {
   // Create a new `PrimitiveType` instance from the input parameters
   // This also checks various illegal conditions and returns `Err` in case
   // that happens.
-  pub fn new_primitive_type(name: &str, repetition: Repetition, physical_type: PhysicalType,
-                            logical_type: LogicalType, length: i32,
-                            precision: i32, scale: i32, id: Option<i32>) -> Result<Type> {
+  pub fn new_primitive_type(
+    name: &str, repetition: Repetition, physical_type: PhysicalType,
+    logical_type: LogicalType, length: i32,
+    precision: i32, scale: i32, id: Option<i32>) -> Result<Type> {
+
     let basic_info = BasicTypeInfo{
       name: String::from(name), repetition: Some(repetition),
       logical_type: logical_type, id: id };
@@ -107,8 +113,10 @@ impl Type {
   }
 
   // Create a new `GroupType` instance from the input parameters.
-  pub fn new_group_type(name: &str, repetition: Option<Repetition>,
-                        logical_type: LogicalType, fields: Vec<Type>, id: Option<i32>) -> Result<Type> {
+  pub fn new_group_type(
+    name: &str, repetition: Option<Repetition>,
+    logical_type: LogicalType, fields: Vec<Type>, id: Option<i32>) -> Result<Type> {
+
     let basic_info = BasicTypeInfo{
       name: String::from(name), repetition: repetition,
       logical_type: logical_type, id: id };
@@ -119,6 +127,15 @@ impl Type {
     match *self {
       Type::PrimitiveType { ref basic_info, .. } => &basic_info,
       Type::GroupType { ref basic_info, .. } => &basic_info
+    }
+  }
+
+  /// Get the fields from this group type.
+  /// NOTE: this will panic if called on a non-group type.
+  pub fn get_fields(&self) -> &[Type] {
+    match *self {
+      Type::GroupType{ ref fields, .. } => &fields[..],
+      _ => panic!("Cannot call get_fields() on a non-group type")
     }
   }
 
@@ -303,11 +320,8 @@ fn from_thrift_helper(elements: &mut [SchemaElement], index: usize) -> Result<(u
       Ok((index + 1, result))
     },
     Some(n) => {
-      let repetition = match elements[index].repetition_type {
-        Some(r) => Some(Repetition::from(r)),
-        None => None
-      };
-      let mut fields: Vec<Type> = Vec::new();
+      let repetition = elements[index].repetition_type.map(|r| Repetition::from(r));
+      let mut fields = Vec::new();
       let mut next_index = index + 1;
       for _ in 0..n {
         let child_result = from_thrift_helper(elements, next_index as usize)?;
@@ -441,8 +455,7 @@ mod tests {
 
   #[test]
   fn test_group_type() {
-    // TODO: why Rust require an explicit type annotation here?
-    let mut fields: Vec<Type> = Vec::new();
+    let mut fields = Vec::new();
     let f1 = Type::new_primitive_type(
       "f1", Repetition::OPTIONAL, PhysicalType::INT32,
       LogicalType::INT_32, 0, 0, 0, Some(0));
@@ -461,12 +474,7 @@ mod tests {
       assert_eq!(basic_info.repetition(), Repetition::REPEATED);
       assert_eq!(basic_info.logical_type(), LogicalType::NONE);
       assert_eq!(basic_info.id(), 1);
-      match tp {
-        Type::GroupType{ ref fields, .. } => {
-          assert_eq!(fields.len(), 2)
-        },
-        _ => assert!(false)
-      }
+      assert_eq!(tp.get_fields().len(), 2);
       // TODO: test fields equality once that is implemented.
     }
   }
