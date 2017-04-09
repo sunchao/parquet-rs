@@ -16,11 +16,11 @@
 // under the License.
 
 use std::borrow::Borrow;
-use std::fmt;
 
 use basic::{Encoding, Type, Compression};
 use errors::{Result, ParquetError};
 use schema::types::Type as SchemaType;
+use schema::types::ColumnPath;
 use parquet_thrift::parquet::{ColumnChunk, ColumnMetaData, RowGroup};
 
 pub struct ParquetMetaData {
@@ -233,23 +233,5 @@ impl ColumnChunkMetaData {
       file_offset, num_values, compression, total_compressed_size, total_uncompressed_size,
       data_page_offset, index_page_offset, dictionary_page_offset };
     Ok(result)
-  }
-}
-
-/// Represents a path in a nested schema
-#[derive(Clone, PartialEq)]
-pub struct ColumnPath {
-  parts: Vec<String>
-}
-
-impl ColumnPath {
-  pub fn new(parts: Vec<String>) -> Self {
-    ColumnPath { parts: parts }
-  }
-}
-
-impl fmt::Display for ColumnPath {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self.parts.join("."))
   }
 }

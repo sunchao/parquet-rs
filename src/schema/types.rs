@@ -15,10 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use basic::{Type as PhysicalType, Repetition, LogicalType};
 use errors::Result;
 use errors::ParquetError;
 use parquet_thrift::parquet::SchemaElement;
+
+// ----------------------------------------------------------------------
+// Parquet Type definitions
 
 /// Representation of a Parquet type. Note that the top-level schema type
 /// is represented using `GroupType` whose repetition is `None`.
@@ -199,6 +203,33 @@ impl BasicTypeInfo {
   }
 }
 
+
+// ----------------------------------------------------------------------
+// Parquet descriptor definitions
+
+
+/// Represents a path in a nested schema
+#[derive(Clone, PartialEq, Debug)]
+pub struct ColumnPath {
+  parts: Vec<String>
+}
+
+impl ColumnPath {
+  pub fn new(parts: Vec<String>) -> Self {
+    ColumnPath { parts: parts }
+  }
+
+  pub fn string(&self) -> String {
+    self.parts.join(".")
+  }
+}
+
+impl fmt::Display for ColumnPath {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}", self.string())
+  }
+}
+
 /// A descriptor for leaf-level primitive columns. This encapsulates
 /// information such as definition and repetition levels and is used to
 /// re-assemble nested data.
@@ -215,13 +246,18 @@ pub struct ColumnDescriptor<'a> {
   max_def_level: i16,
 
   // The maximum repetition level for this column
-  max_rep_level: i16
+  max_rep_level: i16,
+
+  // The path of this column. For instance, "a.b.c.d".
+  path: ColumnPath
 }
 
 impl<'a> ColumnDescriptor<'a> {
-  pub fn new(primitive_type: &'a Type, root_type: &'a Type,
-             max_def_level: i16, max_rep_level: i16) -> Self {
-    Self { primitive_type, root_type, max_def_level, max_rep_level }
+  // Ctor is private outside of this module - should be created
+  // via `SchemaDescriptor`.
+  fn new(primitive_type: &'a Type, root_type: &'a Type,
+         max_def_level: i16, max_rep_level: i16, path: ColumnPath) -> Self {
+    Self { primitive_type, root_type, max_def_level, max_rep_level, path }
   }
 
   pub fn max_def_level(&self) -> i16 {
@@ -231,6 +267,51 @@ impl<'a> ColumnDescriptor<'a> {
   pub fn max_rep_level(&self) -> i16 {
     self.max_rep_level
   }
+
+  pub fn path(&self) -> &ColumnPath {
+    &self.path
+  }
+
+  pub fn root_type(&self) -> &'a Type {
+    self.root_type
+  }
+
+  pub fn name(&self) -> &str {
+    self.primitive_type.get_basic_info().name()
+  }
+
+  pub fn logical_type(&self) -> LogicalType {
+    self.primitive_type.get_basic_info().logical_type()
+  }
+
+  pub fn physical_type(&self) -> PhysicalType {
+    match self.primitive_type {
+      &Type::PrimitiveType{ physical_type, .. } => physical_type,
+      _ => panic!("Expected primitive type!")
+    }
+  }
+
+  pub fn type_length(&self) -> i32 {
+    match self.primitive_type {
+      &Type::PrimitiveType{ type_length, .. } => type_length,
+      _ => panic!("Expected primitive type!")
+    }
+  }
+
+  pub fn type_precision(&self) -> i32 {
+    match self.primitive_type {
+      &Type::PrimitiveType{ precision, .. } => precision,
+      _ => panic!("Expected primitive type!")
+    }
+  }
+
+  pub fn type_scale(&self) -> i32 {
+    match self.primitive_type {
+      &Type::PrimitiveType{ scale, .. } => scale,
+      _ => panic!("Expected primitive type!")
+    }
+  }
+
 }
 
 /// A schema descriptor. This encapsulates the top-level schemas for all
@@ -245,16 +326,39 @@ pub struct SchemaDescriptor<'a> {
 
 impl<'a> SchemaDescriptor<'a> {
   pub fn new(tp: &'a Type) -> Self {
+    assert!(tp.is_group(), "SchemaDescriptor should take a GroupType");
     let mut leaves = vec!();
-    build_tree(tp, tp, 0, 0, &mut leaves);
+    for f in tp.get_fields() {
+      let mut path = vec!();
+      build_tree(f, tp, 0, 0, &mut leaves, &mut path);
+    }
     Self { schema: tp, leaves: leaves }
+  }
+
+  pub fn column(&self, i: usize) -> &ColumnDescriptor<'a> {
+    &self.leaves[i]
+  }
+
+  pub fn num_columns(&self) -> usize {
+    self.leaves.len()
+  }
+
+  pub fn root_schema(&self) -> &'a Type {
+    self.schema
+  }
+
+  pub fn name(&self) -> &str {
+    self.schema.get_basic_info().name()
   }
 }
 
 fn build_tree<'a>(tp: &'a Type, root_tp: &'a Type,
                   mut max_rep_level: i16, mut max_def_level: i16,
-                  results: &mut Vec<ColumnDescriptor<'a>>) {
+                  results: &mut Vec<ColumnDescriptor<'a>>,
+                  path_so_far: &mut Vec<String>) {
   assert!(tp.get_basic_info().has_repetition());
+
+  path_so_far.push(String::from(tp.get_basic_info().name()));
   match tp.get_basic_info().repetition() {
     Repetition::OPTIONAL => max_rep_level += 1,
     Repetition::REPEATED => {
@@ -266,11 +370,16 @@ fn build_tree<'a>(tp: &'a Type, root_tp: &'a Type,
 
   match tp {
     ptp @ &Type::PrimitiveType{ .. } => {
-      results.push(ColumnDescriptor::new(ptp, root_tp, max_rep_level, max_def_level))
+      let mut path: Vec<String> = vec!();
+      path.extend_from_slice(&path_so_far[..]);
+      results.push(ColumnDescriptor::new(
+        ptp, root_tp, max_rep_level, max_def_level, ColumnPath::new(path)));
     },
     &Type::GroupType{ ref fields, .. } => {
       for f in fields {
-        build_tree(&f, root_tp, max_def_level, max_rep_level, results);
+        build_tree(&f, root_tp, max_def_level, max_rep_level, results, path_so_far);
+        let idx = path_so_far.len() - 1;
+        path_so_far.remove(idx);
       }
     }
   }
@@ -477,5 +586,107 @@ mod tests {
       assert_eq!(tp.get_fields().len(), 2);
       // TODO: test fields equality once that is implemented.
     }
+  }
+
+  #[test]
+  fn test_column_descriptor() {
+    let result = Type::new_group_type(
+      "root", None, LogicalType::LIST, vec!(), None);
+    assert!(result.is_ok());
+    let root_tp = result.unwrap();
+
+    let result = Type::new_primitive_type(
+      "name", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
+      LogicalType::UTF8, 0, 0, 0, None);
+    assert!(result.is_ok());
+    let tp = result.unwrap();
+
+    let path = vec!(String::from("name"));
+    let descr = ColumnDescriptor::new(&tp, &root_tp, 4, 1, ColumnPath::new(path));
+
+    assert_eq!(descr.path(), &ColumnPath::new(vec!(String::from("name"))));
+    assert_eq!(descr.logical_type(), LogicalType::UTF8);
+    assert_eq!(descr.physical_type(), PhysicalType::BYTE_ARRAY);
+    assert_eq!(descr.max_def_level(), 4);
+    assert_eq!(descr.max_rep_level(), 1);
+    assert_eq!(descr.name(), "name");
+    assert_eq!(descr.type_length(), 0);
+    assert_eq!(descr.type_precision(), 0);
+    assert_eq!(descr.type_scale(), 0);
+    // TODO: test equality of root_tp
+  }
+
+  #[test]
+  fn test_schema_descriptor() {
+    let result = construct_test_schema();
+    if result.is_err() {
+      println!("ERROR: {:?}", result.as_ref().err().unwrap());
+    }
+    assert!(result.is_ok());
+    let schema = result.unwrap();
+    let descr = SchemaDescriptor::new(&schema);
+
+    let nleaves = 6;
+    assert_eq!(descr.num_columns(), nleaves);
+
+    //                             mdef mrep
+    // required int32 a            0    0
+    // optional int64 b            1    0
+    // repeated byte_array c       1    1
+    // optional group bag          1    0
+    //   repeated group records    2    1
+    //     required int64 item1    2    1
+    //     optional boolean item2  3    1
+    //     repeated int32 item3    3    2
+    let ex_max_def_levels = vec!(0, 1, 1, 2, 3, 3);
+    let ex_max_rep_levels = vec!(0, 0, 1, 1, 1, 2);
+
+    for i in 0..nleaves {
+      let col = descr.column(i);
+      assert_eq!(col.max_def_level(), ex_max_def_levels[i], "{}", i);
+      assert_eq!(col.max_rep_level(), ex_max_rep_levels[i], "{}", i);
+    }
+
+    assert_eq!(descr.column(0).path().string(), "a");
+    assert_eq!(descr.column(1).path().string(), "b");
+    assert_eq!(descr.column(2).path().string(), "c");
+    assert_eq!(descr.column(3).path().string(), "bag.records.item1");
+    assert_eq!(descr.column(4).path().string(), "bag.records.item2");
+    assert_eq!(descr.column(5).path().string(), "bag.records.item3");
+  }
+
+  fn construct_test_schema() -> Result<Type> {
+    let mut fields = vec!();
+    fields.push(Type::new_primitive_type(
+      "a", Repetition::REQUIRED, PhysicalType::INT32,
+      LogicalType::INT_32, 0, 0, 0, None)?);
+    fields.push(Type::new_primitive_type(
+      "b", Repetition::OPTIONAL, PhysicalType::INT64,
+      LogicalType::INT_64, 0, 0, 0, None)?);
+    fields.push(Type::new_primitive_type(
+      "c", Repetition::REPEATED, PhysicalType::BYTE_ARRAY,
+      LogicalType::UTF8, 0, 0, 0, None)?);
+
+    // 3-level list encoding
+    let item1 = Type::new_primitive_type(
+      "item1", Repetition::REQUIRED, PhysicalType::INT64,
+      LogicalType::INT_64, 0, 0, 0, None)?;
+    let item2 = Type::new_primitive_type(
+      "item2", Repetition::OPTIONAL, PhysicalType::BOOLEAN,
+      LogicalType::NONE, 0, 0, 0, None)?;
+    let item3 = Type::new_primitive_type(
+      "item3", Repetition::REPEATED, PhysicalType::INT32,
+      LogicalType::INT_32, 0, 0, 0, None)?;
+    let list = Type::new_group_type(
+      "records", Some(Repetition::REPEATED), LogicalType::LIST,
+      vec!(item1, item2, item3), None)?;
+    let bag = Type::new_group_type(
+      "bag", Some(Repetition::OPTIONAL), LogicalType::NONE,
+      vec!(list), None)?;
+    fields.push(bag);
+
+    Type::new_group_type(
+      "schema", Some(Repetition::REPEATED), LogicalType::NONE,
+      fields, None)
   }
 }
