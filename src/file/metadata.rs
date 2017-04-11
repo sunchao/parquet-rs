@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::borrow::Borrow;
-
 use basic::{Encoding, Type, Compression};
 use errors::{Result, ParquetError};
+use schema::types::TypePtr;
 use schema::types::Type as SchemaType;
 use schema::types::ColumnPath;
 use parquet_thrift::parquet::{ColumnChunk, ColumnMetaData, RowGroup};
@@ -55,11 +54,11 @@ pub struct FileMetaData {
   version: i32,
   num_rows: i64,
   created_by: Option<String>,
-  schema: SchemaType
+  schema: TypePtr
 }
 
 impl FileMetaData {
-  pub fn new(version: i32, num_rows: i64, created_by: Option<String>, schema: SchemaType) -> Self {
+  pub fn new(version: i32, num_rows: i64, created_by: Option<String>, schema: TypePtr) -> Self {
     FileMetaData { version, num_rows, created_by, schema }
   }
 
@@ -76,7 +75,7 @@ impl FileMetaData {
   }
 
   pub fn schema(&self) -> &SchemaType {
-    self.schema.borrow()
+    self.schema.as_ref()
   }
 }
 

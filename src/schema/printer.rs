@@ -171,6 +171,7 @@ impl<'a> Printer<'a> {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use std::rc::Rc;
   use schema::types::Type;
   use basic::{Type as PhysicalType, Repetition};
 
@@ -202,13 +203,13 @@ mod tests {
         "f3", Repetition::REPEATED, PhysicalType::FIXED_LEN_BYTE_ARRAY,
         LogicalType::INTERVAL, 12, 0, 0, Some(2));
       let mut struct_fields = Vec::new();
-      struct_fields.push(f1.unwrap());
-      struct_fields.push(f2.unwrap());
+      struct_fields.push(Rc::new(f1.unwrap()));
+      struct_fields.push(Rc::new(f2.unwrap()));
       let foo = Type::new_group_type(
         "foo", Some(Repetition::OPTIONAL), LogicalType::NONE, struct_fields, Some(1)).unwrap();
       let mut fields = Vec::new();
-      fields.push(foo);
-      fields.push(f3.unwrap());
+      fields.push(Rc::new(foo));
+      fields.push(Rc::new(f3.unwrap()));
       let message = Type::new_group_type(
         "schema", None, LogicalType::NONE, fields, Some(2)).unwrap();
       p.print(&message);
