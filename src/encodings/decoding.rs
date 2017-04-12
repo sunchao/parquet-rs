@@ -79,7 +79,7 @@ pub fn get_decoder<'a, 'b: 'a, T: DataType<'a>>(
       let level = match value_type {
         ValueType::DEF_LEVEL => descr.max_def_level(),
         ValueType::REP_LEVEL => descr.max_rep_level(),
-        t => return general_err!("Unexpected value type {}", t)
+        t => return Err(general_err!("Unexpected value type {}", t))
       };
       let level_bit_width = log2(level as u64);
       Box::new(RleDecoder::new(level_bit_width as usize))
@@ -88,9 +88,9 @@ pub fn get_decoder<'a, 'b: 'a, T: DataType<'a>>(
     Encoding::DELTA_LENGTH_BYTE_ARRAY => Box::new(DeltaLengthByteArrayDecoder::new()),
     Encoding::DELTA_BYTE_ARRAY => Box::new(DeltaByteArrayDecoder::new(mem_pool)),
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
-      return general_err!("Cannot initialize this encoding through this function")
+      return Err(general_err!("Cannot initialize this encoding through this function"))
     },
-    e => return nyi_err!("Encoding {} is not supported.", e)
+    e => return Err(nyi_err!("Encoding {} is not supported.", e))
   };
   Ok(decoder)
 }
@@ -153,7 +153,7 @@ impl<'a, T: DataType<'a>> Decoder<'a, T> for PlainDecoder<'a, T> {
     let bytes_left = data.len() - self.start;
     let bytes_to_decode = mem::size_of::<T::T>() * num_values;
     if bytes_left < bytes_to_decode {
-      return general_err!("Not enough bytes to decode");
+      return Err(general_err!("Not enough bytes to decode"));
     }
     let raw_buffer: &mut [u8] = unsafe {
       from_raw_parts_mut(buffer.as_ptr() as *mut u8, bytes_to_decode)
@@ -176,7 +176,7 @@ impl<'a> Decoder<'a, Int96Type> for PlainDecoder<'a, Int96Type> {
     let bytes_left = data.len() - self.start;
     let bytes_to_decode = 12 * num_values;
     if bytes_left < bytes_to_decode {
-      return general_err!("Not enough bytes to decode");
+      return Err(general_err!("Not enough bytes to decode"));
     }
     for i in 0..num_values {
       buffer[i].set_data(
@@ -228,7 +228,7 @@ impl<'a> Decoder<'a, ByteArrayType> for PlainDecoder<'a, ByteArrayType> {
       let len: usize = read_num_bytes!(u32, 4, &data[self.start..]) as usize;
       self.start += mem::size_of::<u32>();
       if data.len() < self.start + len {
-        return general_err!("Not enough bytes to decode");
+        return Err(general_err!("Not enough bytes to decode"));
       }
       buffer[i].set_data(&data[self.start..self.start + len]);
       self.start += len;
@@ -249,7 +249,7 @@ impl<'a> Decoder<'a, FixedLenByteArrayType> for PlainDecoder<'a, FixedLenByteArr
     let type_length = buffer[0].get_len();
     for i in 0..num_values {
       if data.len() < self.start + type_length {
-        return general_err!("Not enough bytes to decode");
+        return Err(general_err!("Not enough bytes to decode"));
       }
       buffer[i].set_data(&data[self.start..self.start + type_length]);
       self.start += type_length;
@@ -332,11 +332,11 @@ impl<'a, T: DataType<'a>> RleDecoder<'a, T> {
 
 impl<'a, T: DataType<'a>> Decoder<'a, T> for RleDecoder<'a, T> {
   default fn set_data(&mut self, _: &'a [u8], _: usize) -> Result<()> {
-    general_err!("RleDecoder only support Int32Type")
+    Err(general_err!("RleDecoder only support Int32Type"))
   }
 
   default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
-    general_err!("RleDecoder only support Int32Type")
+    Err(general_err!("RleDecoder only support Int32Type"))
   }
 
   fn encoding(&self) -> Encoding {
@@ -430,11 +430,11 @@ impl<'a, T: DataType<'a>> DeltaBitPackDecoder<'a, T> {
 
 impl<'a, T: DataType<'a>> Decoder<'a, T> for DeltaBitPackDecoder<'a, T> {
   default fn set_data(&mut self, _: &'a [u8], _: usize) -> Result<()> {
-    general_err!("DeltaBitPackDecoder only support Int64Type")
+    Err(general_err!("DeltaBitPackDecoder only support Int64Type"))
   }
 
   default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
-    general_err!("DeltaBitPackDecoder only support Int64Type")
+    Err(general_err!("DeltaBitPackDecoder only support Int64Type"))
   }
 
   fn values_left(&self) -> usize {
@@ -539,11 +539,11 @@ impl<'a, T: DataType<'a>> DeltaLengthByteArrayDecoder<'a, T> {
 
 impl<'a, T: DataType<'a>> Decoder<'a, T> for DeltaLengthByteArrayDecoder<'a, T> {
   default fn set_data(&mut self, _: &'a [u8], _: usize) -> Result<()> {
-    general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType")
+    Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
   default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
-    general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType")
+    Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
   fn values_left(&self) -> usize {
@@ -625,11 +625,11 @@ impl<'a, 'b: 'a, T: DataType<'a>> DeltaByteArrayDecoder<'a, 'b, T> {
 
 impl<'a, 'b: 'a, T: DataType<'a>> Decoder<'a, T> for DeltaByteArrayDecoder<'a, 'b, T> {
   default fn set_data(&mut self, _: &'a [u8], _: usize) -> Result<()> {
-    general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType")
+    Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
   default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
-    general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType")
+    Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
   fn values_left(&self) -> usize {

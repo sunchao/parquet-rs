@@ -124,25 +124,25 @@ impl SerializedFileReader {
     let file_metadata = buf.get_ref().metadata()?;
     let file_size = file_metadata.len();
     if file_size < (FOOTER_SIZE as u64) {
-      return general_err!("Corrputed file, smaller than file footer");
+      return Err(general_err!("Corrputed file, smaller than file footer"));
     }
     let mut footer_buffer: [u8; FOOTER_SIZE] = [0; FOOTER_SIZE];
     buf.seek(SeekFrom::End(-(FOOTER_SIZE as i64)))?;
     buf.read_exact(&mut footer_buffer)?;
     if footer_buffer[4..] != PARQUET_MAGIC {
-      return general_err!("Invalid parquet file. Corrupt footer.");
+      return Err(general_err!("Invalid parquet file. Corrupt footer."));
     }
     let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]) as i64;
     if metadata_len < 0 {
-      return general_err!(
+      return Err(general_err!(
         "Invalid parquet file. Metadata length is less than zero ({})",
-        metadata_len);
+        metadata_len));
     }
     let metadata_start: i64 = file_size as i64 - FOOTER_SIZE as i64 - metadata_len;
     if metadata_start < 0 {
-      return general_err!(
+      return Err(general_err!(
         "Invalid parquet file. Metadata start is less than zero ({})",
-        metadata_start)
+        metadata_start))
     }
     buf.seek(SeekFrom::Start(metadata_start as u64))?;
     let metadata_buf = buf.take(metadata_len as u64).into_inner();
@@ -279,8 +279,8 @@ impl PageReader for SerializedPageReader {
         let mut decompressed_buffer = vec!();
         let decompressed_size = decompressor.decompress(buffer.data(), &mut decompressed_buffer)?;
         if decompressed_size != uncompressed_len {
-          return general_err!("Actual decompressed size doesn't \
-            match the expected one ({} vs {})", decompressed_size, uncompressed_len);
+          return Err(general_err!("Actual decompressed size doesn't \
+            match the expected one ({} vs {})", decompressed_size, uncompressed_len));
         }
         buffer.set_data(decompressed_buffer);
       }

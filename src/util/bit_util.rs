@@ -141,7 +141,7 @@ impl<'a> BitReader<'a> {
     assert!(num_bits <= size_of::<T>() * 8);
 
     if self.byte_offset * 8 + self.bit_offset + num_bits > self.total_bytes * 8 {
-      return general_err!("Not enough bytes left");
+      return Err(general_err!("Not enough bytes left"));
     }
 
     //
@@ -179,7 +179,7 @@ impl<'a> BitReader<'a> {
   pub fn get_aligned<T: Default>(&mut self, num_bytes: usize) -> Result<T> {
     let bytes_read = ceil(self.bit_offset as i64, 8) as usize;
     if self.byte_offset + bytes_read + num_bytes > self.total_bytes {
-      return general_err!("Not enough bytes left");
+      return Err(general_err!("Not enough bytes left"));
     }
 
     // Advance byte_offset to next unread byte and read num_bytes
@@ -207,13 +207,13 @@ impl<'a> BitReader<'a> {
       v |= ((byte & 0x7F) as i64) << shift;
       shift += 7;
       if shift > MAX_VLQ_BYTE_LEN * 7 {
-        return general_err!("Num of bytes exceed MAX_VLQ_BYTE_LEN ({})", MAX_VLQ_BYTE_LEN);
+        return Err(general_err!("Num of bytes exceed MAX_VLQ_BYTE_LEN ({})", MAX_VLQ_BYTE_LEN));
       }
       if byte & 0x80 == 0 {
         return Ok(v);
       }
     }
-    general_err!("Not enough bytes left")
+    Err(general_err!("Not enough bytes left"))
   }
 
   /// Read a zigzag-VLQ encoded (in little endian order) int from the stream

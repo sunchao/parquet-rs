@@ -41,15 +41,15 @@ pub type Result<T> = result::Result<T, ParquetError>;
 
 /// Convenient macros for different errors
 macro_rules! general_err {
-  ($fmt:expr) => (Err(ParquetError::General($fmt.to_owned())));
-  ($fmt:expr, $($args:expr),*) => (Err(ParquetError::General(format!($fmt, $($args),*))));
-  ($e:expr, $fmt:expr) => (Err(ParquetError::General($fmt.to_owned(), $e)));
+  ($fmt:expr) => (ParquetError::General($fmt.to_owned()));
+  ($fmt:expr, $($args:expr),*) => (ParquetError::General(format!($fmt, $($args),*)));
+  ($e:expr, $fmt:expr) => (ParquetError::General($fmt.to_owned(), $e));
   ($e:ident, $fmt:expr, $($args:tt),*) => (
-    Err(ParquetError::General(&format!($fmt, $($args),*), $e)));
+    ParquetError::General(&format!($fmt, $($args),*), $e));
 }
 
 
 macro_rules! nyi_err {
-  ($fmt:expr) => (Err(ParquetError::NYI($fmt.to_owned())));
-  ($fmt:expr, $($args:expr),*) => (Err(ParquetError::NYI(format!($fmt, $($args),*))));
+  ($fmt:expr) => (ParquetError::NYI($fmt.to_owned()));
+  ($fmt:expr, $($args:expr),*) => (ParquetError::NYI(format!($fmt, $($args),*)));
 }

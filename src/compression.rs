@@ -47,7 +47,7 @@ pub fn create_codec(codec: CodecType) -> Result<Option<Box<Codec>>> {
     CodecType::GZIP => Ok(Some(Box::new(GZipCodec::new()))),
     CodecType::SNAPPY => Ok(Some(Box::new(SnappyCodec::new()))),
     CodecType::UNCOMPRESSED => Ok(None),
-    _ => nyi_err!("The codec type {} is not supported yet", codec)
+    _ => Err(nyi_err!("The codec type {} is not supported yet", codec))
   }
 }
 
@@ -67,14 +67,12 @@ impl Codec for SnappyCodec {
     let len = decompress_len(input_buf)?;
     output_buf.resize(len, 0);
     self.decoder.decompress(input_buf, output_buf)
-      .map_err(|e| ParquetError::General(
-        format!("Error when decompressing using Snappy: {}", e)))
+      .map_err(|e| general_err!("Error when decompressing using Snappy: {}", e))
   }
 
   fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
     self.encoder.compress_vec(input_buf)
-      .map_err(|e| ParquetError::General(
-        format!("Error when compressing using Snappy: {}", e)))
+      .map_err(|e| general_err!("Error when compressing using Snappy: {}", e))
   }
 }
 
@@ -91,14 +89,14 @@ impl Codec for GZipCodec {
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
     let mut decoder = GzDecoder::new(input_buf)?;
     decoder.read_to_end(output_buf).map_err(
-      |e| ParquetError::General(format!("Error when decompressing using GZip: {}", e)))
+      |e| general_err!("Error when decompressing using GZip: {}", e))
   }
 
   fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::Default);
     encoder.write_all(input_buf)?;
     encoder.finish().map_err(
-      |e| ParquetError::General(format!("Error when compressing using GZip: {}", e)))
+      |e| general_err!("Error when compressing using GZip: {}", e))
   }
 }
 
@@ -114,7 +112,7 @@ impl BrotliCodec {
 impl Codec for BrotliCodec {
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize>{
     brotli::Decompressor::new(input_buf, 4096).read(output_buf)
-      .map_err(|e| ParquetError::General(format!("Error when decompressing using Brotli: {}", e)))
+      .map_err(|e| general_err!("Error when decompressing using Brotli: {}", e))
   }
 
   fn compress(&mut self, _: &[u8]) -> Result<Vec<u8>> {
