@@ -290,10 +290,7 @@ impl PageReader for SerializedPageReader {
         PageType::DICTIONARY_PAGE => {
           assert!(page_header.dictionary_page_header.is_some());
           let dict_header = page_header.dictionary_page_header.as_ref().unwrap();
-          let is_sorted = match dict_header.is_sorted {
-            None => false,
-            Some(b) => b
-          };
+          let is_sorted = dict_header.is_sorted.unwrap_or(false);
           self.seen_num_values += dict_header.num_values as i64;
           Page::DictionaryPage {
             buf: Box::new(buffer), num_values: dict_header.num_values as u32,
@@ -314,10 +311,7 @@ impl PageReader for SerializedPageReader {
         PageType::DATA_PAGE_V2 => {
           assert!(page_header.data_page_header_v2.is_some());
           let header = page_header.data_page_header_v2.as_ref().unwrap();
-          let is_compressed = match header.is_compressed {
-            Some(b) => b,
-            None => true
-          };
+          let is_compressed = header.is_compressed.unwrap_or(true);
           self.seen_num_values += header.num_values as i64;
           Page::DataPageV2 {
             buf: Box::new(buffer), num_values: header.num_values as u32,
