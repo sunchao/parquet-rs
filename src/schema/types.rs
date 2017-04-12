@@ -27,6 +27,8 @@ use parquet_thrift::parquet::SchemaElement;
 // Parquet Type definitions
 
 pub type TypePtr = Rc<Type>;
+pub type SchemaDescPtr = Rc<SchemaDescriptor>;
+pub type ColumnDescPtr = Rc<ColumnDescriptor>;
 
 /// Representation of a Parquet type. Note that the top-level schema type
 /// is represented using `GroupType` whose repetition is `None`.
@@ -333,7 +335,7 @@ pub struct SchemaDescriptor {
 
   // All the descriptors for primitive columns in this schema, constructed from
   // `schema` in DFS order.
-  leaves: Vec<ColumnDescriptor>,
+  leaves: Vec<ColumnDescPtr>,
 
   // Mapping from a leaf column's index to the root column type that it
   // comes from. For instance: the leaf `a.b.c.d` would have a link back to `a`:
@@ -356,10 +358,14 @@ impl SchemaDescriptor {
     Self { schema: tp, leaves: leaves, leaf_to_base: leaf_to_base }
   }
 
-  pub fn column(&self, i: usize) -> &ColumnDescriptor {
+  pub fn column(&self, i: usize) -> ColumnDescPtr {
     assert!(i < self.leaves.len(),
             "Index out of bound: {} not in [0, {})", i, self.leaves.len());
-    &self.leaves[i]
+    self.leaves[i].clone()
+  }
+
+  pub fn columns(&self) -> &[ColumnDescPtr] {
+    &self.leaves
   }
 
   pub fn num_columns(&self) -> usize {
@@ -385,7 +391,7 @@ impl SchemaDescriptor {
 
 fn build_tree(tp: TypePtr, root_tp: TypePtr, base_tp: TypePtr,
               mut max_rep_level: i16, mut max_def_level: i16,
-              leaves: &mut Vec<ColumnDescriptor>,
+              leaves: &mut Vec<ColumnDescPtr>,
               leaf_to_base: &mut HashMap<usize, TypePtr>,
               path_so_far: &mut Vec<String>) {
   assert!(tp.get_basic_info().has_repetition());
@@ -404,8 +410,8 @@ fn build_tree(tp: TypePtr, root_tp: TypePtr, base_tp: TypePtr,
     &Type::PrimitiveType{ .. } => {
       let mut path: Vec<String> = vec!();
       path.extend_from_slice(&path_so_far[..]);
-      leaves.push(ColumnDescriptor::new(
-        tp.clone(), root_tp, max_rep_level, max_def_level, ColumnPath::new(path)));
+      leaves.push(Rc::new(ColumnDescriptor::new(
+        tp.clone(), root_tp, max_rep_level, max_def_level, ColumnPath::new(path))));
       leaf_to_base.insert(leaves.len() - 1, base_tp);
     },
     &Type::GroupType{ ref fields, .. } => {

@@ -28,7 +28,7 @@ use thrift::transport::TTransport;
 use thrift::protocol::TCompactInputProtocol;
 use parquet_thrift::parquet::FileMetaData as TFileMetaData;
 use parquet_thrift::parquet::{PageType, PageHeader};
-use schema::types;
+use schema::types::{self, SchemaDescriptor};
 use column::page::{Page, PageReader};
 use compression::{Codec, create_codec};
 use util::memory::{Buffer, MutableBuffer, ByteBuffer};
@@ -154,16 +154,18 @@ impl SerializedFileReader {
     let mut t_file_metadata: TFileMetaData = TFileMetaData::read_from_in_protocol(&mut prot)
       .map_err(|e| ParquetError::General(format!("Could not parse metadata: {}", e)))?;
     let schema = types::from_thrift(&mut t_file_metadata.schema)?;
+    let schema_descr = Rc::new(SchemaDescriptor::new(schema.clone()));
     let mut row_groups = Vec::new();
     for rg in t_file_metadata.row_groups {
-      row_groups.push(RowGroupMetaData::from_thrift(rg)?);
+      row_groups.push(RowGroupMetaData::from_thrift(schema_descr.clone(), rg)?);
     }
 
     let file_metadata = FileMetaData::new(
       t_file_metadata.version,
       t_file_metadata.num_rows,
       t_file_metadata.created_by,
-      schema);
+      schema,
+      schema_descr);
     Ok(ParquetMetaData::new(file_metadata, row_groups))
   }
 }

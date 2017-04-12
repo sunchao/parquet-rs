@@ -17,9 +17,9 @@
 
 use basic::{Encoding, Type, Compression};
 use errors::{Result, ParquetError};
-use schema::types::TypePtr;
+use schema::types::{TypePtr, ColumnDescriptor, SchemaDescriptor};
 use schema::types::Type as SchemaType;
-use schema::types::ColumnPath;
+use schema::types::{SchemaDescPtr, ColumnDescPtr, ColumnPath};
 use parquet_thrift::parquet::{ColumnChunk, ColumnMetaData, RowGroup};
 
 pub struct ParquetMetaData {
@@ -54,12 +54,14 @@ pub struct FileMetaData {
   version: i32,
   num_rows: i64,
   created_by: Option<String>,
-  schema: TypePtr
+  schema: TypePtr,
+  schema_descr: SchemaDescPtr
 }
 
 impl FileMetaData {
-  pub fn new(version: i32, num_rows: i64, created_by: Option<String>, schema: TypePtr) -> Self {
-    FileMetaData { version, num_rows, created_by, schema }
+  pub fn new(version: i32, num_rows: i64, created_by: Option<String>,
+             schema: TypePtr, schema_descr: SchemaDescPtr) -> Self {
+    FileMetaData { version, num_rows, created_by, schema, schema_descr }
   }
 
   pub fn version(&self) -> i32 {
@@ -77,13 +79,18 @@ impl FileMetaData {
   pub fn schema(&self) -> &SchemaType {
     self.schema.as_ref()
   }
+
+  pub fn schema_descr(&self) -> &SchemaDescriptor {
+    &self.schema_descr
+  }
 }
 
 /// Metadata for a row group
 pub struct RowGroupMetaData {
   columns: Vec<ColumnChunkMetaData>,
   num_rows: i64,
-  total_byte_size: i64
+  total_byte_size: i64,
+  schema_descr: SchemaDescPtr
 }
 
 impl RowGroupMetaData {
@@ -107,14 +114,19 @@ impl RowGroupMetaData {
     self.total_byte_size
   }
 
-  pub fn from_thrift(rg: RowGroup) -> Result<RowGroupMetaData> {
+  pub fn schema_descr(&self) -> &SchemaDescriptor {
+    self.schema_descr.as_ref()
+  }
+
+  pub fn from_thrift(schema_descr: SchemaDescPtr, mut rg: RowGroup) -> Result<RowGroupMetaData> {
+    assert_eq!(schema_descr.num_columns(), rg.columns.len());
     let total_byte_size = rg.total_byte_size;
     let num_rows = rg.num_rows;
-    let mut columns = Vec::new();
-    for c in rg.columns {
-      columns.push(ColumnChunkMetaData::from_thrift(c)?)
+    let mut columns = vec!();
+    for (c, d) in rg.columns.drain(0..).zip(schema_descr.columns()) {
+      columns.push(ColumnChunkMetaData::from_thrift(d.clone(), c)?);
     }
-    Ok(RowGroupMetaData{columns, num_rows, total_byte_size})
+    Ok(RowGroupMetaData{columns, num_rows, total_byte_size, schema_descr})
   }
 }
 
@@ -122,6 +134,7 @@ impl RowGroupMetaData {
 pub struct ColumnChunkMetaData {
   column_type: Type,
   column_path: ColumnPath,
+  column_descr: ColumnDescPtr,
   encodings: Vec<Encoding>,
   file_path: Option<String>,
   file_offset: i64,
@@ -156,6 +169,11 @@ impl ColumnChunkMetaData {
   /// Path (or identifier) of this column
   pub fn column_path(&self) -> &ColumnPath {
     &self.column_path
+  }
+
+  /// Descriptor for this column
+  pub fn column_descr(&self) -> &ColumnDescriptor {
+    self.column_descr.as_ref()
   }
 
   /// All encodings used for this column
@@ -210,7 +228,7 @@ impl ColumnChunkMetaData {
   }
 
   /// Conversion from Thrift
-  pub fn from_thrift(cc: ColumnChunk) -> Result<Self> {
+  pub fn from_thrift(column_descr: ColumnDescPtr, cc: ColumnChunk) -> Result<Self> {
     if cc.meta_data.is_none() {
       return general_err!("Expected to have column metadata")
     }
@@ -228,7 +246,7 @@ impl ColumnChunkMetaData {
     let index_page_offset = col_metadata.index_page_offset;
     let dictionary_page_offset = col_metadata.dictionary_page_offset;
     let result = ColumnChunkMetaData
-    { column_type, column_path, encodings, file_path,
+    { column_type, column_path, column_descr, encodings, file_path,
       file_offset, num_values, compression, total_compressed_size, total_uncompressed_size,
       data_page_offset, index_page_offset, dictionary_page_offset };
     Ok(result)
