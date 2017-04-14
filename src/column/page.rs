@@ -17,7 +17,7 @@
 
 use basic::{PageType, Encoding};
 use errors::Result;
-use util::memory::Buffer;
+use util::memory::ImmutableByteBuffer;
 
 /// Parquet Page definition.
 /// These are basically 1-to-1 mapped from the equivalent Thrift
@@ -25,17 +25,17 @@ use util::memory::Buffer;
 /// of the page.
 pub enum Page {
   DataPage {
-    buf: Box<Buffer>, num_values: u32, encoding: Encoding,
+    buf: ImmutableByteBuffer, num_values: u32, encoding: Encoding,
     def_level_encoding: Encoding, rep_level_encoding: Encoding
   },
   DataPageV2 {
-    buf: Box<Buffer>, num_values: u32,  encoding: Encoding,
+    buf: ImmutableByteBuffer, num_values: u32,  encoding: Encoding,
     num_nulls: u32, num_rows: u32,
     def_levels_byte_len: u32, rep_levels_byte_len: u32,
     is_compressed: bool
   },
   DictionaryPage {
-    buf: Box<Buffer>, num_values: u32, encoding: Encoding, is_sorted: bool
+    buf: ImmutableByteBuffer, num_values: u32, encoding: Encoding, is_sorted: bool
   }
 }
 
@@ -48,7 +48,7 @@ impl Page {
     }
   }
 
-  pub fn buffer(&self) -> &Box<Buffer> {
+  pub fn buffer(&self) -> &ImmutableByteBuffer {
     match self {
       &Page::DataPage{ ref buf, .. } => buf,
       &Page::DataPageV2{ ref buf, .. } => buf,

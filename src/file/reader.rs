@@ -293,7 +293,7 @@ impl PageReader for SerializedPageReader {
           let is_sorted = dict_header.is_sorted.unwrap_or(false);
           self.seen_num_values += dict_header.num_values as i64;
           Page::DictionaryPage {
-            buf: Box::new(buffer), num_values: dict_header.num_values as u32,
+            buf: buffer.to_immutable(), num_values: dict_header.num_values as u32,
             encoding: Encoding::from(dict_header.encoding), is_sorted: is_sorted
           }
         },
@@ -302,7 +302,7 @@ impl PageReader for SerializedPageReader {
           let header = page_header.data_page_header.as_ref().unwrap();
           self.seen_num_values += header.num_values as i64;
           Page::DataPage {
-            buf: Box::new(buffer), num_values: header.num_values as u32,
+            buf: buffer.to_immutable(), num_values: header.num_values as u32,
             encoding: Encoding::from(header.encoding),
             def_level_encoding: Encoding::from(header.definition_level_encoding),
             rep_level_encoding: Encoding::from(header.repetition_level_encoding)
@@ -314,7 +314,7 @@ impl PageReader for SerializedPageReader {
           let is_compressed = header.is_compressed.unwrap_or(true);
           self.seen_num_values += header.num_values as i64;
           Page::DataPageV2 {
-            buf: Box::new(buffer), num_values: header.num_values as u32,
+            buf: buffer.to_immutable(), num_values: header.num_values as u32,
             encoding: Encoding::from(header.encoding),
             num_nulls: header.num_nulls as u32, num_rows: header.num_rows as u32,
             def_levels_byte_len: header.definition_levels_byte_length as u32,

@@ -16,10 +16,13 @@
 // under the License.
 
 use std::cmp;
+use std::rc::Rc;
 use std::cell::Cell;
 use arena::TypedArena;
 
 use errors::Result;
+
+pub type BytePtr = Rc<Vec<u8>>;
 
 // ----------------------------------------------------------------------
 // Buffer classes
@@ -68,6 +71,10 @@ impl ByteBuffer {
     let data = vec![0; size];
     ByteBuffer { data: data }
   }
+
+  pub fn to_immutable(self) -> ImmutableByteBuffer {
+    ImmutableByteBuffer::new(Rc::new(self.data))
+  }
 }
 
 impl Buffer for ByteBuffer {
@@ -102,13 +109,19 @@ impl MutableBuffer for ByteBuffer {
 
 // A immutable byte buffer struct
 
-pub struct ImmutableByteBuffer<'a> {
-  data: &'a [u8]
+pub struct ImmutableByteBuffer {
+  data: BytePtr
 }
 
-impl<'a> Buffer for ImmutableByteBuffer<'a> {
+impl ImmutableByteBuffer {
+  pub fn new(data: BytePtr) -> Self {
+    Self { data: data }
+  }
+}
+
+impl Buffer for ImmutableByteBuffer {
   fn data(&self) -> &[u8] {
-    self.data
+    self.data.as_slice()
   }
 
   fn capacity(&self) -> usize {
