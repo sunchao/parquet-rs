@@ -18,7 +18,6 @@
 use std::fmt;
 use std::convert;
 use std::mem;
-use std::rc::Rc;
 use parquet_thrift::parquet;
 use util::memory::BytePtr;
 
@@ -249,29 +248,27 @@ impl convert::From<parquet::PageType> for PageType {
 //   to convert [u32] to [u32; 3] in decoding.
 #[derive(Clone, Debug)]
 pub struct Int96 {
-  value: Option<Rc<Vec<u32>>>,
-  start: usize
+  value: Option<Vec<u32>>,
 }
 
 impl Int96 {
   pub fn new() -> Self {
-    Int96 { value: None, start: 0 }
+    Int96 { value: None }
   }
 
-  pub fn set_data(&mut self, v: Rc<Vec<u32>>, start: usize) {
+  pub fn set_data(&mut self, v: Vec<u32>) {
     assert_eq!(v.len(), 3);
     self.value = Some(v);
-    self.start = start;
   }
 
   pub fn get_data(&self) -> &[u32] {
     assert!(self.value.is_some());
-    &self.value.as_ref().unwrap()[self.start..self.start + 3]
+    &self.value.as_ref().unwrap()
   }
 }
 
 impl Default for Int96 {
-  fn default() -> Self { Int96 { value: None, start: 0 } }
+  fn default() -> Self { Int96 { value: None } }
 }
 
 impl PartialEq for Int96 {
@@ -283,29 +280,25 @@ impl PartialEq for Int96 {
 #[derive(Clone, Debug)]
 pub struct ByteArray {
   data: Option<BytePtr>,
-  start: usize,
-  len: usize
 }
 
 impl ByteArray {
   pub fn new() -> Self {
-    ByteArray { data: None, start: 0, len: 0 }
+    ByteArray { data: None }
   }
 
   pub fn get_data(&self) -> &[u8] {
     assert!(self.data.is_some());
-    &self.data.as_ref().unwrap()[self.start..self.start + self.len]
+    self.data.as_ref().unwrap().slice_all()
   }
 
-  pub fn set_data(&mut self, data: BytePtr, start: usize, len: usize) {
+  pub fn set_data(&mut self, data: BytePtr) {
     self.data = Some(data);
-    self.start = start;
-    self.len = len;
   }
 }
 
 impl Default for ByteArray {
-  fn default() -> Self { ByteArray { data: None, start: 0, len: 0 } }
+  fn default() -> Self { ByteArray { data: None } }
 }
 
 
@@ -318,25 +311,22 @@ impl PartialEq for ByteArray {
 #[derive(Clone, Debug)]
 pub struct FixedLenByteArray {
   data: Option<BytePtr>,
-  start: usize,
   len: usize
 }
 
 impl FixedLenByteArray {
   pub fn new(len: usize) -> Self {
-    FixedLenByteArray { data: None, start: 0, len: len }
+    FixedLenByteArray { data: None, len: len }
   }
 
   pub fn get_data(&self) -> &[u8] {
     assert!(self.data.is_some());
-    &self.data.as_ref().unwrap()[self.start..self.start + self.len]
+    self.data.as_ref().unwrap().slice_all()
   }
 
-  pub fn set_data(&mut self, data: BytePtr, start: usize, len: usize) {
-    assert!(len == self.len);
+  pub fn set_data(&mut self, data: BytePtr) {
+    assert!(data.len() == self.len);
     self.data = Some(data);
-    self.start = start;
-    self.len = len;
   }
 
   pub fn get_len(&self) -> usize {
@@ -345,7 +335,7 @@ impl FixedLenByteArray {
 }
 
 impl Default for FixedLenByteArray {
-  fn default() -> Self { FixedLenByteArray { data: None, start: 0, len: 0 } }
+  fn default() -> Self { FixedLenByteArray { data: None, len: 0 } }
 }
 
 impl PartialEq for FixedLenByteArray {
