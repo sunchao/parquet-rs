@@ -345,7 +345,6 @@ mod tests {
   #[test]
   fn test_file_reader() {
     let test_file = get_test_file("alltypes_plain.parquet");
-    println!("test file = {:?}", test_file);
     let reader_result = SerializedFileReader::new(test_file);
     assert!(reader_result.is_ok());
     let reader = reader_result.unwrap();

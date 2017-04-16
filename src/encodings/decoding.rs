@@ -232,13 +232,11 @@ impl Decoder<ByteArrayType> for PlainDecoder<ByteArrayType> {
     let num_values = cmp::min(max_values, self.num_values);
     for i in 0..num_values {
       let len: usize = read_num_bytes!(u32, 4, &data[self.start..]) as usize;
-      println!("LEN IS {}", len);
       self.start += mem::size_of::<u32>();
       if data.len() < self.start + len {
         return Err(general_err!("Not enough bytes to decode"));
       }
       buffer[i].set_data(data.clone(), self.start, len);
-      println!("DONE");
       self.start += len;
     }
     self.num_values -= num_values;
@@ -867,12 +865,10 @@ mod tests {
       let mut v = vec!();
       for d in data {
         let buf = d.get_data();
-        println!("WRITE LEN {:?}", buf.len());
         let len = &usize_to_bytes(buf.len());
         v.extend_from_slice(len);
         v.extend(buf);
       }
-      println!("RESULT LEN {}", v.len());
       v
     }
   }
