@@ -18,7 +18,9 @@
 use std::fmt;
 use std::convert;
 use std::mem;
+use std::rc::Rc;
 use parquet_thrift::parquet;
+use util::memory::BytePtr;
 
 // ----------------------------------------------------------------------
 // Types from the Thrift definition
@@ -246,86 +248,95 @@ impl convert::From<parquet::PageType> for PageType {
 // TODO: we could also use [u32; 3], however it seems there is no easy way
 //   to convert [u32] to [u32; 3] in decoding.
 #[derive(Clone, Debug)]
-pub struct Int96<'a> {
-  value: Option<&'a [u32]>
+pub struct Int96 {
+  value: Option<Rc<Vec<u32>>>,
+  start: usize
 }
 
-impl<'a> Int96<'a> {
+impl Int96 {
   pub fn new() -> Self {
-    Int96 { value: None }
+    Int96 { value: None, start: 0 }
   }
 
-  pub fn set_data(&mut self, v: &'a [u32]) {
+  pub fn set_data(&mut self, v: Rc<Vec<u32>>, start: usize) {
     assert_eq!(v.len(), 3);
     self.value = Some(v);
+    self.start = start;
   }
 
   pub fn get_data(&self) -> &[u32] {
     assert!(self.value.is_some());
-    self.value.unwrap()
+    &self.value.as_ref().unwrap()[self.start..self.start + 3]
   }
 }
 
-impl<'a> Default for Int96<'a> {
-  fn default() -> Self { Int96 { value: None } }
+impl Default for Int96 {
+  fn default() -> Self { Int96 { value: None, start: 0 } }
 }
 
-impl<'a> PartialEq for Int96<'a> {
-  fn eq(&self, other: &Int96<'a>) -> bool {
-    self.value == other.value
-  }
-}
-
-#[derive(Clone, Debug)]
-pub struct ByteArray<'a> {
-  data: Option<&'a [u8]>
-}
-
-impl<'a> ByteArray<'a> {
-  pub fn new() -> Self {
-    ByteArray { data: None }
-  }
-
-  pub fn get_data(&self) -> &[u8] {
-    assert!(self.data.is_some());
-    self.data.unwrap()
-  }
-
-  pub fn set_data(&mut self, data: &'a [u8]) {
-    self.data = Some(data)
-  }
-}
-
-impl<'a> Default for ByteArray<'a> {
-  fn default() -> Self { ByteArray { data: None } }
-}
-
-
-impl<'a> PartialEq for ByteArray<'a> {
-  fn eq(&self, other: &ByteArray<'a>) -> bool {
-    self.data == other.data
+impl PartialEq for Int96 {
+  fn eq(&self, other: &Int96) -> bool {
+    self.get_data() == other.get_data()
   }
 }
 
 #[derive(Clone, Debug)]
-pub struct FixedLenByteArray<'a> {
-  data: Option<&'a [u8]>,
+pub struct ByteArray {
+  data: Option<BytePtr>,
+  start: usize,
   len: usize
 }
 
-impl<'a> FixedLenByteArray<'a> {
-  pub fn new(len: usize) -> Self {
-    FixedLenByteArray { data: None, len: len }
+impl ByteArray {
+  pub fn new() -> Self {
+    ByteArray { data: None, start: 0, len: 0 }
   }
 
   pub fn get_data(&self) -> &[u8] {
     assert!(self.data.is_some());
-    self.data.unwrap()
+    &self.data.as_ref().unwrap()[self.start..self.start + self.len]
   }
 
-  pub fn set_data(&mut self, data: &'a [u8]) {
-    assert!(data.len() == self.len);
-    self.data = Some(data)
+  pub fn set_data(&mut self, data: BytePtr, start: usize, len: usize) {
+    self.data = Some(data);
+    self.start = start;
+    self.len = len;
+  }
+}
+
+impl Default for ByteArray {
+  fn default() -> Self { ByteArray { data: None, start: 0, len: 0 } }
+}
+
+
+impl PartialEq for ByteArray {
+  fn eq(&self, other: &ByteArray) -> bool {
+    self.get_data() == other.get_data()
+  }
+}
+
+#[derive(Clone, Debug)]
+pub struct FixedLenByteArray {
+  data: Option<BytePtr>,
+  start: usize,
+  len: usize
+}
+
+impl FixedLenByteArray {
+  pub fn new(len: usize) -> Self {
+    FixedLenByteArray { data: None, start: 0, len: len }
+  }
+
+  pub fn get_data(&self) -> &[u8] {
+    assert!(self.data.is_some());
+    &self.data.as_ref().unwrap()[self.start..self.start + self.len]
+  }
+
+  pub fn set_data(&mut self, data: BytePtr, start: usize, len: usize) {
+    assert!(len == self.len);
+    self.data = Some(data);
+    self.start = start;
+    self.len = len;
   }
 
   pub fn get_len(&self) -> usize {
@@ -333,17 +344,17 @@ impl<'a> FixedLenByteArray<'a> {
   }
 }
 
-impl<'a> Default for FixedLenByteArray<'a> {
-  fn default() -> Self { FixedLenByteArray { data: None, len: 0 } }
+impl Default for FixedLenByteArray {
+  fn default() -> Self { FixedLenByteArray { data: None, start: 0, len: 0 } }
 }
 
-impl<'a> PartialEq for FixedLenByteArray<'a> {
-  fn eq(&self, other: &FixedLenByteArray<'a>) -> bool {
-    self.data == other.data
+impl PartialEq for FixedLenByteArray {
+  fn eq(&self, other: &FixedLenByteArray) -> bool {
+    self.get_data() == other.get_data()
   }
 }
 
-pub trait DataType<'a> {
+pub trait DataType {
   type T: ::std::cmp::PartialEq + ::std::fmt::Debug + ::std::default::Default
     + ::std::clone::Clone;
   fn get_physical_type() -> Type;
@@ -355,7 +366,7 @@ macro_rules! make_type {
     pub struct $name {
     }
 
-    impl<'a> DataType<'a> for $name {
+    impl DataType for $name {
       type T = $native_ty;
 
       fn get_physical_type() -> Type {
@@ -374,54 +385,12 @@ macro_rules! make_type {
 make_type!(BoolType, Type::BOOLEAN, bool, 1);
 make_type!(Int32Type, Type::INT32, i32, 4);
 make_type!(Int64Type, Type::INT64, i64, 8);
+make_type!(Int96Type, Type::INT96, Int96, mem::size_of::<Int96>());
 make_type!(FloatType, Type::FLOAT, f32, 4);
 make_type!(DoubleType, Type::DOUBLE, f64, 8);
-
-
-pub struct Int96Type {
-}
-
-impl<'a> DataType<'a> for Int96Type {
-  type T = Int96<'a>;
-
-  fn get_physical_type() -> Type {
-    Type::INT96
-  }
-
-  fn get_type_size() -> usize {
-    12
-  }
-}
-
-pub struct ByteArrayType {
-}
-
-impl<'a> DataType<'a> for ByteArrayType {
-  type T = ByteArray<'a>;
-
-  fn get_physical_type() -> Type {
-    Type::BYTE_ARRAY
-  }
-
-  fn get_type_size() -> usize {
-    mem::size_of::<ByteArray>()
-  }
-}
-
-pub struct FixedLenByteArrayType {
-}
-
-impl<'a> DataType<'a> for FixedLenByteArrayType {
-  type T = FixedLenByteArray<'a>;
-
-  fn get_physical_type() -> Type {
-    Type::FIXED_LEN_BYTE_ARRAY
-  }
-
-  fn get_type_size() -> usize {
-    mem::size_of::<FixedLenByteArray>()
-  }
-}
+make_type!(ByteArrayType, Type::BYTE_ARRAY, ByteArray, mem::size_of::<ByteArray>());
+make_type!(FixedLenByteArrayType, Type::FIXED_LEN_BYTE_ARRAY,
+           FixedLenByteArray, mem::size_of::<FixedLenByteArray>());
 
 
 #[cfg(test)]
