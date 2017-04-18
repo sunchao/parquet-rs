@@ -20,7 +20,7 @@ use std::io::{self, Read, BufReader, Seek, SeekFrom};
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use basic::{Compression, Encoding};
+use basic::{Type, Compression, Encoding};
 use errors::{Result, ParquetError};
 use file::metadata::{RowGroupMetaData, FileMetaData, ParquetMetaData};
 use byteorder::{LittleEndian, ByteOrder};
@@ -30,8 +30,9 @@ use parquet_thrift::parquet::FileMetaData as TFileMetaData;
 use parquet_thrift::parquet::{PageType, PageHeader};
 use schema::types::{self, SchemaDescriptor};
 use column::page::{Page, PageReader};
+use column::reader::{ColumnReader, ColumnReaderImpl};
 use compression::{Codec, create_codec};
-use util::memory::{Buffer, MutableBuffer, ByteBuffer};
+use util::memory::{MemoryPool};
 
 // ----------------------------------------------------------------------
 // APIs for file & row group readers
@@ -49,7 +50,7 @@ pub trait FileReader {
   /// N.B.: Box<..> has 'static lifetime in default, but here we need
   /// the lifetime to be the same as this. Otherwise, the row group metadata
   /// stored in the row group reader may outlive the file reader.
-  fn get_row_group<'a>(&'a self, i: usize) -> Result<Box<RowGroupReader + 'a>>;
+  fn get_row_group<'a>(&'a self, i: usize) -> Result<Box<RowGroupReader<'a> + 'a>>;
 }
 
 /// Parquet row group reader API. With this, user can get metadata
@@ -66,6 +67,9 @@ pub trait RowGroupReader<'a> {
 
   /// Get page reader for the `i`th column chunk
   fn get_column_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>>;
+
+  /// Get value reader for the `i`th column chunk
+  fn get_column_reader(&self, i: usize) -> Result<ColumnReader>;
 }
 
 
@@ -103,14 +107,15 @@ const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
 
 pub struct SerializedFileReader {
   buf: BufReader<File>,
-  metadata: ParquetMetaData
+  metadata: ParquetMetaData,
+  mem_pool: MemoryPool
 }
 
 impl SerializedFileReader {
   pub fn new(file: File) -> Result<Self> {
     let mut buf = BufReader::new(file);
     let metadata = Self::parse_metadata(&mut buf)?;
-    Ok(Self { buf: buf, metadata: metadata })
+    Ok(Self { buf: buf, metadata: metadata, mem_pool: MemoryPool::new() })
   }
 
   //
@@ -182,26 +187,27 @@ impl FileReader for SerializedFileReader {
   fn get_row_group<'a>(&'a self, i: usize) -> Result<Box<RowGroupReader + 'a>> {
     let row_group_metadata = self.metadata.row_group(i);
     let f = self.buf.get_ref().try_clone()?;
-    Ok(Box::new(SerializedRowGroupReader::new(f, row_group_metadata)))
+    Ok(Box::new(SerializedRowGroupReader::new(f, row_group_metadata, &self.mem_pool)))
   }
 }
 
 /// A serialized impl for row group reader
 /// Here 'a is the lifetime for the row group metadata, which is owned
 /// by the parent Parquet file reader
-pub struct SerializedRowGroupReader<'a> {
+pub struct SerializedRowGroupReader<'a, 'm> {
   buf: BufReader<File>,
-  metadata: &'a RowGroupMetaData
+  metadata: &'a RowGroupMetaData,
+  mem_pool: &'m MemoryPool
 }
 
-impl<'a> SerializedRowGroupReader<'a> {
-  pub fn new(file: File, metadata: &'a RowGroupMetaData) -> Self {
+impl<'a, 'm> SerializedRowGroupReader<'a, 'm> {
+  pub fn new(file: File, metadata: &'a RowGroupMetaData, mem_pool: &'m MemoryPool) -> Self {
     let buf = BufReader::new(file);
-    Self { buf: buf, metadata: metadata }
+    Self { buf: buf, metadata: metadata, mem_pool: mem_pool }
   }
 }
 
-impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
+impl<'a, 'm> RowGroupReader<'a> for SerializedRowGroupReader<'a, 'm> {
   fn metadata(&self) -> &'a RowGroupMetaData {
     self.metadata
   }
@@ -224,6 +230,31 @@ impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
     let page_reader = SerializedPageReader::new(
       buf.take(col_length).into_inner(), col.num_values(), col.compression())?;
     Ok(Box::new(page_reader))
+  }
+
+  fn get_column_reader(&self, i: usize) -> Result<ColumnReader> {
+    let schema_descr = self.metadata.schema_descr();
+    let col_descr = schema_descr.column(i);
+    let col_page_reader = self.get_column_page_reader(i)?;
+    let col_reader = match col_descr.physical_type() {
+      Type::BOOLEAN => ColumnReader::BoolColumnReader(
+        ColumnReaderImpl::new(col_descr, col_page_reader, self.mem_pool)),
+      Type::INT32 => ColumnReader::Int32ColumnReader(
+        ColumnReaderImpl::new(col_descr, col_page_reader, self.mem_pool)),
+      Type::INT64 => ColumnReader::Int64ColumnReader(
+        ColumnReaderImpl::new(col_descr, col_page_reader, self.mem_pool)),
+      Type::INT96 => ColumnReader::Int96ColumnReader(
+        ColumnReaderImpl::new(col_descr, col_page_reader, self.mem_pool)),
+      Type::FLOAT => ColumnReader::FloatColumnReader(
+        ColumnReaderImpl::new(col_descr, col_page_reader, self.mem_pool)),
+      Type::DOUBLE => ColumnReader::DoubleColumnReader(
+        ColumnReaderImpl::new(col_descr, col_page_reader, self.mem_pool)),
+      Type::BYTE_ARRAY => ColumnReader::ByteArrayColumnReader(
+        ColumnReaderImpl::new(col_descr, col_page_reader, self.mem_pool)),
+      Type::FIXED_LEN_BYTE_ARRAY => ColumnReader::FixedLenByteArrayColumnReader(
+        ColumnReaderImpl::new(col_descr, col_page_reader, self.mem_pool)),
+    };
+    Ok(col_reader)
   }
 }
 
@@ -270,19 +301,19 @@ impl PageReader for SerializedPageReader {
       let page_header = self.read_page_header()?;
       let compressed_len = page_header.compressed_page_size as usize;
       let uncompressed_len = page_header.uncompressed_page_size as usize;
-      let mut buffer = ByteBuffer::new(compressed_len);
-      self.buf.read_exact(buffer.mut_data())?;
+      let mut buffer = vec![0; compressed_len];
+      self.buf.read_exact(&mut buffer)?;
 
       // TODO: page header could be huge because of statistics. We should
       // set a maximum page header size and abort if that is exceeded.
       if let Some(decompressor) = self.decompressor.as_mut() {
         let mut decompressed_buffer = vec!();
-        let decompressed_size = decompressor.decompress(buffer.data(), &mut decompressed_buffer)?;
+        let decompressed_size = decompressor.decompress(&buffer, &mut decompressed_buffer)?;
         if decompressed_size != uncompressed_len {
           return Err(general_err!("Actual decompressed size doesn't \
             match the expected one ({} vs {})", decompressed_size, uncompressed_len));
         }
-        buffer.set_data(decompressed_buffer);
+        buffer = decompressed_buffer;
       }
 
       // TODO: process statistics
@@ -293,7 +324,7 @@ impl PageReader for SerializedPageReader {
           let is_sorted = dict_header.is_sorted.unwrap_or(false);
           self.seen_num_values += dict_header.num_values as i64;
           Page::DictionaryPage {
-            buf: buffer.to_immutable(), num_values: dict_header.num_values as u32,
+            buf: buffer, num_values: dict_header.num_values as u32,
             encoding: Encoding::from(dict_header.encoding), is_sorted: is_sorted
           }
         },
@@ -302,7 +333,7 @@ impl PageReader for SerializedPageReader {
           let header = page_header.data_page_header.as_ref().unwrap();
           self.seen_num_values += header.num_values as i64;
           Page::DataPage {
-            buf: buffer.to_immutable(), num_values: header.num_values as u32,
+            buf: buffer, num_values: header.num_values as u32,
             encoding: Encoding::from(header.encoding),
             def_level_encoding: Encoding::from(header.definition_level_encoding),
             rep_level_encoding: Encoding::from(header.repetition_level_encoding)
@@ -314,7 +345,7 @@ impl PageReader for SerializedPageReader {
           let is_compressed = header.is_compressed.unwrap_or(true);
           self.seen_num_values += header.num_values as i64;
           Page::DataPageV2 {
-            buf: buffer.to_immutable(), num_values: header.num_values as u32,
+            buf: buffer, num_values: header.num_values as u32,
             encoding: Encoding::from(header.encoding),
             num_nulls: header.num_nulls as u32, num_rows: header.num_rows as u32,
             def_levels_byte_len: header.definition_levels_byte_length as u32,
@@ -381,7 +412,7 @@ mod tests {
     while let Ok(Some(page)) = page_reader_0.get_next_page() {
       let is_dict_type = match page {
         Page::DictionaryPage{ buf, num_values, encoding, is_sorted } => {
-          assert_eq!(buf.size(), 32);
+          assert_eq!(buf.len(), 32);
           assert_eq!(num_values, 8);
           assert_eq!(encoding, Encoding::PLAIN_DICTIONARY);
           assert_eq!(is_sorted, false);
