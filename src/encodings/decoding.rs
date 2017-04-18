@@ -277,19 +277,30 @@ impl Decoder<FixedLenByteArrayType> for PlainDecoder<FixedLenByteArrayType> {
 // PLAIN_DICTIONARY Decoding
 
 pub struct DictDecoder<T: DataType> {
-  /// The dictionary, which maps ids to the values
+  // The dictionary, which maps ids to the values
   dictionary: Vec<T::T>,
 
-  /// The decoder for the value ids
+  // Whether `dictionary` has been initialized
+  has_dictionary: bool,
+
+  // The decoder for the value ids
   rle_decoder: Option<RawRleDecoder>,
 
-  /// Number of values left in the data stream
-  num_values: usize
+  // Number of values left in the data stream
+  num_values: usize,
 }
 
 impl<T: DataType> DictDecoder<T> {
-  pub fn new(dict: Vec<T::T>) -> Self {
-    Self { dictionary: dict, rle_decoder: None, num_values: 0 }
+  pub fn new() -> Self {
+    Self { dictionary: vec!(), has_dictionary: false, rle_decoder: None, num_values: 0 }
+  }
+
+  pub fn set_dict(&mut self, mut decoder: Box<Decoder<T>>) -> Result<()> {
+    let num_values = decoder.values_left();
+    self.dictionary.resize(num_values, T::T::default());
+    let _ = decoder.decode(&mut self.dictionary, num_values)?;
+    self.has_dictionary = true;
+    Ok(())
   }
 }
 
@@ -307,6 +318,7 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
   fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize> {
     assert!(buffer.len() >= max_values);
     assert!(self.rle_decoder.is_some());
+    assert!(self.has_dictionary, "Must call set_dict() first!");
 
     let mut rle = self.rle_decoder.as_mut().unwrap();
     let num_values = cmp::min(max_values, self.num_values);
