@@ -308,42 +308,6 @@ impl PartialEq for ByteArray {
   }
 }
 
-#[derive(Clone, Debug)]
-pub struct FixedLenByteArray {
-  data: Option<BytePtr>,
-  len: usize
-}
-
-impl FixedLenByteArray {
-  pub fn new(len: usize) -> Self {
-    FixedLenByteArray { data: None, len: len }
-  }
-
-  pub fn get_data(&self) -> &[u8] {
-    assert!(self.data.is_some());
-    self.data.as_ref().unwrap().slice_all()
-  }
-
-  pub fn set_data(&mut self, data: BytePtr) {
-    assert!(data.len() == self.len);
-    self.data = Some(data);
-  }
-
-  pub fn get_len(&self) -> usize {
-    self.len
-  }
-}
-
-impl Default for FixedLenByteArray {
-  fn default() -> Self { FixedLenByteArray { data: None, len: 0 } }
-}
-
-impl PartialEq for FixedLenByteArray {
-  fn eq(&self, other: &FixedLenByteArray) -> bool {
-    self.get_data() == other.get_data()
-  }
-}
-
 pub trait DataType {
   type T: ::std::cmp::PartialEq + ::std::fmt::Debug + ::std::default::Default
     + ::std::clone::Clone;
@@ -380,7 +344,7 @@ make_type!(FloatType, Type::FLOAT, f32, 4);
 make_type!(DoubleType, Type::DOUBLE, f64, 8);
 make_type!(ByteArrayType, Type::BYTE_ARRAY, ByteArray, mem::size_of::<ByteArray>());
 make_type!(FixedLenByteArrayType, Type::FIXED_LEN_BYTE_ARRAY,
-           FixedLenByteArray, mem::size_of::<FixedLenByteArray>());
+           ByteArray, mem::size_of::<ByteArray>());
 
 
 #[cfg(test)]

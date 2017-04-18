@@ -78,7 +78,7 @@ pub fn get_decoder<'m, T: DataType>(
   mem_pool: &'m MemoryPool) -> Result<Box<Decoder<T> + 'm>> where T: 'm {
   let decoder = match encoding {
     // TODO: why Rust cannot infer result type without the `as Box<...>`?
-    Encoding::PLAIN => Box::new(PlainDecoder::new()) as Box<Decoder<T> + 'm>,
+    Encoding::PLAIN => Box::new(PlainDecoder::new(descr.type_length())) as Box<Decoder<T> + 'm>,
     Encoding::RLE => {
       let level = match value_type {
         ValueType::DEF_LEVEL => descr.max_def_level(),
@@ -104,26 +104,29 @@ pub fn get_decoder<'m, T: DataType>(
 // PLAIN Decoding
 
 pub struct PlainDecoder<T: DataType> {
-  /// The remaining number of values in the byte array
+  // The remaining number of values in the byte array
   num_values: usize,
 
-  /// The current starting index in the byte array.
+  // The current starting index in the byte array.
   start: usize,
 
-  /// The byte array to decode from. Not set if `T` is bool.
+  // The length for the type `T`. Only used when `T` is `FixedLenByteArrayType`
+  type_length: i32,
+
+  // The byte array to decode from. Not set if `T` is bool.
   data: Option<BytePtr>,
 
-  /// Read `data` bit by bit. Only set if `T` is bool.
+  // Read `data` bit by bit. Only set if `T` is bool.
   bit_reader: Option<BitReader>,
 
-  /// To allow `T` in the generic parameter for this struct. This doesn't take any space.
+  // To allow `T` in the generic parameter for this struct. This doesn't take any space.
   _phantom: PhantomData<T>
 }
 
 impl<T: DataType> PlainDecoder<T> {
-  pub fn new() -> Self {
+  pub fn new(type_length: i32) -> Self {
     PlainDecoder {
-      data: None, bit_reader: None,
+      data: None, bit_reader: None, type_length: type_length,
       num_values: 0, start: 0, _phantom: PhantomData
     }
   }
@@ -252,13 +255,14 @@ impl Decoder<ByteArrayType> for PlainDecoder<ByteArrayType> {
 }
 
 impl Decoder<FixedLenByteArrayType> for PlainDecoder<FixedLenByteArrayType> {
-  fn decode(&mut self, buffer: &mut [FixedLenByteArray], max_values: usize) -> Result<usize> {
+  fn decode(&mut self, buffer: &mut [ByteArray], max_values: usize) -> Result<usize> {
     assert!(buffer.len() >= max_values);
     assert!(self.data.is_some());
+    assert!(self.type_length > 0);
 
     let data = self.data.as_mut().unwrap();
+    let type_length = self.type_length as usize;
     let num_values = cmp::min(max_values, self.num_values);
-    let type_length = buffer[0].get_len();
     for i in 0..num_values {
       if data.len() < self.start + type_length {
         return Err(general_err!("Not enough bytes to decode"));
@@ -762,34 +766,34 @@ mod tests {
   #[test]
   fn test_plain_decode_int32() {
     let data = vec![42, 18, 52];
-    let data_bytes = <i32 as ToByteArray<i32>>::to_byte_array(&data[..]);
+    let data_bytes = <Int32Type as ToByteArray<Int32Type>>::to_byte_array(&data[..]);
     let mut buffer = vec![0; 3];
-    test_plain_decode::<Int32Type>(BytePtr::new(data_bytes), 3, &mut buffer[..], &data[..]);
+    test_plain_decode::<Int32Type>(BytePtr::new(data_bytes), 3, -1, &mut buffer[..], &data[..]);
   }
 
   #[test]
   fn test_plain_decode_int64() {
     let data = vec![42, 18, 52];
-    let data_bytes = <i64 as ToByteArray<i64>>::to_byte_array(&data[..]);
+    let data_bytes = <Int64Type as ToByteArray<Int64Type>>::to_byte_array(&data[..]);
     let mut buffer = vec![0; 3];
-    test_plain_decode::<Int64Type>(BytePtr::new(data_bytes), 3, &mut buffer[..], &data[..]);
+    test_plain_decode::<Int64Type>(BytePtr::new(data_bytes), 3, -1, &mut buffer[..], &data[..]);
   }
 
 
   #[test]
   fn test_plain_decode_float() {
     let data = vec![3.14, 2.414, 12.51];
-    let data_bytes = <f32 as ToByteArray<f32>>::to_byte_array(&data[..]);
+    let data_bytes = <FloatType as ToByteArray<FloatType>>::to_byte_array(&data[..]);
     let mut buffer = vec![0.0; 3];
-    test_plain_decode::<FloatType>(BytePtr::new(data_bytes), 3, &mut buffer[..], &data[..]);
+    test_plain_decode::<FloatType>(BytePtr::new(data_bytes), 3, -1, &mut buffer[..], &data[..]);
   }
 
   #[test]
   fn test_plain_decode_double() {
     let data = vec![3.14f64, 2.414f64, 12.51f64];
-    let data_bytes = <f64 as ToByteArray<f64>>::to_byte_array(&data[..]);
+    let data_bytes = <DoubleType as ToByteArray<DoubleType>>::to_byte_array(&data[..]);
     let mut buffer = vec![0.0f64; 3];
-    test_plain_decode::<DoubleType>(BytePtr::new(data_bytes), 3, &mut buffer[..], &data[..]);
+    test_plain_decode::<DoubleType>(BytePtr::new(data_bytes), 3, -1, &mut buffer[..], &data[..]);
   }
 
   #[test]
@@ -803,17 +807,17 @@ mod tests {
     data[1].set_data(v1);
     data[2].set_data(v2);
     data[3].set_data(v3);
-    let data_bytes = <Int96 as ToByteArray<Int96>>::to_byte_array(&data[..]);
+    let data_bytes = <Int96Type as ToByteArray<Int96Type>>::to_byte_array(&data[..]);
     let mut buffer = vec![Int96::new(); 4];
-    test_plain_decode::<Int96Type>(BytePtr::new(data_bytes), 4, &mut buffer[..], &data[..]);
+    test_plain_decode::<Int96Type>(BytePtr::new(data_bytes), 4, -1, &mut buffer[..], &data[..]);
   }
 
   #[test]
   fn test_plain_decode_bool() {
     let data = vec![false, true, false, false, true, false, true, true, false, true];
-    let data_bytes = <bool as ToByteArray<bool>>::to_byte_array(&data[..]);
+    let data_bytes = <BoolType as ToByteArray<BoolType>>::to_byte_array(&data[..]);
     let mut buffer = vec![false; 10];
-    test_plain_decode::<BoolType>(BytePtr::new(data_bytes), 10, &mut buffer[..], &data[..]);
+    test_plain_decode::<BoolType>(BytePtr::new(data_bytes), 10, -1, &mut buffer[..], &data[..]);
   }
 
   #[test]
@@ -821,25 +825,25 @@ mod tests {
     let mut data = vec!(ByteArray::new(); 2);
     data[0].set_data(BytePtr::new(String::from("hello").into_bytes()));
     data[1].set_data(BytePtr::new(String::from("parquet").into_bytes()));
-    let data_bytes = <ByteArray as ToByteArray<ByteArray>>::to_byte_array(&data[..]);
+    let data_bytes = <ByteArrayType as ToByteArray<ByteArrayType>>::to_byte_array(&data[..]);
     let mut buffer = vec![ByteArray::new(); 2];
-    test_plain_decode::<ByteArrayType>(BytePtr::new(data_bytes), 2, &mut buffer[..], &data[..]);
+    test_plain_decode::<ByteArrayType>(BytePtr::new(data_bytes), 2, -1, &mut buffer[..], &data[..]);
   }
 
   #[test]
   fn test_plain_decode_fixed_len_byte_array() {
-    let mut data = vec!(FixedLenByteArray::new(4); 3);
+    let mut data = vec!(ByteArray::default(); 3);
     data[0].set_data(BytePtr::new(String::from("bird").into_bytes()));
     data[1].set_data(BytePtr::new(String::from("come").into_bytes()));
     data[2].set_data(BytePtr::new(String::from("flow").into_bytes()));
-    let data_bytes = <FixedLenByteArray as ToByteArray<FixedLenByteArray>>::to_byte_array(&data[..]);
-    let mut buffer = vec![FixedLenByteArray::new(4); 3];
-    test_plain_decode::<FixedLenByteArrayType>(BytePtr::new(data_bytes), 3, &mut buffer[..], &data[..]);
+    let data_bytes = <FixedLenByteArrayType as ToByteArray<FixedLenByteArrayType>>::to_byte_array(&data[..]);
+    let mut buffer = vec![ByteArray::default(); 3];
+    test_plain_decode::<FixedLenByteArrayType>(BytePtr::new(data_bytes), 3, 4, &mut buffer[..], &data[..]);
   }
 
-  fn test_plain_decode<T: DataType>(data: BytePtr, num_values: usize,
-                                            buffer: &mut [T::T], expected: &[T::T]) {
-    let mut decoder: PlainDecoder<T> = PlainDecoder::new();
+  fn test_plain_decode<T: DataType>(data: BytePtr, num_values: usize, type_length: i32,
+                                    buffer: &mut [T::T], expected: &[T::T]) {
+    let mut decoder: PlainDecoder<T> = PlainDecoder::new(type_length);
     let result = decoder.set_data(data, num_values);
     assert!(result.is_ok());
     let result = decoder.decode(&mut buffer[..], num_values);
@@ -853,14 +857,14 @@ mod tests {
   }
 
   /// A util trait to convert slices of different types to byte arrays
-  trait ToByteArray<T> {
-    fn to_byte_array(data: &[T]) -> Vec<u8>;
+  trait ToByteArray<T: DataType> {
+    fn to_byte_array(data: &[T::T]) -> Vec<u8>;
   }
 
-  impl<T> ToByteArray<T> for T {
-    default fn to_byte_array(data: &[T]) -> Vec<u8> {
+  impl<T> ToByteArray<T> for T where T: DataType {
+    default fn to_byte_array(data: &[T::T]) -> Vec<u8> {
       let mut v = vec!();
-      let type_len = ::std::mem::size_of::<T>();
+      let type_len = ::std::mem::size_of::<T::T>();
       v.extend_from_slice(
         unsafe {
           ::std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * type_len)
@@ -870,7 +874,7 @@ mod tests {
     }
   }
 
-  impl ToByteArray<bool> for bool {
+  impl ToByteArray<BoolType> for BoolType {
     fn to_byte_array(data: &[bool]) -> Vec<u8> {
       let mut v = vec!();
       for i in 0..data.len() {
@@ -885,7 +889,7 @@ mod tests {
     }
   }
 
-  impl ToByteArray<Int96> for Int96 {
+  impl ToByteArray<Int96Type> for Int96Type {
     fn to_byte_array(data: &[Int96]) -> Vec<u8> {
       let mut v = vec!();
       for d in data {
@@ -898,7 +902,7 @@ mod tests {
     }
   }
 
-  impl ToByteArray<ByteArray> for ByteArray {
+  impl ToByteArray<ByteArrayType> for ByteArrayType {
     fn to_byte_array(data: &[ByteArray]) -> Vec<u8> {
       let mut v = vec!();
       for d in data {
@@ -911,8 +915,8 @@ mod tests {
     }
   }
 
-  impl ToByteArray<FixedLenByteArray> for FixedLenByteArray {
-    fn to_byte_array(data: &[FixedLenByteArray]) -> Vec<u8> {
+  impl ToByteArray<FixedLenByteArrayType> for FixedLenByteArrayType {
+    fn to_byte_array(data: &[ByteArray]) -> Vec<u8> {
       let mut v = vec!();
       for d in data {
         let buf = d.get_data();
@@ -921,5 +925,4 @@ mod tests {
       v
     }
   }
-
 }
