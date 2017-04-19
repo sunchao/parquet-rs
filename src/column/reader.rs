@@ -87,7 +87,7 @@ impl<'a, 'm, T: DataType> ColumnReaderImpl<'a, 'm, T> where T: 'm {
 
               if self.descr.max_def_level() > 0 {
                 let mut def_decoder = get_decoder::<'m, Int32Type>(
-                  &self.descr, def_level_encoding, ValueType::DEF_LEVEL, &self.memory_pool)?;
+                  self.descr.clone(), def_level_encoding, ValueType::DEF_LEVEL, &self.memory_pool)?;
                 def_decoder.set_data(buffer_ptr.all(), num_values as usize)?;
                 buffer_ptr = buffer_ptr.start_from(def_decoder.total_bytes()?);
                 self.def_level_decoder = Some(def_decoder);
@@ -95,7 +95,7 @@ impl<'a, 'm, T: DataType> ColumnReaderImpl<'a, 'm, T> where T: 'm {
 
               if self.descr.max_rep_level() > 0 {
                 let mut rep_decoder = get_decoder::<'m, Int32Type>(
-                  &self.descr, rep_level_encoding, ValueType::REP_LEVEL, &self.memory_pool)?;
+                  self.descr.clone(), rep_level_encoding, ValueType::REP_LEVEL, &self.memory_pool)?;
                 rep_decoder.set_data(buffer_ptr.all(), num_values as usize)?;
                 buffer_ptr = buffer_ptr.start_from(rep_decoder.total_bytes()?);
                 self.rep_level_decoder = Some(rep_decoder);
@@ -104,7 +104,7 @@ impl<'a, 'm, T: DataType> ColumnReaderImpl<'a, 'm, T> where T: 'm {
               // Initialize decoder for this page
               let mut data_decoder = match encoding {
                 Encoding::PLAIN => {
-                  get_decoder::<'m, T>(&self.descr, encoding, ValueType::VALUE, &self.memory_pool)?
+                  get_decoder::<'m, T>(self.descr.clone(), encoding, ValueType::VALUE, &self.memory_pool)?
                 },
                 en => {
                   return Err(nyi_err!("Unsupported encoding {}", en))

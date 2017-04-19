@@ -22,7 +22,7 @@ use std::marker::PhantomData;
 use std::slice::from_raw_parts_mut;
 use basic::*;
 use errors::{Result, ParquetError};
-use schema::types::ColumnDescriptor;
+use schema::types::ColumnDescPtr;
 use util::bit_util::{log2, BitReader};
 use util::memory::{Buffer, BytePtr, ByteBuffer, MutableBuffer, MemoryPool};
 use super::rle_encoding::RawRleDecoder;
@@ -72,7 +72,7 @@ impl fmt::Display for ValueType {
 /// and is used to decide whether this is for definition level or repetition level.
 // TODO: think about T: 'm here.
 pub fn get_decoder<'m, T: DataType>(
-  descr: &ColumnDescriptor,
+  descr: ColumnDescPtr,
   encoding: Encoding,
   value_type: ValueType,
   mem_pool: &'m MemoryPool) -> Result<Box<Decoder<T> + 'm>> where T: 'm {
