@@ -13,5 +13,4 @@ brotli = "1.0.7"
 flate2 = "0.2"
 rand = "0.3"
 
-# TODO: use the official repo
-thrift = { git = "https://github.com/sunchao/thrift" }
+thrift = { git = "https://github.com/apache/thrift" }
