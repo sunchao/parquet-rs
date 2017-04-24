@@ -16,6 +16,7 @@
 // under the License.
 
 use std::cmp;
+use std::fmt::{Display, Result as FmtResult, Formatter};
 use std::rc::Rc;
 use std::cell::Cell;
 use arena::TypedArena;
@@ -35,7 +36,6 @@ impl BytePtr {
     let len = v.len();
     Self { data: Rc::new(v), start: 0, len: len }
   }
-
 
   pub fn start(&self) -> usize {
     self.start
@@ -74,6 +74,12 @@ impl BytePtr {
     assert!(start + len <= self.len);
     let new_start = self.start + start;
     &self.data[new_start..new_start + len]
+  }
+}
+
+impl Display for BytePtr {
+  fn fmt(&self, f: &mut Formatter) -> FmtResult {
+    write!(f, "{:?}", self.data)
   }
 }
 
