@@ -157,8 +157,7 @@ mod tests {
   fn test_codec(c: CodecType) {
     let sizes = vec![100, 10000, 100000];
     for size in sizes {
-      let mut data = Vec::new();
-      random_bytes(size, &mut data);
+      let mut data = random_bytes(size);
       test_roundtrip(c, &mut data);
     }
   }

@@ -15,11 +15,42 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use rand::{thread_rng, Rng};
+use rand::{thread_rng, Rng, Rand};
+use rand::distributions::range::SampleRange;
 
-pub fn random_bytes(n: i32, out: &mut Vec<u8>) {
+pub fn random_bytes(n: usize) -> Vec<u8> {
+  let mut result = vec!();
   let mut rng = thread_rng();
   for _ in 0..n {
-    out.push(rng.gen_range(0, 255) & 0xFF);
+    result.push(rng.gen_range(0, 255) & 0xFF);
   }
+  result
+}
+
+pub fn random_bools(n: usize) -> Vec<bool> {
+  let mut result = vec!();
+  let mut rng = thread_rng();
+  for _ in 0..n {
+    result.push(rng.gen::<bool>());
+  }
+  result
+}
+
+pub fn random_numbers<T: Rand>(n: usize) -> Vec<T> {
+  let mut result = vec!();
+  let mut rng = thread_rng();
+  for _ in 0..n {
+    result.push(rng.gen::<T>());
+  }
+  result
+}
+
+pub fn random_numbers_range<T>(n: usize, low: T, high: T) -> Vec<T>
+    where T: PartialOrd + SampleRange + Copy {
+  let mut result = vec!();
+  let mut rng = thread_rng();
+  for _ in 0..n {
+    result.push(rng.gen_range(low, high));
+  }
+  result
 }
