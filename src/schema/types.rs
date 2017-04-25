@@ -242,6 +242,7 @@ impl fmt::Display for ColumnPath {
   }
 }
 
+
 /// A descriptor for leaf-level primitive columns. This encapsulates
 /// information such as definition and repetition levels and is used to
 /// re-assemble nested data.
@@ -252,7 +253,9 @@ pub struct ColumnDescriptor {
   // The root type of this column. For instance,
   // if the column is "a.b.c.d", then the primitive type
   // is 'd' while the root_type is 'a'.
-  root_type: TypePtr,
+  // NOTE: this is sometimes `None` for the convenience of testing.
+  // It should NEVER be `None` when running in production.
+  root_type: Option<TypePtr>,
 
   // The maximum definition level for this column
   max_def_level: i16,
@@ -265,9 +268,7 @@ pub struct ColumnDescriptor {
 }
 
 impl ColumnDescriptor {
-  // Ctor is private outside of this module - should be created
-  // via `SchemaDescriptor`.
-  fn new(primitive_type: TypePtr, root_type: TypePtr,
+  pub fn new(primitive_type: TypePtr, root_type: Option<TypePtr>,
          max_def_level: i16, max_rep_level: i16, path: ColumnPath) -> Self {
     Self { primitive_type, root_type, max_def_level, max_rep_level, path }
   }
@@ -285,7 +286,8 @@ impl ColumnDescriptor {
   }
 
   pub fn root_type(&self) -> &Type {
-    self.root_type.as_ref()
+    assert!(self.root_type.is_some());
+    self.root_type.as_ref().unwrap()
   }
 
   pub fn name(&self) -> &str {
@@ -410,7 +412,7 @@ fn build_tree(tp: TypePtr, root_tp: TypePtr, base_tp: TypePtr,
       let mut path: Vec<String> = vec!();
       path.extend_from_slice(&path_so_far[..]);
       leaves.push(Rc::new(ColumnDescriptor::new(
-        tp.clone(), root_tp, max_rep_level, max_def_level, ColumnPath::new(path))));
+        tp.clone(), Some(root_tp), max_rep_level, max_def_level, ColumnPath::new(path))));
       leaf_to_base.insert(leaves.len() - 1, base_tp);
     },
     &Type::GroupType{ ref fields, .. } => {
@@ -633,20 +635,22 @@ mod tests {
 
   #[test]
   fn test_column_descriptor() {
-    let result = Type::new_primitive_type(
-      "name", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
-      LogicalType::UTF8, 0, 0, 0, None);
-    assert!(result.is_ok());
-    let tp = result.unwrap();
+    let result = test_column_descriptor_helper();
+    assert!(result.is_ok(), "Expected result to be OK but got err:\n {}", result.unwrap_err());
+  }
 
-    let result = Type::new_group_type(
-      "root", None, LogicalType::LIST, vec!(), None);
-    assert!(result.is_ok());
-    let root_tp = result.unwrap();
+  fn test_column_descriptor_helper() -> Result<()> {
+    let tp = Type::new_primitive_type(
+      "name", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
+      LogicalType::UTF8, 0, 0, 0, None)?;
+
+    let root_tp = Type::new_group_type(
+      "root", None, LogicalType::LIST, vec!(), None)?;
     let root_tp_rc = Rc::new(root_tp);
 
     let path = vec!(String::from("name"));
-    let descr = ColumnDescriptor::new(Rc::new(tp), root_tp_rc.clone(), 4, 1, ColumnPath::new(path));
+    let descr = ColumnDescriptor::new(
+      Rc::new(tp), Some(root_tp_rc.clone()), 4, 1, ColumnPath::new(path));
 
     assert_eq!(descr.path(), &ColumnPath::new(vec!(String::from("name"))));
     assert_eq!(descr.logical_type(), LogicalType::UTF8);
@@ -658,11 +662,14 @@ mod tests {
     assert_eq!(descr.type_precision(), 0);
     assert_eq!(descr.type_scale(), 0);
     assert_eq!(descr.root_type(), root_tp_rc.as_ref());
+
+    Ok(())
   }
 
   #[test]
   fn test_schema_descriptor() {
-    let _ = test_schema_descriptor_helper();
+    let result = test_schema_descriptor_helper();
+    assert!(result.is_ok(), "Expected result to be OK but got err:\n {}", result.unwrap_err());
   }
 
   // A helper fn to avoid handling the results from type creation
