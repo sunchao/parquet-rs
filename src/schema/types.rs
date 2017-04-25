@@ -17,6 +17,7 @@
 
 use std::fmt;
 use std::rc::Rc;
+use std::convert::From;
 use std::collections::HashMap;
 use basic::{Type as PhysicalType, Repetition, LogicalType};
 use errors::Result;
@@ -239,6 +240,27 @@ impl ColumnPath {
 impl fmt::Display for ColumnPath {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     write!(f, "{:?}", self.string())
+  }
+}
+
+impl From<Vec<String>> for ColumnPath {
+  fn from(parts: Vec<String>) -> Self {
+    ColumnPath { parts: parts }
+  }
+}
+
+impl<'a> From<&'a str> for ColumnPath {
+  fn from(single_path: &str) -> Self {
+    let s = String::from(single_path);
+    ColumnPath::from(s)
+  }
+}
+
+impl From<String> for ColumnPath {
+  fn from(single_path: String) -> Self {
+    let mut v = vec!();
+    v.push(single_path);
+    ColumnPath { parts: v }
   }
 }
 
@@ -648,11 +670,10 @@ mod tests {
       "root", None, LogicalType::LIST, vec!(), None)?;
     let root_tp_rc = Rc::new(root_tp);
 
-    let path = vec!(String::from("name"));
     let descr = ColumnDescriptor::new(
-      Rc::new(tp), Some(root_tp_rc.clone()), 4, 1, ColumnPath::new(path));
+      Rc::new(tp), Some(root_tp_rc.clone()), 4, 1, ColumnPath::from("name"));
 
-    assert_eq!(descr.path(), &ColumnPath::new(vec!(String::from("name"))));
+    assert_eq!(descr.path(), &ColumnPath::from("name"));
     assert_eq!(descr.logical_type(), LogicalType::UTF8);
     assert_eq!(descr.physical_type(), PhysicalType::BYTE_ARRAY);
     assert_eq!(descr.max_def_level(), 4);
@@ -705,15 +726,9 @@ mod tests {
       vec!(Rc::new(list)), None)?;
     fields.push(Rc::new(bag));
 
-    let result = Type::new_group_type(
-      "schema", Some(Repetition::REPEATED), LogicalType::NONE, fields, None);
-    if result.is_err() {
-      println!("ERROR: {:?}", result.as_ref().err().unwrap());
-    }
-
-    assert!(result.is_ok());
-    let schema = Rc::new(result.unwrap());
-    let descr = SchemaDescriptor::new(schema);
+    let schema = Type::new_group_type(
+      "schema", Some(Repetition::REPEATED), LogicalType::NONE, fields, None)?;
+    let descr = SchemaDescriptor::new(Rc::new(schema));
 
     let nleaves = 6;
     assert_eq!(descr.num_columns(), nleaves);
