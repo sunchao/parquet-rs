@@ -23,65 +23,6 @@ use arena::TypedArena;
 
 use errors::Result;
 
-#[derive(Clone, Debug, PartialEq)]
-/// An representation of a slice on a reference-counting `Vec<u8>`.
-pub struct BytePtr {
-  data: Rc<Vec<u8>>,
-  start: usize,
-  len: usize
-}
-
-impl BytePtr {
-  pub fn new(v: Vec<u8>) -> Self {
-    let len = v.len();
-    Self { data: Rc::new(v), start: 0, len: len }
-  }
-
-  pub fn start(&self) -> usize {
-    self.start
-  }
-
-  pub fn len(&self) -> usize {
-    self.len
-  }
-
-  pub fn all(&self) -> BytePtr {
-    BytePtr { data: self.data.clone(), start: self.start, len: self.len }
-  }
-
-  pub fn start_from(&self, start: usize) -> BytePtr {
-    assert!(start <= self.len);
-    BytePtr { data: self.data.clone(), start: self.start + start, len: self.len - start }
-  }
-
-  pub fn range(&self, start: usize, len: usize) -> BytePtr {
-    assert!(start + len <= self.len);
-    BytePtr { data: self.data.clone(), start: self.start + start, len: len }
-  }
-
-  pub fn slice_all(&self) -> &[u8] {
-    &self.data[self.start..self.start + self.len]
-  }
-
-  pub fn slice_start_from(&self, start: usize) -> &[u8] {
-    assert!(start <= self.len);
-    let new_start = self.start + start;
-    let new_end = self.start + self.len;
-    &self.data[new_start..new_end]
-  }
-
-  pub fn slice_range(&self, start: usize, len: usize) -> &[u8] {
-    assert!(start + len <= self.len);
-    let new_start = self.start + start;
-    &self.data[new_start..new_start + len]
-  }
-}
-
-impl Display for BytePtr {
-  fn fmt(&self, f: &mut Formatter) -> FmtResult {
-    write!(f, "{:?}", self.data)
-  }
-}
 
 // ----------------------------------------------------------------------
 // Buffer classes
@@ -130,10 +71,6 @@ impl ByteBuffer {
     let data = vec![0; size];
     ByteBuffer { data: data }
   }
-
-  pub fn to_immutable(self) -> ImmutableByteBuffer {
-    ImmutableByteBuffer::new(BytePtr::new(self.data))
-  }
 }
 
 impl Buffer for ByteBuffer {
@@ -166,29 +103,55 @@ impl MutableBuffer for ByteBuffer {
 }
 
 
-// A immutable byte buffer struct
+// ----------------------------------------------------------------------
+// Immutable Buffer (BytePtr) classes
 
-pub struct ImmutableByteBuffer {
-  data: BytePtr
+/// An representation of a slice on a reference-counting and read-only byte array.
+/// Sub-slices can be further created from this. The byte array will be released
+/// when all slices are dropped.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BytePtr {
+  data: Rc<Vec<u8>>,
+  start: usize,
+  len: usize
 }
 
-impl ImmutableByteBuffer {
-  pub fn new(data: BytePtr) -> Self {
-    Self { data: data }
+impl BytePtr {
+  pub fn new(v: Vec<u8>) -> Self {
+    let len = v.len();
+    Self { data: Rc::new(v), start: 0, len: len }
+  }
+
+  pub fn start(&self) -> usize {
+    self.start
+  }
+
+  pub fn len(&self) -> usize {
+    self.len
+  }
+
+  pub fn all(&self) -> BytePtr {
+    BytePtr { data: self.data.clone(), start: self.start, len: self.len }
+  }
+
+  pub fn start_from(&self, start: usize) -> BytePtr {
+    assert!(start <= self.len);
+    BytePtr { data: self.data.clone(), start: self.start + start, len: self.len - start }
+  }
+
+  pub fn range(&self, start: usize, len: usize) -> BytePtr {
+    assert!(start + len <= self.len);
+    BytePtr { data: self.data.clone(), start: self.start + start, len: len }
+  }
+
+  pub fn slice(&self) -> &[u8] {
+    &self.data[self.start..self.start + self.len]
   }
 }
 
-impl Buffer for ImmutableByteBuffer {
-  fn data(&self) -> &[u8] {
-    self.data.slice_all()
-  }
-
-  fn capacity(&self) -> usize {
-    self.data.len()
-  }
-
-  fn size(&self) -> usize {
-    self.data.len()
+impl Display for BytePtr {
+  fn fmt(&self, f: &mut Formatter) -> FmtResult {
+    write!(f, "{:?}", self.data)
   }
 }
 

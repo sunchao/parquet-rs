@@ -66,7 +66,6 @@ impl fmt::Display for ValueType {
   }
 }
 
-
 /// Get a decoder for the particular data type `T` and encoding `encoding`.
 /// `descr` and `value_type` currently are only used when getting a `RleDecoder`
 /// and is used to decide whether this is for definition level or repetition level.
@@ -171,7 +170,7 @@ impl<T: DataType> Decoder<T> for PlainDecoder<T> {
     let raw_buffer: &mut [u8] = unsafe {
       from_raw_parts_mut(buffer.as_ptr() as *mut u8, bytes_to_decode)
     };
-    raw_buffer.copy_from_slice(data.slice_range(self.start, bytes_to_decode));
+    raw_buffer.copy_from_slice(data.range(self.start, bytes_to_decode).slice());
     self.start += bytes_to_decode;
     self.num_values -= num_values;
 
@@ -196,7 +195,7 @@ impl Decoder<Int96Type> for PlainDecoder<Int96Type> {
         unsafe {
           // TODO: avoid this copying
           let slice = ::std::slice::from_raw_parts(
-            data.slice_range(self.start, 12).as_ptr() as *mut u32, 3);
+            data.range(self.start, 12).slice().as_ptr() as *mut u32, 3);
           Vec::from(slice)
         }
       );
@@ -240,7 +239,7 @@ impl Decoder<ByteArrayType> for PlainDecoder<ByteArrayType> {
     let data = self.data.as_mut().unwrap();
     let num_values = cmp::min(max_values, self.num_values);
     for i in 0..num_values {
-      let len: usize = read_num_bytes!(u32, 4, data.slice_start_from(self.start)) as usize;
+      let len: usize = read_num_bytes!(u32, 4, data.start_from(self.start).slice()) as usize;
       self.start += mem::size_of::<u32>();
       if data.len() < self.start + len {
         return Err(general_err!("Not enough bytes to decode"));
@@ -311,7 +310,7 @@ impl<T: DataType> DictDecoder<T> {
 impl<T: DataType> Decoder<T> for DictDecoder<T> {
   fn set_data(&mut self, data: BytePtr, num_values: usize) -> Result<()> {
     // first byte in `data` is bit width
-    let bit_width = data.slice_all()[0] as usize;
+    let bit_width = data.slice()[0] as usize;
     let mut rle_decoder = RawRleDecoder::new(bit_width);
     rle_decoder.set_data(data.start_from(1));
     self.num_values = num_values;
@@ -390,7 +389,7 @@ impl Decoder<Int32Type> for RleDecoder<Int32Type> {
   #[inline]
   fn set_data(&mut self, data: BytePtr, num_values: usize) -> Result<()> {
     let i32_size = mem::size_of::<i32>();
-    let num_bytes = read_num_bytes!(i32, i32_size, data.slice_all()) as usize;
+    let num_bytes = read_num_bytes!(i32, i32_size, data.slice()) as usize;
     // TODO: set total size?
     self.decoder.set_data(data.start_from(i32_size));
     self.num_values = num_values;
@@ -726,7 +725,7 @@ impl<'m> Decoder<ByteArrayType> for DeltaByteArrayDecoder<'m, ByteArrayType> {
       if prefix_len != 0 {
         assert!(self.previous_value.is_some());
         let previous = self.previous_value.as_ref().unwrap();
-        prefix_slice = Some(Vec::from(previous.slice_all()));
+        prefix_slice = Some(Vec::from(previous.slice()));
       }
       // Process suffix
       // TODO: this is awkward - maybe we should add a non-vectorized API?
@@ -737,10 +736,10 @@ impl<'m> Decoder<ByteArrayType> for DeltaByteArrayDecoder<'m, ByteArrayType> {
       // Concatenate prefix with suffix
       let result: Vec<u8> = match prefix_slice {
         Some(mut prefix) => {
-          prefix.extend_from_slice(suffix[0].get_data());
+          prefix.extend_from_slice(suffix[0].data());
           prefix
         }
-        None => Vec::from(suffix[0].get_data())
+        None => Vec::from(suffix[0].data())
       };
 
       // TODO: can reuse the original vec
@@ -894,7 +893,7 @@ mod tests {
       let mut v = vec!();
       for d in data {
         unsafe {
-          let copy = ::std::slice::from_raw_parts(d.get_data().as_ptr() as *const u8, 12);
+          let copy = ::std::slice::from_raw_parts(d.data().as_ptr() as *const u8, 12);
           v.extend_from_slice(copy);
         };
       }
@@ -906,7 +905,7 @@ mod tests {
     fn to_byte_array(data: &[ByteArray]) -> Vec<u8> {
       let mut v = vec!();
       for d in data {
-        let buf = d.get_data();
+        let buf = d.data();
         let len = &usize_to_bytes(buf.len());
         v.extend_from_slice(len);
         v.extend(buf);
@@ -919,7 +918,7 @@ mod tests {
     fn to_byte_array(data: &[ByteArray]) -> Vec<u8> {
       let mut v = vec!();
       for d in data {
-        let buf = d.get_data();
+        let buf = d.data();
         v.extend(buf);
       }
       v

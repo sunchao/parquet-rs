@@ -256,14 +256,14 @@ impl Int96 {
     Int96 { value: None }
   }
 
+  pub fn data(&self) -> &[u32] {
+    assert!(self.value.is_some());
+    &self.value.as_ref().unwrap()
+  }
+
   pub fn set_data(&mut self, v: Vec<u32>) {
     assert_eq!(v.len(), 3);
     self.value = Some(v);
-  }
-
-  pub fn get_data(&self) -> &[u32] {
-    assert!(self.value.is_some());
-    &self.value.as_ref().unwrap()
   }
 }
 
@@ -273,7 +273,7 @@ impl Default for Int96 {
 
 impl PartialEq for Int96 {
   fn eq(&self, other: &Int96) -> bool {
-    self.get_data() == other.get_data()
+    self.data() == other.data()
   }
 }
 
@@ -287,9 +287,14 @@ impl ByteArray {
     ByteArray { data: None }
   }
 
-  pub fn get_data(&self) -> &[u8] {
+  pub fn len(&self) -> usize {
     assert!(self.data.is_some());
-    self.data.as_ref().unwrap().slice_all()
+    self.data.as_ref().unwrap().len()
+  }
+
+  pub fn data(&self) -> &[u8] {
+    assert!(self.data.is_some());
+    self.data.as_ref().unwrap().slice()
   }
 
   pub fn set_data(&mut self, data: BytePtr) {
@@ -304,7 +309,7 @@ impl Default for ByteArray {
 
 impl PartialEq for ByteArray {
   fn eq(&self, other: &ByteArray) -> bool {
-    self.get_data() == other.get_data()
+    self.data() == other.data()
   }
 }
 

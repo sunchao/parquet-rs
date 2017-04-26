@@ -263,7 +263,7 @@ impl BitReader {
   pub fn new(buffer: BytePtr) -> Self {
     let total_bytes = buffer.len();
     let num_bytes = cmp::min(8, total_bytes);
-    let buffered_values = read_num_bytes!(u64, num_bytes, buffer.slice_all());
+    let buffered_values = read_num_bytes!(u64, num_bytes, buffer.slice());
     BitReader {
       buffer: buffer, buffered_values: buffered_values,
       byte_offset: 0, bit_offset: 0, total_bytes: total_bytes
@@ -275,7 +275,7 @@ impl BitReader {
     self.buffer = buffer;
     self.total_bytes = self.buffer.len();
     let num_bytes = cmp::min(8, self.total_bytes);
-    self.buffered_values = read_num_bytes!(u64, num_bytes, self.buffer.slice_all());
+    self.buffered_values = read_num_bytes!(u64, num_bytes, self.buffer.slice());
     self.byte_offset = 0;
     self.bit_offset = 0;
   }
@@ -304,7 +304,7 @@ impl BitReader {
 
       let bytes_to_read = cmp::min(self.total_bytes - self.byte_offset, 8);
       self.buffered_values = read_num_bytes!(
-        u64, bytes_to_read, self.buffer.slice_start_from(self.byte_offset));
+        u64, bytes_to_read, self.buffer.start_from(self.byte_offset).slice());
 
       v |= trailing_bits(self.buffered_values, self.bit_offset) << (num_bits - self.bit_offset);
     }
@@ -330,14 +330,14 @@ impl BitReader {
 
     // Advance byte_offset to next unread byte and read num_bytes
     self.byte_offset += bytes_read;
-    let v = read_num_bytes!(T, num_bytes, self.buffer.slice_start_from(self.byte_offset));
+    let v = read_num_bytes!(T, num_bytes, self.buffer.start_from(self.byte_offset).slice());
     self.byte_offset += num_bytes;
 
     // Reset buffered_values
     self.bit_offset = 0;
     let bytes_remaining = cmp::min(self.total_bytes - self.byte_offset, 8);
     self.buffered_values = read_num_bytes!(
-      u64, bytes_remaining, self.buffer.slice_start_from(self.byte_offset));
+      u64, bytes_remaining, self.buffer.start_from(self.byte_offset).slice());
     Ok(v)
   }
 
