@@ -15,5 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
+pub mod encoding;
 pub mod decoding;
 pub mod rle_encoding;

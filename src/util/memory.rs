@@ -15,10 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cell::Cell;
 use std::cmp;
 use std::fmt::{Display, Result as FmtResult, Formatter};
+use std::io::{Result as IoResult, Write};
+use std::mem;
 use std::rc::Rc;
-use std::cell::Cell;
+
 use arena::TypedArena;
 
 use errors::Result;
@@ -67,9 +70,13 @@ pub struct ByteBuffer {
 }
 
 impl ByteBuffer {
-  pub fn new(size: usize) -> Self {
-    let data = vec![0; size];
-    ByteBuffer { data: data }
+  pub fn new(init_capacity: usize) -> Self {
+    ByteBuffer { data: Vec::with_capacity(init_capacity) }
+  }
+
+  /// Consume this byte buffer and return a read-only pointer to it.
+  pub fn to_immutable(self) -> BytePtr {
+    BytePtr::new(self.data)
   }
 }
 
@@ -96,8 +103,11 @@ impl MutableBuffer for ByteBuffer {
     self.data = new_data;
   }
 
-  fn resize(&mut self, new_cap: usize) -> Result<()> {
-    self.data.resize(new_cap, 0);
+  fn resize(&mut self, new_capacity: usize) -> Result<()> {
+    let extra_capacity = new_capacity - self.data.capacity();
+    if extra_capacity > 0 {
+      self.data.reserve(extra_capacity);
+    }
     Ok(())
   }
 }
@@ -155,6 +165,45 @@ impl Display for BytePtr {
   }
 }
 
+
+// ----------------------------------------------------------------------
+// ByteBufferWrite classes
+
+const BYTE_BUFFER_INIT_SIZE: usize = 1024;
+
+pub struct ByteBufferWrite {
+  buffer: ByteBuffer
+}
+
+impl ByteBufferWrite {
+  pub fn new() -> Self {
+    Self { buffer: ByteBuffer::new(BYTE_BUFFER_INIT_SIZE) }
+  }
+
+  /// Consume and return a fully-written `ByteBuffer` from
+  /// this output writer. Note the returned buffer should never
+  /// be write again.
+  pub fn consume(&mut self) -> BytePtr {
+    let buffer = mem::replace(&mut self.buffer, ByteBuffer::new(BYTE_BUFFER_INIT_SIZE));
+    buffer.to_immutable()
+  }
+}
+
+impl Write for ByteBufferWrite {
+  fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
+    // Check if we have enough capacity for the new data
+    if self.buffer.data.len() + buf.len() > self.buffer.capacity() {
+      let new_capacity = ::std::cmp::max(
+        self.buffer.capacity() * 2, self.buffer.data.len() + buf.len());
+      self.buffer.resize(new_capacity)?;
+    }
+    self.buffer.data.write(buf)
+  }
+
+  fn flush(&mut self) -> IoResult<()> {
+    self.buffer.data.flush()
+  }
+}
 
 // ----------------------------------------------------------------------
 // MemoryPool classes

@@ -17,6 +17,7 @@
 
 use std::io;
 use std::result;
+use std::convert;
 use thrift;
 use snap;
 
@@ -38,6 +39,15 @@ quick_error! {
 }
 
 pub type Result<T> = result::Result<T, ParquetError>;
+
+
+/// Conversion from `ParquetError` TO other types of `Error`s
+
+impl convert::From<ParquetError> for io::Error {
+  fn from(e: ParquetError) -> Self {
+    io::Error::new(io::ErrorKind::Other, e)
+  }
+}
 
 /// Convenient macros for different errors
 macro_rules! general_err {
