@@ -18,6 +18,44 @@
 use rand::{thread_rng, Rng, Rand};
 use rand::distributions::range::SampleRange;
 
+use basic::{FixedLenByteArrayType, DataType, ByteArray};
+use util::memory::BytePtr;
+
+pub trait RandGen<T: DataType> {
+  fn gen(len: i32) -> T::T;
+
+  fn gen_vec(len: i32, total: usize) -> Vec<T::T> {
+    let mut result = vec!();
+    for _ in 0..total {
+      result.push(Self::gen(len))
+    }
+    result
+  }
+}
+
+impl<T: DataType> RandGen<T> for T {
+  default fn gen(_: i32) -> T::T {
+    let mut rng = thread_rng();
+    rng.gen::<T::T>()
+  }
+}
+
+impl RandGen<FixedLenByteArrayType> for FixedLenByteArrayType {
+  fn gen(len: i32) -> ByteArray {
+    let mut result = ByteArray::new();
+    let mut rng = thread_rng();
+    let value_len =
+      if len < 0 {
+        rng.gen_range::<usize>(0, 128)
+      } else {
+        len as usize
+      };
+    let value = random_bytes(value_len);
+    result.set_data(BytePtr::new(value));
+    result
+  }
+}
+
 pub fn random_bytes(n: usize) -> Vec<u8> {
   let mut result = vec!();
   let mut rng = thread_rng();

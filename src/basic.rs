@@ -18,8 +18,10 @@
 use std::fmt;
 use std::convert;
 use std::mem;
+use rand::{Rng, Rand};
 use parquet_thrift::parquet;
 use util::memory::BytePtr;
+
 
 // ----------------------------------------------------------------------
 // Types from the Thrift definition
@@ -277,6 +279,19 @@ impl PartialEq for Int96 {
   }
 }
 
+impl Rand for Int96 {
+  fn rand<R: Rng>(rng: &mut R) -> Self {
+    let mut result = Int96::new();
+    let mut value = vec!();
+    for _ in 0..3 {
+      value.push(rng.gen::<u32>());
+    }
+    result.set_data(value);
+    result
+  }
+}
+
+
 #[derive(Clone, Debug)]
 pub struct ByteArray {
   data: Option<BytePtr>,
@@ -313,9 +328,23 @@ impl PartialEq for ByteArray {
   }
 }
 
+impl Rand for ByteArray {
+  fn rand<R: Rng>(rng: &mut R) -> Self {
+    let mut result = ByteArray::new();
+    let mut value = vec!();
+    let len = rng.gen_range::<usize>(0, 128);
+    for _ in 0..len {
+      value.push(rng.gen_range(0, 255) & 0xFF);
+    }
+    result.set_data(BytePtr::new(value));
+    result
+  }
+}
+
+
 pub trait DataType {
   type T: ::std::cmp::PartialEq + ::std::fmt::Debug + ::std::default::Default
-    + ::std::clone::Clone;
+    + ::std::clone::Clone + Rand;
   fn get_physical_type() -> Type;
   fn get_type_size() -> usize;
 }
