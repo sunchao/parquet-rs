@@ -18,13 +18,11 @@
 use std::fs::File;
 use std::io::{self, Read, BufReader, Seek, SeekFrom};
 use std::rc::Rc;
-use std::cell::RefCell;
 
 use basic::{Type, Compression, Encoding};
 use errors::{Result, ParquetError};
 use file::metadata::{RowGroupMetaData, FileMetaData, ParquetMetaData};
 use byteorder::{LittleEndian, ByteOrder};
-use thrift::transport::TTransport;
 use thrift::protocol::TCompactInputProtocol;
 use parquet_thrift::parquet::FileMetaData as TFileMetaData;
 use parquet_thrift::parquet::{PageType, PageHeader};
@@ -89,16 +87,6 @@ impl<'a, T: 'a + Read> Read for TMemoryBuffer<'a, T> {
   }
 }
 
-impl<'a, T: 'a + Read> io::Write for TMemoryBuffer<'a, T> {
-  fn write(&mut self, _: &[u8]) -> io::Result<usize> {
-    panic!("Not implemented")
-  }
-
-  fn flush(&mut self) -> io::Result<()> {
-    panic!("Not implemented")
-  }
-}
-
 // ----------------------------------------------------------------------
 // Serialized impl for file & row group readers
 
@@ -152,7 +140,6 @@ impl SerializedFileReader {
     buf.seek(SeekFrom::Start(metadata_start as u64))?;
     let metadata_buf = buf.take(metadata_len as u64).into_inner();
     let transport = TMemoryBuffer::new(metadata_buf);
-    let transport = Rc::new(RefCell::new(Box::new(transport) as Box<TTransport>));
 
     // TODO: row group filtering
     let mut prot = TCompactInputProtocol::new(transport);
@@ -287,8 +274,7 @@ impl SerializedPageReader {
   }
 
   fn read_page_header(&mut self) -> Result<PageHeader> {
-    let transport = Rc::new(RefCell::new(
-      Box::new(TMemoryBuffer::new(&mut self.buf)) as Box<TTransport>));
+    let transport = TMemoryBuffer::new(&mut self.buf);
     let mut prot = TCompactInputProtocol::new(transport);
     let page_header = PageHeader::read_from_in_protocol(&mut prot)?;
     Ok(page_header)
