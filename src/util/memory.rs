@@ -240,4 +240,27 @@ mod tests {
 
     assert_eq!(buffer.data(), values.as_slice());
   }
+
+  #[test]
+  fn test_byte_ptr() {
+    let values = (0..50).collect();
+    let ptr = BytePtr::new(values);
+    assert_eq!(ptr.len(), 50);
+    assert_eq!(ptr.start(), 0);
+
+    let ptr2 = ptr.all();
+    assert_eq!(ptr2.len(), 50);
+    assert_eq!(ptr2.start(), 0);
+
+    let ptr3 = ptr.start_from(20);
+    assert_eq!(ptr3.len(), 30);
+    assert_eq!(ptr3.start(), 20);
+
+    let ptr4 = ptr3.range(10, 10);
+    assert_eq!(ptr4.len(), 10);
+    assert_eq!(ptr4.start(), 30);
+
+    let expected: Vec<u8> = (30..40).collect();
+    assert_eq!(ptr4.slice(), expected.as_slice());
+  }
 }
