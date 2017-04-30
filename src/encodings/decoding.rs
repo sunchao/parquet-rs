@@ -24,7 +24,7 @@ use basic::*;
 use errors::{Result, ParquetError};
 use schema::types::ColumnDescPtr;
 use util::bit_util::{log2, BitReader};
-use util::memory::{Buffer, BytePtr, ByteBuffer, MutableBuffer, MemoryPool};
+use util::memory::{BytePtr, ByteBuffer, MemoryPool};
 use super::rle_encoding::RawRleDecoder;
 
 
@@ -441,7 +441,7 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
            values_per_mini_block: 0, values_current_mini_block: 0,
            first_value: 0, first_value_read: false,
            min_delta: 0, mini_block_idx: 0, delta_bit_width: 0,
-           delta_bit_widths: ByteBuffer::new(0),
+           delta_bit_widths: ByteBuffer::new(),
            current_value: 0, _phantom: PhantomData }
   }
 
@@ -752,8 +752,6 @@ impl<'m> Decoder<ByteArrayType> for DeltaByteArrayDecoder<'m, ByteArrayType> {
     Ok(num_values)
   }
 }
-
-
 
 
 #[cfg(test)]

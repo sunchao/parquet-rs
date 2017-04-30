@@ -24,91 +24,72 @@ use std::rc::Rc;
 
 use arena::TypedArena;
 
-use errors::Result;
-
 
 // ----------------------------------------------------------------------
 // Buffer classes
 
-/// Basic APIs for byte buffers. A byte buffer has two attributes:
+/// A resize-able byte buffer class.
+///
+/// Note that a byte buffer has two attributes:
 /// `capacity` and `size`: the former is the total bytes allocated for
 /// the buffer, while the latter is the actual bytes that have valid data.
 /// Invariant: `capacity` >= `size`.
-///
-/// A `Buffer` is immutable, meaning that one can only obtain the
-/// underlying data for read only
-pub trait Buffer {
-  /// Get a shared reference to the underlying data
-  fn data(&self) -> &[u8];
-
-  /// Get the capacity of this buffer
-  fn capacity(&self) -> usize;
-
-  /// Get the size for this buffer
-  fn size(&self) -> usize;
-}
-
-/// A byte buffer where client can obtain a unique reference to
-/// the underlying data for both read and write
-pub trait MutableBuffer: Buffer {
-  /// Get a unique reference to the underlying data
-  fn mut_data(&mut self) -> &mut [u8];
-
-  /// Set the internal buffer to be `new_data`, discarding the old buffer.
-  fn set_data(&mut self, new_data: Vec<u8>);
-
-  /// Adjust the internal buffer's capacity to be `new_cap`.
-  /// If the current size of the buffer is smaller than `new_cap`, data
-  /// will be truncated.
-  fn resize(&mut self, new_cap: usize) -> Result<()>;
-}
-
-// A mutable byte buffer struct
-
+#[derive(Debug, PartialEq)]
 pub struct ByteBuffer {
   data: Vec<u8>
 }
 
 impl ByteBuffer {
-  pub fn new(init_capacity: usize) -> Self {
-    ByteBuffer { data: Vec::with_capacity(init_capacity) }
+  pub fn new() -> Self {
+    ByteBuffer { data: vec!() }
   }
 
-  /// Consume this byte buffer and return a read-only pointer to it.
-  pub fn to_immutable(self) -> BytePtr {
-    BytePtr::new(self.data)
+  pub fn new_with_cap(init_cap: usize) -> Self {
+    ByteBuffer { data: Vec::with_capacity(init_cap) }
   }
-}
 
-impl Buffer for ByteBuffer {
-  fn data(&self) -> &[u8] {
+  pub fn data(&self) -> &[u8] {
     self.data.as_slice()
   }
 
-  fn capacity(&self) -> usize {
-    self.data.capacity()
-  }
-
-  fn size(&self) -> usize {
-    self.data.len()
-  }
-}
-
-impl MutableBuffer for ByteBuffer {
-  fn mut_data(&mut self) -> &mut [u8] {
-    self.data.as_mut_slice()
-  }
-
-  fn set_data(&mut self, new_data: Vec<u8>) {
+  pub fn set_data(&mut self, new_data: Vec<u8>) {
     self.data = new_data;
   }
 
-  fn resize(&mut self, new_capacity: usize) -> Result<()> {
+  pub fn resize(&mut self, new_capacity: usize) {
     let extra_capacity = new_capacity - self.data.capacity();
     if extra_capacity > 0 {
       self.data.reserve(extra_capacity);
     }
-    Ok(())
+  }
+
+  pub fn consume(&mut self) -> BytePtr {
+    let old_data = mem::replace(&mut self.data, vec!());
+    BytePtr::new(old_data)
+  }
+
+  pub fn capacity(&self) -> usize {
+    self.data.capacity()
+  }
+
+  pub fn size(&self) -> usize {
+    self.data.len()
+  }
+}
+
+impl Write for ByteBuffer {
+  fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
+    // Check if we have enough capacity for the new data
+    if self.data.len() + buf.len() > self.data.capacity() {
+      let new_capacity = ::std::cmp::max(
+        self.data.capacity() * 2, self.data.len() + buf.len());
+      self.resize(new_capacity);
+    }
+    self.data.write(buf)
+  }
+
+  fn flush(&mut self) -> IoResult<()> {
+    self.data.flush()
   }
 }
 
@@ -167,45 +148,6 @@ impl Display for BytePtr {
 
 
 // ----------------------------------------------------------------------
-// ByteBufferWrite classes
-
-const BYTE_BUFFER_INIT_SIZE: usize = 1024;
-
-pub struct ByteBufferWrite {
-  buffer: ByteBuffer
-}
-
-impl ByteBufferWrite {
-  pub fn new() -> Self {
-    Self { buffer: ByteBuffer::new(BYTE_BUFFER_INIT_SIZE) }
-  }
-
-  /// Consume and return a fully-written `ByteBuffer` from
-  /// this output writer. Note the returned buffer should never
-  /// be write again.
-  pub fn consume(&mut self) -> BytePtr {
-    let buffer = mem::replace(&mut self.buffer, ByteBuffer::new(BYTE_BUFFER_INIT_SIZE));
-    buffer.to_immutable()
-  }
-}
-
-impl Write for ByteBufferWrite {
-  fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
-    // Check if we have enough capacity for the new data
-    if self.buffer.data.len() + buf.len() > self.buffer.capacity() {
-      let new_capacity = ::std::cmp::max(
-        self.buffer.capacity() * 2, self.buffer.data.len() + buf.len());
-      self.buffer.resize(new_capacity)?;
-    }
-    self.buffer.data.write(buf)
-  }
-
-  fn flush(&mut self) -> IoResult<()> {
-    self.buffer.data.flush()
-  }
-}
-
-// ----------------------------------------------------------------------
 // MemoryPool classes
 
 
@@ -255,5 +197,47 @@ impl MemoryPool {
   /// Return the maximum number of bytes allocated so far
   fn max_allocated(&self) -> i64 {
     self.max_bytes_allocated.get()
+  }
+}
+
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_byte_buffer() {
+    let mut buffer = ByteBuffer::new();
+    assert_eq!(buffer.size(), 0);
+    assert_eq!(buffer.capacity(), 0);
+
+    let buffer2 = ByteBuffer::new_with_cap(40);
+    assert_eq!(buffer2.size(), 0);
+    assert_eq!(buffer2.capacity(), 40);
+
+    buffer.set_data((0..5).collect());
+    assert_eq!(buffer.size(), 5);
+
+    buffer.set_data((0..20).collect());
+    assert_eq!(buffer.size(), 20);
+
+    let expected: Vec<u8> = (0..20).collect();
+    {
+      let data = buffer.data();
+      assert_eq!(data, expected.as_slice());
+    }
+
+    buffer.resize(40);
+    assert!(buffer.capacity() >= 40);
+
+    let byte_ptr = buffer.consume();
+    assert_eq!(buffer.size(), 0);
+    assert_eq!(byte_ptr.slice(), expected.as_slice());
+
+    let values: Vec<u8> = (0..30).collect();
+    let _ = buffer.write(values.as_slice());
+    let _ = buffer.flush();
+
+    assert_eq!(buffer.data(), values.as_slice());
   }
 }

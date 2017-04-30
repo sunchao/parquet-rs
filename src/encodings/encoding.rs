@@ -20,7 +20,7 @@ use std::marker::PhantomData;
 use basic::*;
 use errors::{Result};
 use schema::types::ColumnDescPtr;
-use util::memory::{BytePtr, ByteBufferWrite};
+use util::memory::{BytePtr, ByteBuffer};
 use util::bit_util::{BitWriter, convert_to_bytes};
 
 pub trait Encoder<T: DataType> {
@@ -37,14 +37,14 @@ pub trait Encoder<T: DataType> {
 
 
 pub struct PlainEncoder<T: DataType> {
-  out: BufWriter<ByteBufferWrite>,
+  out: BufWriter<ByteBuffer>,
   bit_writer: BitWriter,
   descr: ColumnDescPtr,
   _phantom: PhantomData<T>
 }
 
 impl<T: DataType> PlainEncoder<T> {
-  pub fn new(out: BufWriter<ByteBufferWrite>, descr: ColumnDescPtr) -> Self {
+  pub fn new(out: BufWriter<ByteBuffer>, descr: ColumnDescPtr) -> Self {
     Self { out: out, bit_writer: BitWriter::new(256), descr: descr, _phantom: PhantomData }
   }
 }
@@ -229,7 +229,7 @@ mod tests {
     let desc = create_test_col_desc(type_len, T::get_physical_type());
     let encoder = match enc {
       Encoding::PLAIN => {
-        let writer = BufWriter::new(ByteBufferWrite::new());
+        let writer = BufWriter::new(ByteBuffer::new());
         Box::new(PlainEncoder::<T>::new(writer, Rc::new(desc)))
       }
       _ => {
