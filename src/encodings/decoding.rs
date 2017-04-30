@@ -765,7 +765,7 @@ mod tests {
   #[test]
   fn test_plain_decode_int32() {
     let data = vec![42, 18, 52];
-    let data_bytes = <Int32Type as ToByteArray<Int32Type>>::to_byte_array(&data[..]);
+    let data_bytes = Int32Type::to_byte_array(&data[..]);
     let mut buffer = vec![0; 3];
     test_plain_decode::<Int32Type>(BytePtr::new(data_bytes), 3, -1, &mut buffer[..], &data[..]);
   }
@@ -773,7 +773,7 @@ mod tests {
   #[test]
   fn test_plain_decode_int64() {
     let data = vec![42, 18, 52];
-    let data_bytes = <Int64Type as ToByteArray<Int64Type>>::to_byte_array(&data[..]);
+    let data_bytes = Int64Type::to_byte_array(&data[..]);
     let mut buffer = vec![0; 3];
     test_plain_decode::<Int64Type>(BytePtr::new(data_bytes), 3, -1, &mut buffer[..], &data[..]);
   }
@@ -782,7 +782,7 @@ mod tests {
   #[test]
   fn test_plain_decode_float() {
     let data = vec![3.14, 2.414, 12.51];
-    let data_bytes = <FloatType as ToByteArray<FloatType>>::to_byte_array(&data[..]);
+    let data_bytes = FloatType::to_byte_array(&data[..]);
     let mut buffer = vec![0.0; 3];
     test_plain_decode::<FloatType>(BytePtr::new(data_bytes), 3, -1, &mut buffer[..], &data[..]);
   }
@@ -790,7 +790,7 @@ mod tests {
   #[test]
   fn test_plain_decode_double() {
     let data = vec![3.14f64, 2.414f64, 12.51f64];
-    let data_bytes = <DoubleType as ToByteArray<DoubleType>>::to_byte_array(&data[..]);
+    let data_bytes = DoubleType::to_byte_array(&data[..]);
     let mut buffer = vec![0.0f64; 3];
     test_plain_decode::<DoubleType>(BytePtr::new(data_bytes), 3, -1, &mut buffer[..], &data[..]);
   }
@@ -806,7 +806,7 @@ mod tests {
     data[1].set_data(v1);
     data[2].set_data(v2);
     data[3].set_data(v3);
-    let data_bytes = <Int96Type as ToByteArray<Int96Type>>::to_byte_array(&data[..]);
+    let data_bytes = Int96Type::to_byte_array(&data[..]);
     let mut buffer = vec![Int96::new(); 4];
     test_plain_decode::<Int96Type>(BytePtr::new(data_bytes), 4, -1, &mut buffer[..], &data[..]);
   }
@@ -814,7 +814,7 @@ mod tests {
   #[test]
   fn test_plain_decode_bool() {
     let data = vec![false, true, false, false, true, false, true, true, false, true];
-    let data_bytes = <BoolType as ToByteArray<BoolType>>::to_byte_array(&data[..]);
+    let data_bytes = BoolType::to_byte_array(&data[..]);
     let mut buffer = vec![false; 10];
     test_plain_decode::<BoolType>(BytePtr::new(data_bytes), 10, -1, &mut buffer[..], &data[..]);
   }
@@ -824,7 +824,7 @@ mod tests {
     let mut data = vec!(ByteArray::new(); 2);
     data[0].set_data(BytePtr::new(String::from("hello").into_bytes()));
     data[1].set_data(BytePtr::new(String::from("parquet").into_bytes()));
-    let data_bytes = <ByteArrayType as ToByteArray<ByteArrayType>>::to_byte_array(&data[..]);
+    let data_bytes = ByteArrayType::to_byte_array(&data[..]);
     let mut buffer = vec![ByteArray::new(); 2];
     test_plain_decode::<ByteArrayType>(BytePtr::new(data_bytes), 2, -1, &mut buffer[..], &data[..]);
   }
@@ -835,7 +835,7 @@ mod tests {
     data[0].set_data(BytePtr::new(String::from("bird").into_bytes()));
     data[1].set_data(BytePtr::new(String::from("come").into_bytes()));
     data[2].set_data(BytePtr::new(String::from("flow").into_bytes()));
-    let data_bytes = <FixedLenByteArrayType as ToByteArray<FixedLenByteArrayType>>::to_byte_array(&data[..]);
+    let data_bytes = FixedLenByteArrayType::to_byte_array(&data[..]);
     let mut buffer = vec![ByteArray::default(); 3];
     test_plain_decode::<FixedLenByteArrayType>(BytePtr::new(data_bytes), 3, 4, &mut buffer[..], &data[..]);
   }
