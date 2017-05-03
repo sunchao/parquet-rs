@@ -15,15 +15,65 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::cell::Cell;
+use std::cell::{RefCell, Cell};
 use std::cmp;
 use std::fmt::{Display, Result as FmtResult, Formatter};
 use std::io::{Result as IoResult, Write};
 use std::mem;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use arena::TypedArena;
+use errors::Result;
 
+
+// ----------------------------------------------------------------------
+// Memory Tracker classes
+
+type MemTrackerPtr = Rc<MemTracker>;
+type WeakMemTrackerPtr = Weak<MemTracker>;
+
+pub struct MemTracker {
+  cur_bytes: Cell<i64>,
+  max_bytes: Cell<i64>,
+  children: RefCell<Vec<MemTrackerPtr>>,
+  parent: Option<WeakMemTrackerPtr>
+}
+
+impl MemTracker {
+  pub fn new_ptr(mut parent: Option<&mut MemTrackerPtr>) -> Result<MemTrackerPtr> {
+    let mem_tracker = Rc::new(MemTracker {
+      cur_bytes: Cell::new(0), max_bytes: Cell::new(0),
+      children: RefCell::new(vec!()),
+      parent: parent.as_mut().map(|p| Rc::downgrade(p))
+    });
+    if let Some(p) = parent {
+      let mut parent_children = p.children.try_borrow_mut()?;
+      parent_children.push(mem_tracker.clone());
+    }
+    Ok(mem_tracker)
+  }
+
+  pub fn cur_bytes(&self) -> i64 {
+    self.cur_bytes.get()
+  }
+
+  pub fn max_bytes(&self) -> i64 {
+    self.max_bytes.get()
+  }
+
+  pub fn alloc(&self, num_bytes: usize) {
+    let new_cur_bytes = self.cur_bytes.get() + num_bytes as i64;
+    if new_cur_bytes > self.max_bytes.get() {
+      self.max_bytes.set(new_cur_bytes)
+    }
+    self.cur_bytes.set(new_cur_bytes);
+  }
+
+  pub fn dealloc(&self, num_bytes: usize) {
+    assert!(self.cur_bytes.get() >= num_bytes as i64);
+    self.cur_bytes.set(self.cur_bytes.get() - num_bytes as i64);
+  }
+}
 
 // ----------------------------------------------------------------------
 // Buffer classes
@@ -34,37 +84,61 @@ use arena::TypedArena;
 /// `capacity` and `size`: the former is the total bytes allocated for
 /// the buffer, while the latter is the actual bytes that have valid data.
 /// Invariant: `capacity` >= `size`.
-#[derive(Debug, PartialEq)]
 pub struct ByteBuffer {
-  data: Vec<u8>
+  data: Vec<u8>,
+  mem_tracker: Option<MemTrackerPtr>
 }
 
 impl ByteBuffer {
   pub fn new() -> Self {
-    ByteBuffer { data: vec!() }
+    ByteBuffer { data: vec!(), mem_tracker: None }
   }
 
-  pub fn new_with_cap(init_cap: usize) -> Self {
-    ByteBuffer { data: Vec::with_capacity(init_cap) }
+  pub fn with_capacity(mut self, cap: usize) -> Self {
+    self.data.reserve(cap);
+    self
+  }
+
+  pub fn with_mem_tracker(mut self, mc: MemTrackerPtr) -> Self {
+    mc.alloc(self.data.capacity());
+    self.mem_tracker = Some(mc);
+    self
   }
 
   pub fn data(&self) -> &[u8] {
     self.data.as_slice()
   }
 
+  #[inline]
   pub fn set_data(&mut self, new_data: Vec<u8>) {
+    if self.is_mem_tracked() {
+      let mc = self.mem_tracker.as_ref().unwrap();
+      mc.dealloc(self.data.capacity());
+      mc.alloc(new_data.capacity());
+    }
     self.data = new_data;
   }
 
+  #[inline]
   pub fn resize(&mut self, new_capacity: usize) {
-    let extra_capacity = new_capacity - self.data.capacity();
+    let old_capacity = self.data.capacity();
+    let extra_capacity = new_capacity - old_capacity;
     if extra_capacity > 0 {
       self.data.reserve(extra_capacity);
+      if let Some(ref mc) = self.mem_tracker {
+        mc.alloc(self.data.capacity() - old_capacity);
+      }
     }
   }
 
+  #[inline]
   pub fn consume(&mut self) -> BytePtr {
-    let old_data = mem::replace(&mut self.data, vec!());
+    let new_data = vec!();
+    if let Some(ref mc) = self.mem_tracker {
+      mc.dealloc(self.data.capacity());
+      mc.alloc(new_data.capacity());
+    }
+    let old_data = mem::replace(&mut self.data, new_data);
     BytePtr::new(old_data)
   }
 
@@ -74,6 +148,15 @@ impl ByteBuffer {
 
   pub fn size(&self) -> usize {
     self.data.len()
+  }
+
+  #[inline]
+  pub fn is_mem_tracked(&self) -> bool {
+    self.mem_tracker.is_some()
+  }
+
+  pub fn mem_tracker(&self) -> &MemTrackerPtr {
+    self.mem_tracker.as_ref().unwrap()
   }
 }
 
@@ -90,6 +173,15 @@ impl Write for ByteBuffer {
 
   fn flush(&mut self) -> IoResult<()> {
     self.data.flush()
+  }
+}
+
+impl Drop for ByteBuffer {
+  fn drop(&mut self) {
+    if self.is_mem_tracked() {
+      let mc = self.mem_tracker.as_ref().unwrap();
+      mc.dealloc(self.data.capacity());
+    }
   }
 }
 
@@ -206,12 +298,44 @@ mod tests {
   use super::*;
 
   #[test]
+  fn test_mem_tracker() {
+    let result = MemTracker::new_ptr(None);
+    assert!(result.is_ok());
+    let mem_tracker = result.unwrap();
+
+    let mut buffer = ByteBuffer::new()
+      .with_mem_tracker(mem_tracker.clone());
+    buffer.set_data(vec![0; 10]);
+    assert!(mem_tracker.cur_bytes() >= 10);
+    buffer.set_data(vec![0; 20]);
+    assert!(mem_tracker.cur_bytes() >= 20);
+
+    {
+      let mut buffer2 = ByteBuffer::new()
+        .with_capacity(30)
+        .with_mem_tracker(mem_tracker.clone());
+      assert!(mem_tracker.cur_bytes() >= 50);
+      buffer2.set_data(vec![0; 100]);
+      assert!(mem_tracker.cur_bytes() >= 120);
+    }
+
+    assert!(mem_tracker.cur_bytes() >= 20);
+    assert!(mem_tracker.max_bytes() >= 50);
+
+    buffer.resize(40);
+    assert!(mem_tracker.cur_bytes() >= 40);
+
+    buffer.consume();
+    assert!(mem_tracker.cur_bytes() <= 10);
+  }
+
+  #[test]
   fn test_byte_buffer() {
     let mut buffer = ByteBuffer::new();
     assert_eq!(buffer.size(), 0);
     assert_eq!(buffer.capacity(), 0);
 
-    let buffer2 = ByteBuffer::new_with_cap(40);
+    let buffer2 = ByteBuffer::new().with_capacity(40);
     assert_eq!(buffer2.size(), 0);
     assert_eq!(buffer2.capacity(), 40);
 

@@ -16,8 +16,10 @@
 // under the License.
 
 use std::io;
-use std::result;
+use std::cell;
 use std::convert;
+use std::result;
+
 use thrift;
 use snap;
 
@@ -30,6 +32,7 @@ quick_error! {
       from(e: io::Error) -> (format!("underlying IO error: {}", e))
       from(e: snap::Error) -> (format!("underlying snap error: {}", e))
       from(e: thrift::Error) -> (format!("underlying Thrift error: {}", e))
+      from(e: cell::BorrowMutError) -> (format!("underlying borrow error: {}", e))
     }
     NYI(message: String) {
       display("NYI: {}", message)
