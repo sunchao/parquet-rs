@@ -33,8 +33,8 @@ pub trait RandGen<T: DataType> {
   }
 }
 
-impl<T: DataType> RandGen<T> for T {
-  default fn gen(_: i32) -> T::T {
+default impl<T: DataType> RandGen<T> for T {
+  fn gen(_: i32) -> T::T {
     let mut rng = thread_rng();
     rng.gen::<T::T>()
   }

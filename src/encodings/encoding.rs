@@ -49,8 +49,8 @@ impl<T: DataType> PlainEncoder<T> {
   }
 }
 
-impl<T: DataType> Encoder<T> for PlainEncoder<T> {
-  default fn put(&mut self, src: &[T::T], num_values: usize) -> Result<()> {
+default impl<T: DataType> Encoder<T> for PlainEncoder<T> {
+  fn put(&mut self, src: &[T::T], num_values: usize) -> Result<()> {
     assert!(src.len() >= num_values);
     for i in 0..num_values {
       let p: *const T::T = &src[i];
@@ -185,8 +185,8 @@ mod tests {
     fn test_internal(enc: Encoding, total: usize) -> Result<()>;
   }
 
-  impl<T: DataType> EncodingTester<T> for T where T: 'static {
-    default fn test_internal(enc: Encoding, total: usize) -> Result<()> {
+  default impl<T: DataType> EncodingTester<T> for T where T: 'static {
+    fn test_internal(enc: Encoding, total: usize) -> Result<()> {
       let mut encoder = create_test_encoder::<T>(-1, enc);
       let values = <T as RandGen<T>>::gen_vec(-1, total);
       encoder.put(&values[..], total)?;

@@ -131,9 +131,9 @@ impl<T: DataType> PlainDecoder<T> {
   }
 }
 
-impl<T: DataType> Decoder<T> for PlainDecoder<T> {
+default impl<T: DataType> Decoder<T> for PlainDecoder<T> {
   #[inline]
-  default fn set_data(&mut self, data: BytePtr, num_values: usize) -> Result<()> {
+  fn set_data(&mut self, data: BytePtr, num_values: usize) -> Result<()> {
     self.num_values = num_values;
     self.start = 0;
     self.data = Some(data);
@@ -156,7 +156,7 @@ impl<T: DataType> Decoder<T> for PlainDecoder<T> {
   }
 
   #[inline]
-  default fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize> {
+  fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize> {
     assert!(buffer.len() >= max_values);
     assert!(self.data.is_some());
 
@@ -362,16 +362,16 @@ impl<T: DataType> RleDecoder<T> {
   }
 }
 
-impl<T: DataType> Decoder<T> for RleDecoder<T> {
-  default fn set_data(&mut self, _: BytePtr, _: usize) -> Result<()> {
+default impl<T: DataType> Decoder<T> for RleDecoder<T> {
+  fn set_data(&mut self, _: BytePtr, _: usize) -> Result<()> {
     Err(general_err!("RleDecoder only support Int32Type"))
   }
 
-  default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+  fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
     Err(general_err!("RleDecoder only support Int32Type"))
   }
 
-  default fn total_bytes(&self) -> Result<usize> {
+  fn total_bytes(&self) -> Result<usize> {
     Err(general_err!("RleDecoder only support Int32Type"))
   }
 
@@ -470,17 +470,17 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
   }
 }
 
-impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
-  default fn set_data(&mut self, _: BytePtr, _: usize) -> Result<()> {
+default impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
+  fn set_data(&mut self, _: BytePtr, _: usize) -> Result<()> {
     Err(general_err!("DeltaBitPackDecoder only support Int64Type"))
   }
 
-  default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+  fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
     Err(general_err!("DeltaBitPackDecoder only support Int64Type"))
   }
 
   // TODO: is there a way to calculate this?
-  default fn total_bytes(&self) -> Result<usize> {
+  fn total_bytes(&self) -> Result<usize> {
     Err(general_err!("DeltaBitPackDecoder does not support total_bytes()"))
   }
 
@@ -586,17 +586,17 @@ impl<T: DataType> DeltaLengthByteArrayDecoder<T> {
   }
 }
 
-impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
-  default fn set_data(&mut self, _: BytePtr, _: usize) -> Result<()> {
+default impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
+  fn set_data(&mut self, _: BytePtr, _: usize) -> Result<()> {
     Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
-  default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+  fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
     Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
   // TODO: is there a way to calculate this?
-  default fn total_bytes(&self) -> Result<usize> {
+  fn total_bytes(&self) -> Result<usize> {
     Err(general_err!("DeltaLengthByteArrayDecoder does not support total_bytes()"))
   }
 
@@ -676,16 +676,16 @@ impl<'m, T: DataType> DeltaByteArrayDecoder<'m, T> {
   }
 }
 
-impl<'m, T: DataType> Decoder<T> for DeltaByteArrayDecoder<'m, T> {
-  default fn set_data(&mut self, _: BytePtr, _: usize) -> Result<()> {
+default impl<'m, T: DataType> Decoder<T> for DeltaByteArrayDecoder<'m, T> {
+  fn set_data(&mut self, _: BytePtr, _: usize) -> Result<()> {
     Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
-  default fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+  fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
     Err(general_err!("DeltaByteArrayDecoder only support ByteArrayType"))
   }
 
-  default fn total_bytes(&self) -> Result<usize> {
+  fn total_bytes(&self) -> Result<usize> {
     Err(general_err!("DeltaByteArrayDecoder does not support total_bytes()"))
   }
 
@@ -858,8 +858,8 @@ mod tests {
     fn to_byte_array(data: &[T::T]) -> Vec<u8>;
   }
 
-  impl<T> ToByteArray<T> for T where T: DataType {
-    default fn to_byte_array(data: &[T::T]) -> Vec<u8> {
+  default impl<T> ToByteArray<T> for T where T: DataType {
+    fn to_byte_array(data: &[T::T]) -> Vec<u8> {
       let mut v = vec!();
       let type_len = ::std::mem::size_of::<T::T>();
       v.extend_from_slice(
