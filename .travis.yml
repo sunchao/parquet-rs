@@ -1,4 +1,3 @@
-sudo: false
 language: rust
 cache: cargo
 addons:
@@ -13,10 +12,16 @@ rust:
   - nightly
 
 before_script:
+  - git clone https://github.com/apache/thrift.git
+  - cd thrift && ./bootstrap.sh
+  - ./configure --without-java --without-python --without-erlang --without-csharp --without-ruby --without-perl --without-php
+  - make && sudo make install
+  - cd $TRAVIS_BUILD_DIR/src/parquet_thrift && thrift --gen rs parquet.thrift
   - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
   - cargo install cargo-travis --force && export PATH=$HOME/.cargo/bin:$PATH
 
 script:
+  - cd $TRAVIS_BUILD_DIR
   - travis-cargo build
   - travis-cargo test
 
