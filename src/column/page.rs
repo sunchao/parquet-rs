@@ -79,3 +79,39 @@ pub trait PageReader {
   /// Return `None` if there's no page left.
   fn get_next_page(&mut self) -> Result<Option<Page>>;
 }
+
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_page() {
+    let data_page = Page::DataPage {
+      buf: vec![0, 1, 2], num_values: 10,
+      encoding: Encoding::PLAIN, def_level_encoding: Encoding::RLE,
+      rep_level_encoding: Encoding::RLE };
+    assert_eq!(data_page.page_type(), PageType::DATA_PAGE);
+    assert_eq!(data_page.buffer(), vec![0, 1, 2].as_slice());
+    assert_eq!(data_page.num_values(), 10);
+    assert_eq!(data_page.encoding(), Encoding::PLAIN);
+
+    let data_page_v2 = Page::DataPageV2 {
+      buf: vec![0, 1, 2], num_values: 10, encoding: Encoding::PLAIN,
+      num_nulls: 5, num_rows: 20, def_levels_byte_len: 30, rep_levels_byte_len: 40,
+      is_compressed: false
+    };
+    assert_eq!(data_page_v2.page_type(), PageType::DATA_PAGE_V2);
+    assert_eq!(data_page_v2.buffer(), vec![0, 1, 2].as_slice());
+    assert_eq!(data_page_v2.num_values(), 10);
+    assert_eq!(data_page_v2.encoding(), Encoding::PLAIN);
+
+    let dict_page = Page::DictionaryPage {
+      buf: vec![0, 1, 2], num_values: 10, encoding: Encoding::PLAIN, is_sorted: false
+    };
+    assert_eq!(dict_page.page_type(), PageType::DICTIONARY_PAGE);
+    assert_eq!(dict_page.buffer(), vec![0, 1, 2].as_slice());
+    assert_eq!(dict_page.num_values(), 10);
+    assert_eq!(dict_page.encoding(), Encoding::PLAIN);
+  }
+}
