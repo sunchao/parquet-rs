@@ -170,7 +170,7 @@ default impl<T: DataType> Decoder<T> for PlainDecoder<T> {
     let raw_buffer: &mut [u8] = unsafe {
       from_raw_parts_mut(buffer.as_ptr() as *mut u8, bytes_to_decode)
     };
-    raw_buffer.copy_from_slice(data.range(self.start, bytes_to_decode).slice());
+    raw_buffer.copy_from_slice(data.range(self.start, bytes_to_decode).as_ref());
     self.start += bytes_to_decode;
     self.num_values -= num_values;
 
@@ -195,7 +195,7 @@ impl Decoder<Int96Type> for PlainDecoder<Int96Type> {
         unsafe {
           // TODO: avoid this copying
           let slice = ::std::slice::from_raw_parts(
-            data.range(self.start, 12).slice().as_ptr() as *mut u32, 3);
+            data.range(self.start, 12).as_ref().as_ptr() as *mut u32, 3);
           Vec::from(slice)
         }
       );
@@ -239,7 +239,7 @@ impl Decoder<ByteArrayType> for PlainDecoder<ByteArrayType> {
     let data = self.data.as_mut().unwrap();
     let num_values = cmp::min(max_values, self.num_values);
     for i in 0..num_values {
-      let len: usize = read_num_bytes!(u32, 4, data.start_from(self.start).slice()) as usize;
+      let len: usize = read_num_bytes!(u32, 4, data.start_from(self.start).as_ref()) as usize;
       self.start += mem::size_of::<u32>();
       if data.len() < self.start + len {
         return Err(general_err!("Not enough bytes to decode"));
@@ -310,7 +310,7 @@ impl<T: DataType> DictDecoder<T> {
 impl<T: DataType> Decoder<T> for DictDecoder<T> {
   fn set_data(&mut self, data: BytePtr, num_values: usize) -> Result<()> {
     // first byte in `data` is bit width
-    let bit_width = data.slice()[0] as usize;
+    let bit_width = data.as_ref()[0] as usize;
     let mut rle_decoder = RawRleDecoder::new(bit_width);
     rle_decoder.set_data(data.start_from(1));
     self.num_values = num_values;
@@ -389,7 +389,7 @@ impl Decoder<Int32Type> for RleDecoder<Int32Type> {
   #[inline]
   fn set_data(&mut self, data: BytePtr, num_values: usize) -> Result<()> {
     let i32_size = mem::size_of::<i32>();
-    let num_bytes = read_num_bytes!(i32, i32_size, data.slice()) as usize;
+    let num_bytes = read_num_bytes!(i32, i32_size, data.as_ref()) as usize;
     // TODO: set total size?
     self.decoder.set_data(data.start_from(i32_size));
     self.num_values = num_values;
@@ -725,9 +725,9 @@ impl<'m> Decoder<ByteArrayType> for DeltaByteArrayDecoder<'m, ByteArrayType> {
       if prefix_len != 0 {
         assert!(self.previous_value.is_some());
         let previous = self.previous_value.as_ref().unwrap();
-        prefix_slice = Some(Vec::from(previous.slice()));
+        prefix_slice = Some(Vec::from(previous.as_ref()));
       }
-      // Process suffix
+      // process suffix
       // TODO: this is awkward - maybe we should add a non-vectorized API?
       let mut suffix = vec![ByteArray::new(); 1];
       let suffix_decoder = self.suffix_decoder.as_mut().unwrap();

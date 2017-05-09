@@ -188,6 +188,12 @@ impl Drop for ByteBuffer {
   }
 }
 
+impl AsRef<[u8]> for ByteBuffer {
+  fn as_ref(&self) -> &[u8] {
+    self.data.as_slice()
+  }
+}
+
 
 // ----------------------------------------------------------------------
 // Immutable Buffer (BytePtr) classes
@@ -257,10 +263,6 @@ impl BytePtr {
       len: len, mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
     }
   }
-
-  pub fn slice(&self) -> &[u8] {
-    &self.data[self.start..self.start + self.len]
-  }
 }
 
 impl Display for BytePtr {
@@ -276,6 +278,12 @@ impl Drop for BytePtr {
       let mc = self.mem_tracker.as_ref().unwrap();
       mc.dealloc(self.data.capacity());
     }
+  }
+}
+
+impl AsRef<[u8]> for BytePtr {
+  fn as_ref(&self) -> &[u8] {
+    &self.data[self.start..self.start + self.len]
   }
 }
 
@@ -429,7 +437,7 @@ mod tests {
 
     let byte_ptr = buffer.consume();
     assert_eq!(buffer.size(), 0);
-    assert_eq!(byte_ptr.slice(), expected.as_slice());
+    assert_eq!(byte_ptr.as_ref(), expected.as_slice());
 
     let values: Vec<u8> = (0..30).collect();
     let _ = buffer.write(values.as_slice());
@@ -458,6 +466,6 @@ mod tests {
     assert_eq!(ptr4.start(), 30);
 
     let expected: Vec<u8> = (30..40).collect();
-    assert_eq!(ptr4.slice(), expected.as_slice());
+    assert_eq!(ptr4.as_ref(), expected.as_slice());
   }
 }

@@ -309,11 +309,18 @@ impl ByteArray {
 
   pub fn data(&self) -> &[u8] {
     assert!(self.data.is_some());
-    self.data.as_ref().unwrap().slice()
+    self.data.as_ref().unwrap().as_ref()
   }
 
   pub fn set_data(&mut self, data: BytePtr) {
     self.data = Some(data);
+  }
+}
+
+impl AsRef<[u8]> for ByteArray {
+  fn as_ref(&self) -> &[u8] {
+    assert!(self.data.is_some());
+    self.data.as_ref().unwrap().as_ref()
   }
 }
 
