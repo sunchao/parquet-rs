@@ -37,6 +37,7 @@ extern crate rand;
 #[macro_use]
 mod errors;
 mod basic;
+mod data_type;
 mod parquet_thrift;
 #[macro_use]
 mod util;

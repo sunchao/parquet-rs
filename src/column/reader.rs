@@ -16,6 +16,7 @@
 // under the License.
 
 use basic::*;
+use data_type::*;
 use schema::types::ColumnDescPtr;
 use encodings::decoding::{get_decoder, Decoder, ValueType};
 use util::memory::{BytePtr, MemoryPool};

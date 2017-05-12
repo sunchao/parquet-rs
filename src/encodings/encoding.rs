@@ -18,6 +18,7 @@
 use std::io::{BufWriter, Write};
 use std::marker::PhantomData;
 use basic::*;
+use data_type::*;
 use errors::{Result};
 use schema::types::ColumnDescPtr;
 use util::memory::{BytePtr, ByteBuffer};

@@ -18,7 +18,7 @@
 use rand::{thread_rng, Rng, Rand};
 use rand::distributions::range::SampleRange;
 
-use basic::{FixedLenByteArrayType, DataType, ByteArray};
+use data_type::{FixedLenByteArrayType, DataType, ByteArray};
 use util::memory::BytePtr;
 
 pub trait RandGen<T: DataType> {

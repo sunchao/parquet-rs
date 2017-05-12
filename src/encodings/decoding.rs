@@ -21,6 +21,7 @@ use std::mem;
 use std::marker::PhantomData;
 use std::slice::from_raw_parts_mut;
 use basic::*;
+use data_type::*;
 use errors::{Result, ParquetError};
 use schema::types::ColumnDescPtr;
 use util::bit_util::{log2, BitReader};
