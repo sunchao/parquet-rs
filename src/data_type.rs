@@ -121,6 +121,72 @@ impl Rand for ByteArray {
 }
 
 
+// ----------------------------------------------------------------------
+// AsBytes converts an instance of data type to a slice of u8
+
+pub trait AsBytes {
+  fn as_bytes(&self) -> &[u8];
+}
+
+impl AsBytes for bool {
+  fn as_bytes(&self) -> &[u8] {
+    unsafe {
+      ::std::slice::from_raw_parts(self as *const bool as *const u8, 1)
+    }
+  }
+}
+
+impl AsBytes for i32 {
+  fn as_bytes(&self) -> &[u8] {
+    unsafe {
+      ::std::slice::from_raw_parts(self as *const i32 as *const u8, 4)
+    }
+  }
+}
+
+impl AsBytes for i64 {
+  fn as_bytes(&self) -> &[u8] {
+    unsafe {
+      ::std::slice::from_raw_parts(self as *const i64 as *const u8, 8)
+    }
+  }
+}
+
+impl AsBytes for Int96 {
+  fn as_bytes(&self) -> &[u8] {
+    unsafe {
+      ::std::slice::from_raw_parts(self.data() as *const [u32] as *const u8, 12)
+    }
+  }
+}
+
+impl AsBytes for f32 {
+  fn as_bytes(&self) -> &[u8] {
+    unsafe {
+      ::std::slice::from_raw_parts(self as *const f32 as *const u8, 4)
+    }
+  }
+}
+
+impl AsBytes for f64 {
+  fn as_bytes(&self) -> &[u8] {
+    unsafe {
+      ::std::slice::from_raw_parts(self as *const f64 as *const u8, 8)
+    }
+  }
+}
+
+impl AsBytes for ByteArray {
+  fn as_bytes(&self) -> &[u8] {
+    self.data()
+  }
+}
+
+
+// ----------------------------------------------------------------------
+// DataType trait, which contains the Parquet physical type info as well as
+// the Rust primitive type presentation.
+
 pub trait DataType {
   type T: ::std::cmp::PartialEq + ::std::fmt::Debug + ::std::default::Default
     + ::std::clone::Clone + Rand;
@@ -158,3 +224,35 @@ make_type!(DoubleType, Type::DOUBLE, f64, 8);
 make_type!(ByteArrayType, Type::BYTE_ARRAY, ByteArray, mem::size_of::<ByteArray>());
 make_type!(FixedLenByteArrayType, Type::FIXED_LEN_BYTE_ARRAY,
            ByteArray, mem::size_of::<ByteArray>());
+
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_as_bytes() {
+    assert_eq!(false.as_bytes(), &[0]);
+    assert_eq!(true.as_bytes(), &[1]);
+    assert_eq!((7 as i32).as_bytes(), &[7, 0, 0, 0]);
+    assert_eq!((555 as i32).as_bytes(), &[43, 2, 0, 0]);
+    assert_eq!(i32::max_value().as_bytes(), &[255, 255, 255, 127]);
+    assert_eq!(i32::min_value().as_bytes(), &[0, 0, 0, 128]);
+    assert_eq!((7 as i64).as_bytes(), &[7, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!((555 as i64).as_bytes(), &[43, 2, 0, 0, 0, 0, 0, 0]);
+    assert_eq!((i64::max_value()).as_bytes(), &[255, 255, 255, 255, 255, 255, 255, 127]);
+    assert_eq!((i64::min_value()).as_bytes(), &[0, 0, 0, 0, 0, 0, 0, 128]);
+    assert_eq!((3.14 as f32).as_bytes(), &[195, 245, 72, 64]);
+    assert_eq!((3.14 as f64).as_bytes(), &[31, 133, 235, 81, 184, 30, 9, 64]);
+
+    // Test Int96
+    let mut i96 = Int96::new();
+    i96.set_data(vec![1, 2, 3]);
+    assert_eq!(i96.as_bytes(), &[1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0]);
+
+    // Test ByteArray
+    let mut ba = ByteArray::new();
+    ba.set_data(BytePtr::new(vec![1, 2, 3]));
+    assert_eq!(ba.as_bytes(), &[1, 2, 3]);
+  }
+}
