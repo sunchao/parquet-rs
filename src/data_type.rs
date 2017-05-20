@@ -182,6 +182,18 @@ impl AsBytes for ByteArray {
   }
 }
 
+impl AsBytes for Vec<u8> {
+  fn as_bytes(&self) -> &[u8] {
+    self.as_slice()
+  }
+}
+
+impl<'a> AsBytes for &'a str {
+  fn as_bytes(&self) -> &[u8] {
+    (self as &str).as_bytes()
+  }
+}
+
 
 // ----------------------------------------------------------------------
 // DataType trait, which contains the Parquet physical type info as well as
