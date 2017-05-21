@@ -201,7 +201,7 @@ impl<'a> AsBytes for &'a str {
 
 pub trait DataType {
   type T: ::std::cmp::PartialEq + ::std::fmt::Debug + ::std::default::Default
-    + ::std::clone::Clone + Rand;
+    + ::std::clone::Clone + Rand + AsBytes;
   fn get_physical_type() -> Type;
   fn get_type_size() -> usize;
 }
@@ -256,6 +256,8 @@ mod tests {
     assert_eq!((i64::min_value()).as_bytes(), &[0, 0, 0, 0, 0, 0, 0, 128]);
     assert_eq!((3.14 as f32).as_bytes(), &[195, 245, 72, 64]);
     assert_eq!((3.14 as f64).as_bytes(), &[31, 133, 235, 81, 184, 30, 9, 64]);
+    assert_eq!("hello".as_bytes(), &[b'h', b'e', b'l', b'l', b'o']);
+    assert_eq!(Vec::from("hello".as_bytes()).as_bytes(), &[b'h', b'e', b'l', b'l', b'o']);
 
     // Test Int96
     let mut i96 = Int96::new();
