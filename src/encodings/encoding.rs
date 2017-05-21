@@ -21,8 +21,9 @@ use basic::*;
 use data_type::*;
 use errors::{Result};
 use schema::types::ColumnDescPtr;
-use util::memory::{BytePtr, ByteBuffer};
+use util::memory::{ByteBufferPtr, ByteBuffer};
 use util::bit_util::{BitWriter, convert_to_bytes};
+
 
 pub trait Encoder<T: DataType> {
   /// Encode `num_values` of values from `src`.
@@ -33,9 +34,12 @@ pub trait Encoder<T: DataType> {
 
   /// Consume the underlying byte buffer that's being processed
   /// by this encoder, and return it.
-  fn consume_buffer(&mut self) -> BytePtr;
+  fn consume_buffer(&mut self) -> ByteBufferPtr;
 }
 
+
+// ----------------------------------------------------------------------
+// Plain encoding
 
 pub struct PlainEncoder<T: DataType> {
   out: BufWriter<ByteBuffer>,
@@ -69,7 +73,7 @@ default impl<T: DataType> Encoder<T> for PlainEncoder<T> {
     Encoding::PLAIN
   }
 
-  fn consume_buffer(&mut self) -> BytePtr {
+  fn consume_buffer(&mut self) -> ByteBufferPtr {
     self.out.get_mut().consume()
   }
 }

@@ -20,7 +20,7 @@ use std::mem::{size_of, transmute_copy};
 
 use errors::Result;
 use util::bit_util::{self, BitReader};
-use util::memory::BytePtr;
+use util::memory::ByteBufferPtr;
 
 
 /// A RLE/Bit-Packing hybrid decoder.
@@ -47,7 +47,7 @@ impl RawRleDecoder {
                     bit_reader: None, current_value: None }
   }
 
-  pub fn set_data(&mut self, data: BytePtr) {
+  pub fn set_data(&mut self, data: ByteBufferPtr) {
     if let Some(ref mut bit_reader) = self.bit_reader {
       bit_reader.reset(data);
     } else {
@@ -158,13 +158,13 @@ impl RawRleDecoder {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use util::memory::BytePtr;
+  use util::memory::ByteBufferPtr;
 
   #[test]
   fn test_rle_decode_int32() {
     // test data: 0-7 with bit width 3
     // 00000011 10001000 11000110 11111010
-    let data = BytePtr::new(vec!(0x03, 0x88, 0xC6, 0xFA));
+    let data = ByteBufferPtr::new(vec!(0x03, 0x88, 0xC6, 0xFA));
     let mut decoder: RawRleDecoder = RawRleDecoder::new(3);
     decoder.set_data(data);
     let mut buffer = vec!(0; 8);
@@ -178,12 +178,12 @@ mod tests {
   fn test_rle_decode_bool() {
     // rle test data: 50 1s followed by 50 0s
     // 01100100 00000001 01100100 00000000
-    let data1 = BytePtr::new(vec!(0x64, 0x01, 0x64, 0x00));
+    let data1 = ByteBufferPtr::new(vec!(0x64, 0x01, 0x64, 0x00));
 
     // bit-packing test data: alternating 1s and 0s, 100 total
     // 100 / 8 = 13 groups
     // 00011011 10101010 ... 00001010
-    let data2 = BytePtr::new(
+    let data2 = ByteBufferPtr::new(
       vec!(0x1B, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
            0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x0A));
 
@@ -222,7 +222,7 @@ mod tests {
     // test RLE encoding: 3 0s followed by 4 1s followed by 5 2s
     // 00000110 00000000 00001000 00000001 00001010 00000010
     let dict = vec!(10, 20, 30);
-    let data = BytePtr::new(vec!(0x06, 0x00, 0x08, 0x01, 0x0A, 0x02));
+    let data = ByteBufferPtr::new(vec!(0x06, 0x00, 0x08, 0x01, 0x0A, 0x02));
     let mut decoder: RawRleDecoder = RawRleDecoder::new(3);
     decoder.set_data(data);
     let mut buffer = vec!(0; 12);
@@ -235,7 +235,7 @@ mod tests {
     // 011 100 101 011 100 101 011 100 101 100 101 101
     // 00000011 01100011 11000111 10001110 00000011 01100101 00001011
     let dict = vec!("aaa", "bbb", "ccc", "ddd", "eee", "fff");
-    let data = BytePtr::new(vec!(0x03, 0x63, 0xC7, 0x8E, 0x03, 0x65, 0x0B));
+    let data = ByteBufferPtr::new(vec!(0x03, 0x63, 0xC7, 0x8E, 0x03, 0x65, 0x0B));
     let mut decoder: RawRleDecoder = RawRleDecoder::new(3);
     decoder.set_data(data);
     let mut buffer = vec!(""; 12);

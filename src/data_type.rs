@@ -19,7 +19,7 @@ use std::mem;
 
 use basic::Type;
 use rand::{Rng, Rand};
-use util::memory::BytePtr;
+use util::memory::{ByteBuffer, ByteBufferPtr};
 
 // ----------------------------------------------------------------------
 // Types connect Parquet physical types with Rust-specific types
@@ -58,6 +58,13 @@ impl PartialEq for Int96 {
   }
 }
 
+impl From<Vec<u32>> for Int96 {
+  fn from(buf: Vec<u32>) -> Int96 {
+    assert_eq!(buf.len(), 3);
+    Self { value: Some(buf) }
+  }
+}
+
 impl Rand for Int96 {
   fn rand<R: Rng>(rng: &mut R) -> Self {
     let mut result = Int96::new();
@@ -73,7 +80,7 @@ impl Rand for Int96 {
 
 #[derive(Clone, Debug)]
 pub struct ByteArray {
-  data: Option<BytePtr>,
+  data: Option<ByteBufferPtr>,
 }
 
 impl ByteArray {
@@ -91,8 +98,26 @@ impl ByteArray {
     self.data.as_ref().unwrap().as_ref()
   }
 
-  pub fn set_data(&mut self, data: BytePtr) {
+  pub fn set_data(&mut self, data: ByteBufferPtr) {
     self.data = Some(data);
+  }
+}
+
+impl From<Vec<u8>> for ByteArray {
+  fn from(buf: Vec<u8>) -> ByteArray {
+    Self { data: Some(ByteBufferPtr::new(buf)) }
+  }
+}
+
+impl From<ByteBufferPtr> for ByteArray {
+  fn from(ptr: ByteBufferPtr) -> ByteArray {
+    Self { data: Some(ptr) }
+  }
+}
+
+impl From<ByteBuffer> for ByteArray {
+  fn from(mut buf: ByteBuffer) -> ByteArray {
+    Self { data: Some(buf.consume()) }
   }
 }
 
@@ -115,7 +140,7 @@ impl Rand for ByteArray {
     for _ in 0..len {
       value.push(rng.gen_range(0, 255) & 0xFF);
     }
-    result.set_data(BytePtr::new(value));
+    result.set_data(ByteBufferPtr::new(value));
     result
   }
 }
@@ -194,6 +219,12 @@ impl<'a> AsBytes for &'a str {
   }
 }
 
+impl AsBytes for str {
+  fn as_bytes(&self) -> &[u8] {
+    (self as &str).as_bytes()
+  }
+}
+
 
 // ----------------------------------------------------------------------
 // DataType trait, which contains the Parquet physical type info as well as
@@ -260,13 +291,11 @@ mod tests {
     assert_eq!(Vec::from("hello".as_bytes()).as_bytes(), &[b'h', b'e', b'l', b'l', b'o']);
 
     // Test Int96
-    let mut i96 = Int96::new();
-    i96.set_data(vec![1, 2, 3]);
+    let i96 = Int96::from(vec![1, 2, 3]);
     assert_eq!(i96.as_bytes(), &[1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0]);
 
     // Test ByteArray
-    let mut ba = ByteArray::new();
-    ba.set_data(BytePtr::new(vec![1, 2, 3]));
+    let ba = ByteArray::from(vec![1, 2, 3]);
     assert_eq!(ba.as_bytes(), &[1, 2, 3]);
   }
 }

@@ -19,7 +19,7 @@ use basic::*;
 use data_type::*;
 use schema::types::ColumnDescPtr;
 use encodings::decoding::{get_decoder, Decoder, ValueType};
-use util::memory::{BytePtr, MemoryPool};
+use util::memory::{ByteBufferPtr, MemoryPool};
 use errors::{Result, ParquetError};
 use super::page::{Page, PageReader};
 
@@ -84,7 +84,7 @@ impl<'a, 'm, T: DataType> ColumnReaderImpl<'a, 'm, T> where T: 'm {
               self.num_buffered_values = num_values;
               self.num_decoded_values = 0;
 
-              let mut buffer_ptr = BytePtr::new(buf);
+              let mut buffer_ptr = ByteBufferPtr::new(buf);
 
               if self.descr.max_def_level() > 0 {
                 let mut def_decoder = get_decoder::<'m, Int32Type>(
