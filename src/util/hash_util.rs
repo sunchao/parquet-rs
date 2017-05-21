@@ -20,7 +20,7 @@ use data_type::AsBytes;
 /// Compute hash value for `data`, with a seed value `seed`.
 /// The data type `T` must implement the `AsBytes` trait.
 /// TODO: implement more efficient hash, such as Crc32, using SSE4 instructions.
-pub fn hash<T: AsBytes>(data: T, seed: u64) -> u64 {
+pub fn hash<T: AsBytes>(data: &T, seed: u64) -> u64 {
   murmur_hash2_64a(data, seed)
 }
 
@@ -28,7 +28,7 @@ static MURMUR_PRIME: u64 = 0xc6a4a7935bd1e995;
 static MURMUR_R: i32 = 47;
 
 /// Rust implementation of MurmurHash2, 64-bit version for 64-bit platforms
-fn murmur_hash2_64a<T: AsBytes>(data: T, seed: u64) -> u64 {
+fn murmur_hash2_64a<T: AsBytes>(data: &T, seed: u64) -> u64 {
   let data_bytes = data.as_bytes();
   let len = data_bytes.len();
   let len_64 = (len / 8) * 8;
@@ -114,25 +114,25 @@ mod tests {
 
   #[test]
   fn test_murmur2_64a() {
-    let result = murmur_hash2_64a("hello", 123);
+    let result = murmur_hash2_64a(&"hello", 123);
     assert_eq!(result, 2597646618390559622);
 
-    let result = murmur_hash2_64a("helloworld", 123);
+    let result = murmur_hash2_64a(&"helloworld", 123);
     assert_eq!(result, 4934371746140206573);
 
-    let result = murmur_hash2_64a("helloworldparquet", 123);
+    let result = murmur_hash2_64a(&"helloworldparquet", 123);
     assert_eq!(result, 2392198230801491746);
   }
 
   #[test]
   fn test_hash() {
-    let result = hash("hello", 123);
+    let result = hash(&"hello", 123);
     assert_eq!(result, 2597646618390559622);
 
-    let result = hash("helloworld", 123);
+    let result = hash(&"helloworld", 123);
     assert_eq!(result, 4934371746140206573);
 
-    let result = hash("helloworldparquet", 123);
+    let result = hash(&"helloworldparquet", 123);
     assert_eq!(result, 2392198230801491746);
   }
 }
