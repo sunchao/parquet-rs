@@ -20,6 +20,7 @@ use std::cmp;
 use std::fmt::{Display, Result as FmtResult, Formatter, Debug};
 use std::io::{Result as IoResult, Write};
 use std::mem;
+use std::ops::Index;
 use std::rc::{Rc, Weak};
 
 use arena::TypedArena;
@@ -29,8 +30,8 @@ use errors::Result;
 // ----------------------------------------------------------------------
 // Memory Tracker classes
 
-type MemTrackerPtr = Rc<MemTracker>;
-type WeakMemTrackerPtr = Weak<MemTracker>;
+pub type MemTrackerPtr = Rc<MemTracker>;
+pub type WeakMemTrackerPtr = Weak<MemTracker>;
 
 #[derive(Debug)]
 pub struct MemTracker {
@@ -64,18 +65,12 @@ impl MemTracker {
   }
 
   #[inline]
-  pub fn alloc(&self, num_bytes: usize) {
-    let new_cur_bytes = self.cur_bytes.get() + num_bytes as i64;
+  pub fn alloc(&self, num_bytes: i64) {
+    let new_cur_bytes = self.cur_bytes.get() + num_bytes;
     if new_cur_bytes > self.max_bytes.get() {
       self.max_bytes.set(new_cur_bytes)
     }
     self.cur_bytes.set(new_cur_bytes);
-  }
-
-  #[inline]
-  pub fn dealloc(&self, num_bytes: usize) {
-    assert!(self.cur_bytes.get() >= num_bytes as i64);
-    self.cur_bytes.set(self.cur_bytes.get() - num_bytes as i64);
   }
 }
 
@@ -94,13 +89,13 @@ pub type ByteBufferPtr = BufferPtr<u8>;
 /// Invariant: `capacity` >= `size`.
 /// The total allocated bytes for a buffer equals to `capacity * sizeof<T>()`.
 ///
-pub struct Buffer<T> {
+pub struct Buffer<T: Clone> {
   data: Vec<T>,
   mem_tracker: Option<MemTrackerPtr>,
   type_length: usize
 }
 
-impl<T> Buffer<T> {
+impl<T: Clone> Buffer<T> {
   pub fn new() -> Self {
     Buffer { data: vec!(), mem_tracker: None, type_length: ::std::mem::size_of::<T>() }
   }
@@ -111,7 +106,7 @@ impl<T> Buffer<T> {
   }
 
   pub fn with_mem_tracker(mut self, mc: MemTrackerPtr) -> Self {
-    mc.alloc(self.data.capacity() * self.type_length);
+    mc.alloc((self.data.capacity() * self.type_length) as i64);
     self.mem_tracker = Some(mc);
     self
   }
@@ -122,23 +117,30 @@ impl<T> Buffer<T> {
 
   #[inline]
   pub fn set_data(&mut self, new_data: Vec<T>) {
-    if self.is_mem_tracked() {
-      let mc = self.mem_tracker.as_ref().unwrap();
-      mc.dealloc(self.data.capacity() * self.type_length);
-      mc.alloc(new_data.capacity() * self.type_length);
+    if let Some(ref mc) = self.mem_tracker {
+      let capacity_diff = new_data.capacity() as i64 - self.data.capacity() as i64;
+      mc.alloc(capacity_diff * self.type_length as i64);
     }
     self.data = new_data;
   }
 
   #[inline]
-  pub fn resize(&mut self, new_capacity: usize) {
+  pub fn resize(&mut self, new_size: usize, init_value: T) {
     let old_capacity = self.data.capacity();
-    let extra_capacity = new_capacity - old_capacity;
-    if extra_capacity > 0 {
-      self.data.reserve(extra_capacity);
-      if let Some(ref mc) = self.mem_tracker {
-        mc.alloc((self.data.capacity() - old_capacity) * self.type_length);
-      }
+    self.data.resize(new_size, init_value);
+    if let Some(ref mc) = self.mem_tracker {
+      let capacity_diff = self.data.capacity() as i64 - old_capacity as i64;
+      mc.alloc(capacity_diff * self.type_length as i64);
+    }
+  }
+
+  #[inline]
+  pub fn reserve(&mut self, new_capacity: usize) {
+    let old_capacity = self.data.capacity();
+    self.data.reserve(new_capacity);
+    if let Some(ref mc) = self.mem_tracker {
+      let capacity_diff = self.data.capacity() as i64 - old_capacity as i64;
+      mc.alloc(capacity_diff * self.type_length as i64);
     }
   }
 
@@ -165,18 +167,26 @@ impl<T> Buffer<T> {
   }
 
   pub fn mem_tracker(&self) -> &MemTrackerPtr {
-    self.mem_tracker.as_ref().unwrap()
+   self.mem_tracker.as_ref().unwrap()
+  }
+}
+
+impl<T: Sized + Clone> Index<usize> for Buffer<T> {
+  type Output = T;
+  fn index(&self, index: usize) -> &T {
+    &self.data[index]
   }
 }
 
 // TODO: implement this for other types
 impl Write for Buffer<u8> {
+  #[inline]
   fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
     // Check if we have enough capacity for the new data
     if self.data.len() + buf.len() > self.data.capacity() {
       let new_capacity = ::std::cmp::max(
         self.data.capacity() * 2, self.data.len() + buf.len());
-      self.resize(new_capacity);
+      self.reserve(new_capacity);
     }
     self.data.write(buf)
   }
@@ -192,11 +202,11 @@ impl AsRef<[u8]> for Buffer<u8> {
   }
 }
 
-impl<T> Drop for Buffer<T> {
+impl<T: Clone> Drop for Buffer<T> {
+  #[inline]
   fn drop(&mut self) {
-    if self.is_mem_tracked() {
-      let mc = self.mem_tracker.as_ref().unwrap();
-      mc.dealloc(self.data.capacity() * self.type_length);
+    if let Some(ref mc) = self.mem_tracker {
+      mc.alloc(-((self.data.capacity() * self.type_length) as i64));
     }
   }
 }
@@ -272,6 +282,14 @@ impl<T> BufferPtr<T> {
   }
 }
 
+impl<T: Sized> Index<usize> for BufferPtr<T> {
+  type Output = T;
+  fn index(&self, index: usize) -> &T {
+    assert!(index < self.len);
+    &self.data[self.start + index]
+  }
+}
+
 impl<T: Debug> Display for BufferPtr<T> {
   fn fmt(&self, f: &mut Formatter) -> FmtResult {
     write!(f, "{:?}", self.data)
@@ -283,7 +301,7 @@ impl<T> Drop for BufferPtr<T> {
     if self.is_mem_tracked() &&
       Rc::strong_count(&self.data) == 1 && Rc::weak_count(&self.data) == 0 {
       let mc = self.mem_tracker.as_ref().unwrap();
-      mc.dealloc(self.data.capacity());
+      mc.alloc(-(self.data.capacity() as i64));
     }
   }
 }
@@ -381,7 +399,7 @@ mod tests {
     assert_eq!(mem_tracker.cur_bytes(), capacity);
     assert_eq!(mem_tracker.max_bytes(), max_capacity);
 
-    buffer.resize(40);
+    buffer.reserve(40);
     assert_eq!(mem_tracker.cur_bytes(), buffer.capacity() as i64);
 
     buffer.consume();
@@ -429,9 +447,11 @@ mod tests {
 
     buffer.set_data((0..5).collect());
     assert_eq!(buffer.size(), 5);
+    assert_eq!(buffer[4], 4);
 
     buffer.set_data((0..20).collect());
     assert_eq!(buffer.size(), 20);
+    assert_eq!(buffer[10], 10);
 
     let expected: Vec<u8> = (0..20).collect();
     {
@@ -439,7 +459,7 @@ mod tests {
       assert_eq!(data, expected.as_slice());
     }
 
-    buffer.resize(40);
+    buffer.reserve(40);
     assert!(buffer.capacity() >= 40);
 
     let byte_ptr = buffer.consume();
@@ -459,18 +479,22 @@ mod tests {
     let ptr = ByteBufferPtr::new(values);
     assert_eq!(ptr.len(), 50);
     assert_eq!(ptr.start(), 0);
+    assert_eq!(ptr[40], 40);
 
     let ptr2 = ptr.all();
     assert_eq!(ptr2.len(), 50);
     assert_eq!(ptr2.start(), 0);
+    assert_eq!(ptr2[40], 40);
 
     let ptr3 = ptr.start_from(20);
     assert_eq!(ptr3.len(), 30);
     assert_eq!(ptr3.start(), 20);
+    assert_eq!(ptr3[0], 20);
 
     let ptr4 = ptr3.range(10, 10);
     assert_eq!(ptr4.len(), 10);
     assert_eq!(ptr4.start(), 30);
+    assert_eq!(ptr4[0], 30);
 
     let expected: Vec<u8> = (30..40).collect();
     assert_eq!(ptr4.as_ref(), expected.as_slice());
