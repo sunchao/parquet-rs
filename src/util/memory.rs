@@ -20,7 +20,7 @@ use std::cmp;
 use std::fmt::{Display, Result as FmtResult, Formatter, Debug};
 use std::io::{Result as IoResult, Write};
 use std::mem;
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 use std::rc::{Rc, Weak};
 
 use arena::TypedArena;
@@ -154,6 +154,11 @@ impl<T: Clone> Buffer<T> {
     result
   }
 
+  #[inline]
+  pub fn push(&mut self, value: T) {
+    self.data.push(value)
+  }
+
   pub fn capacity(&self) -> usize {
     self.data.capacity()
   }
@@ -175,6 +180,12 @@ impl<T: Sized + Clone> Index<usize> for Buffer<T> {
   type Output = T;
   fn index(&self, index: usize) -> &T {
     &self.data[index]
+  }
+}
+
+impl<T: Sized + Clone> IndexMut<usize> for Buffer<T> {
+  fn index_mut(&mut self, index: usize) -> &mut T {
+    &mut self.data[index]
   }
 }
 
