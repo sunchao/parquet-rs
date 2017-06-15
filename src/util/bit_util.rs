@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::mem::{size_of, replace, transmute, transmute_copy};
+use std::mem::{size_of, replace, transmute_copy};
 use std::cmp;
 
 use errors::{Result, ParquetError};
@@ -45,14 +45,34 @@ macro_rules! read_num_bytes {
 #[inline]
 pub fn convert_to_bytes<T>(val: &T, num_bytes: usize) -> Vec<u8> {
   let mut bytes: Vec<u8> = vec![0; num_bytes];
+  memcpy_value(val, num_bytes, &mut bytes);
+  bytes
+}
+
+#[inline]
+fn memcpy(source: &[u8], target: &mut [u8]) {
+  assert!(target.len() > source.len());
   unsafe {
     ::std::ptr::copy_nonoverlapping(
-      val as *const T as *const u8,
-      bytes.as_mut_ptr(),
+      source.as_ptr(),
+      target.as_mut_ptr(),
+      source.len()
+    )
+  }
+}
+
+#[inline]
+fn memcpy_value<T>(source: &T, num_bytes: usize, target: &mut [u8]) {
+  assert!(target.len() >= num_bytes,
+          "Not enough space. Only had {} bytes but need to put {} bytes",
+          target.len(), num_bytes);
+  unsafe {
+    ::std::ptr::copy_nonoverlapping(
+      source as *const T as *const u8,
+      target.as_mut_ptr(),
       num_bytes
     )
-  };
-  bytes
+  }
 }
 
 /// Return the ceil of value/divisor
@@ -114,7 +134,7 @@ pub struct BitWriter {
 
 impl BitWriter {
   pub fn new(max_bytes: usize) -> Self {
-    Self { buffer: Vec::with_capacity(max_bytes), max_bytes: max_bytes,
+    Self { buffer: vec![0; max_bytes], max_bytes: max_bytes,
            buffered_values: 0, byte_offset: 0, bit_offset: 0 }
   }
 
@@ -122,11 +142,26 @@ impl BitWriter {
   #[inline]
   pub fn consume(&mut self) -> ByteBufferPtr {
     self.flush();
-    let old_buffer = replace(&mut self.buffer, Vec::with_capacity(self.max_bytes));
+    let old_buffer = replace(&mut self.buffer, vec![0; self.max_bytes]);
     self.buffered_values = 0;
     self.byte_offset = 0;
     self.bit_offset = 0;
     ByteBufferPtr::new(old_buffer)
+  }
+
+  /// Return a slice of `num_bytes` and advance the underlying buffer by `num_bytes`.
+  /// This is useful when you want to jump over `num_bytes` bytes and come back later
+  /// to fill these bytes.
+  #[inline]
+  pub fn get_next_byte_ptr(&mut self, num_bytes: usize) -> Result<&mut [u8]> {
+    self.flush();
+    assert!(self.byte_offset < self.max_bytes);
+    if self.byte_offset + num_bytes > self.max_bytes {
+      return Err(general_err!("Not enough bytes left"));
+    }
+    let ptr = &mut self.buffer[self.byte_offset..self.byte_offset + num_bytes];
+    self.byte_offset += num_bytes;
+    Ok(ptr)
   }
 
   #[inline]
@@ -163,10 +198,7 @@ impl BitWriter {
     self.buffered_values |= v << self.bit_offset;
     self.bit_offset += num_bits as usize;
     if self.bit_offset >= 64 {
-      let bits = unsafe {
-        transmute::<u64, [u8; 8]>(self.buffered_values)
-      };
-      self.buffer.extend_from_slice(&bits);
+      memcpy_value(&self.buffered_values, 8, &mut self.buffer[self.byte_offset..]);
       self.byte_offset += 8;
       self.bit_offset -= 64;
       self.buffered_values = 0;
@@ -182,12 +214,13 @@ impl BitWriter {
   /// Return false if there's not enough room left. True otherwise.
   #[inline]
   pub fn put_aligned<T: Copy>(&mut self, val: T, num_bytes: usize) -> bool {
-    self.flush();
-    if self.byte_offset + num_bytes as usize > self.max_bytes {
-      return false;
+    let result = self.get_next_byte_ptr(num_bytes);
+    if result.is_err() {
+      // TODO: should we return `Result` for this func?
+      return false
     }
-    let mut bytes = convert_to_bytes::<T>(&val, num_bytes);
-    self.buffer.append(&mut bytes);
+    let mut ptr = result.unwrap();
+    memcpy_value(&val, num_bytes, &mut ptr);
     true
   }
 
@@ -217,13 +250,12 @@ impl BitWriter {
     self.put_vlq_int(u)
   }
 
+  /// Flush the internal buffered bits and the align the buffer to the next byte.
   #[inline]
   fn flush(&mut self) {
     let num_bytes = ceil(self.bit_offset as i64, 8) as usize;
     assert!(self.byte_offset + num_bytes <= self.max_bytes);
-
-    let mut bytes = convert_to_bytes::<u64>(&self.buffered_values, num_bytes);
-    self.buffer.append(&mut bytes);
+    memcpy_value(&self.buffered_values, num_bytes, &mut self.buffer[self.byte_offset..]);
     self.buffered_values = 0;
     self.bit_offset = 0;
     self.byte_offset += num_bytes;
@@ -232,7 +264,7 @@ impl BitWriter {
 
 /// Maximum byte length for a VLQ encoded integer
 // TODO: why maximum is 5?
-const MAX_VLQ_BYTE_LEN: usize = 5;
+pub const MAX_VLQ_BYTE_LEN: usize = 5;
 
 pub struct BitReader {
   // The byte buffer to read from, passed in by client
@@ -546,6 +578,19 @@ mod tests {
     assert_eq!(log2(9), 4);
   }
 
+  #[test]
+  fn test_get_next_byte_ptr() {
+    let mut writer = BitWriter::new(5);
+    {
+      let result = writer.get_next_byte_ptr(1);
+      assert!(result.is_ok(), "get_next_byte_ptr() should return OK, but got error:\n{}", result.unwrap_err());
+      let first_byte = result.unwrap();
+      first_byte[0] = 0x10;
+    }
+    writer.put_aligned(42, 4);
+    let result = writer.consume();
+    assert_eq!(result.as_ref(), [0x10, 42, 0, 0, 0]);
+  }
 
   #[test]
   fn test_put_value_roundtrip() {
