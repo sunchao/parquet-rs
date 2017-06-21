@@ -17,6 +17,7 @@
 
 use std::mem::{size_of, replace, transmute_copy};
 use std::cmp;
+use std::io::{self, Seek, SeekFrom};
 
 use errors::{Result, ParquetError};
 use util::memory::ByteBufferPtr;
@@ -149,19 +150,30 @@ impl BitWriter {
     ByteBufferPtr::new(old_buffer)
   }
 
-  /// Return a slice of `num_bytes` and advance the underlying buffer by `num_bytes`.
+  /// Advance the current offset by `num_bytes`, and return the old offset, flushing the
+  /// bit buffer first.
   /// This is useful when you want to jump over `num_bytes` bytes and come back later
   /// to fill these bytes.
   #[inline]
-  pub fn get_next_byte_ptr(&mut self, num_bytes: usize) -> Result<&mut [u8]> {
+  pub fn advance_num_bytes(&mut self, num_bytes: usize) -> Result<usize> {
     self.flush();
     assert!(self.byte_offset < self.max_bytes);
     if self.byte_offset + num_bytes > self.max_bytes {
       return Err(general_err!("Not enough bytes left"));
     }
-    let ptr = &mut self.buffer[self.byte_offset..self.byte_offset + num_bytes];
+    let result = self.byte_offset;
     self.byte_offset += num_bytes;
-    Ok(ptr)
+    Ok(result)
+  }
+
+  /// Return a slice containing the next `num_bytes` bytes starting from the current
+  /// offset, and advance the underlying buffer by `num_bytes`.
+  /// This is useful when you want to jump over `num_bytes` bytes and come back later
+  /// to fill these bytes.
+  #[inline]
+  pub fn get_next_byte_ptr(&mut self, num_bytes: usize) -> Result<&mut [u8]> {
+    let offset = self.advance_num_bytes(num_bytes)?;
+    Ok(&mut self.buffer[offset..offset + num_bytes])
   }
 
   #[inline]
@@ -259,6 +271,28 @@ impl BitWriter {
     self.buffered_values = 0;
     self.bit_offset = 0;
     self.byte_offset += num_bytes;
+  }
+}
+
+/// Seek to the specified `pos` from the current `byte_offset`.
+/// Returns the new position, or error if the new position is outside the
+/// boundary of the buffer.
+impl Seek for BitWriter {
+  fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+    let new_byte_offset: i64 = match pos {
+      SeekFrom::Start(offset) => offset as i64,
+      SeekFrom::End(offset) => self.max_bytes as i64 - offset,
+      SeekFrom::Current(offset) => self.byte_offset as i64 + offset
+    };
+    if new_byte_offset >= 0 || new_byte_offset < self.max_bytes as i64 {
+      self.byte_offset = new_byte_offset as usize;
+      Ok(new_byte_offset as u64)
+    } else {
+      Err(io::Error::new(
+        io::ErrorKind::Other,
+        general_err!("Seek out of bound. Limit is [0, {}], but seeking {}",
+                     self.max_bytes, new_byte_offset)))
+    }
   }
 }
 
@@ -576,6 +610,22 @@ mod tests {
     assert_eq!(log2(7), 3);
     assert_eq!(log2(8), 3);
     assert_eq!(log2(9), 4);
+  }
+
+  #[test]
+  fn test_advance_num_bytes() {
+    let mut writer = BitWriter::new(5);
+    let result = writer.advance_num_bytes(1);
+    assert!(result.is_ok(), "advance_num_bytes() should return OK, but got error:\n{}", result.unwrap_err());
+    writer.put_aligned(42, 4);
+    let _ = writer.seek(SeekFrom::Start(result.unwrap() as u64));
+    writer.put_aligned(0x10, 1);
+    let result = writer.consume();
+    assert_eq!(result.as_ref(), [0x10, 42, 0, 0, 0]);
+
+    writer = BitWriter::new(4);
+    let result = writer.advance_num_bytes(5);
+    assert!(result.is_err());
   }
 
   #[test]
