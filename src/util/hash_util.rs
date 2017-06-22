@@ -24,8 +24,8 @@ pub fn hash<T: AsBytes>(data: &T, seed: u64) -> u64 {
   murmur_hash2_64a(data, seed)
 }
 
-static MURMUR_PRIME: u64 = 0xc6a4a7935bd1e995;
-static MURMUR_R: i32 = 47;
+const MURMUR_PRIME: u64 = 0xc6a4a7935bd1e995;
+const MURMUR_R: i32 = 47;
 
 /// Rust implementation of MurmurHash2, 64-bit version for 64-bit platforms
 fn murmur_hash2_64a<T: AsBytes>(data: &T, seed: u64) -> u64 {
