@@ -186,6 +186,11 @@ impl BitWriter {
     &self.buffer
   }
 
+  #[inline]
+  pub fn byte_offset(&self) -> usize {
+    self.byte_offset
+  }
+
   /// Return the internal buffer length. This is the maximum number of bytes
   /// that this writer can write. User needs to call `consume` to consume the
   /// current buffer before more data can be written.
@@ -264,7 +269,7 @@ impl BitWriter {
 
   /// Flush the internal buffered bits and the align the buffer to the next byte.
   #[inline]
-  fn flush(&mut self) {
+  pub fn flush(&mut self) {
     let num_bytes = ceil(self.bit_offset as i64, 8) as usize;
     assert!(self.byte_offset + num_bytes <= self.max_bytes);
     memcpy_value(&self.buffered_values, num_bytes, &mut self.buffer[self.byte_offset..]);
@@ -643,6 +648,56 @@ mod tests {
   }
 
   #[test]
+  fn test_put_get_bool() {
+    let len = 8;
+    let mut writer = BitWriter::new(len);
+
+    for i in 0..8 {
+      let result = writer.put_value(i % 2, 1);
+      assert!(result);
+    }
+
+    writer.flush();
+    {
+      let buffer = writer.buffer();
+      assert_eq!(buffer[0], 0b10101010);
+    }
+
+    // Write 00110011
+    for i in 0..8 {
+      let result = match i {
+        0 | 1 | 4 | 5 => writer.put_value(false as u64, 1),
+        _ => writer.put_value(true as u64, 1)
+      };
+      assert!(result);
+    }
+    writer.flush();
+    {
+      let buffer = writer.buffer();
+      assert_eq!(buffer[0], 0b10101010);
+      assert_eq!(buffer[1], 0b11001100);
+    }
+
+    let mut reader = BitReader::new(writer.consume());
+
+    for i in 0..8 {
+      let result = reader.get_value::<u8>(1);
+      assert!(result.is_ok());
+      assert_eq!(result.unwrap(), i % 2);
+    }
+
+    for i in 0..8 {
+      let result = reader.get_value::<bool>(1);
+      assert!(result.is_ok());
+      let val = result.unwrap();
+      match i {
+        0 | 1 | 4 | 5 => assert_eq!(val, false),
+        _ => assert_eq!(val, true)
+      }
+    }
+  }
+
+  #[test]
   fn test_put_value_roundtrip() {
     test_put_value_rand_numbers(32, 2);
     test_put_value_rand_numbers(32, 3);
@@ -761,5 +816,4 @@ mod tests {
       assert_eq!(v as i32, values[i], "[{}]: expected {} but got {}", i, values[i], v);
     }
   }
-
 }
