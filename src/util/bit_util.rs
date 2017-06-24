@@ -17,7 +17,6 @@
 
 use std::mem::{size_of, replace, transmute_copy};
 use std::cmp;
-use std::io::{self, Seek, SeekFrom};
 
 use errors::{Result, ParquetError};
 use util::memory::ByteBufferPtr;
@@ -143,19 +142,23 @@ impl BitWriter {
   #[inline]
   pub fn consume(&mut self) -> ByteBufferPtr {
     self.flush();
-    let old_buffer = replace(&mut self.buffer, vec![0; self.max_bytes]);
+    let mut buffer = replace(&mut self.buffer, vec![0; self.max_bytes]);
+    buffer.truncate(self.byte_offset);
     self.buffered_values = 0;
     self.byte_offset = 0;
     self.bit_offset = 0;
-    ByteBufferPtr::new(old_buffer)
+    ByteBufferPtr::new(buffer)
   }
 
-  /// Advance the current offset by `num_bytes`, and return the old offset, flushing the
-  /// bit buffer first.
+  /// Advance the current offset by skipping `num_bytes`, flushing the internal bit
+  /// buffer first.
   /// This is useful when you want to jump over `num_bytes` bytes and come back later
   /// to fill these bytes.
+  ///
+  /// Return error if `num_bytes` is beyond the boundary of the internal buffer.
+  /// Otherwise, return the old offset.
   #[inline]
-  pub fn advance_num_bytes(&mut self, num_bytes: usize) -> Result<usize> {
+  pub fn skip(&mut self, num_bytes: usize) -> Result<usize> {
     self.flush();
     assert!(self.byte_offset < self.max_bytes);
     if self.byte_offset + num_bytes > self.max_bytes {
@@ -172,7 +175,7 @@ impl BitWriter {
   /// to fill these bytes.
   #[inline]
   pub fn get_next_byte_ptr(&mut self, num_bytes: usize) -> Result<&mut [u8]> {
-    let offset = self.advance_num_bytes(num_bytes)?;
+    let offset = self.skip(num_bytes)?;
     Ok(&mut self.buffer[offset..offset + num_bytes])
   }
 
@@ -241,6 +244,21 @@ impl BitWriter {
     true
   }
 
+  /// Write `val` of `num_bytes` bytes at the designated `offset`. The `offset` is the offset
+  /// starting from the beginning of the internal buffer that this writer maintains. Note that
+  /// this will overwrite any existing data between `offset` and `offset + num_bytes`.
+  /// Also that if size of `T` is larger than `num_bytes`, extra higher ordered bytes will be ignored.
+  ///
+  /// Return false if there's not enough room left, or the `pos` is not valid. True otherwise.
+  #[inline]
+  pub fn put_aligned_offset<T: Copy>(&mut self, val: T, num_bytes: usize, offset: usize) -> bool {
+    if num_bytes + offset >= self.byte_offset {
+      return false
+    }
+    memcpy_value(&val, num_bytes, &mut self.buffer[offset..offset + num_bytes]);
+    true
+  }
+
   /// Write a VLQ encoded integer `v` to this buffer. The value is byte aligned.
   ///
   /// Return false if there's not enough room left. True otherwise.
@@ -279,27 +297,6 @@ impl BitWriter {
   }
 }
 
-/// Seek to the specified `pos` from the current `byte_offset`.
-/// Returns the new position, or error if the new position is outside the
-/// boundary of the buffer.
-impl Seek for BitWriter {
-  fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-    let new_byte_offset: i64 = match pos {
-      SeekFrom::Start(offset) => offset as i64,
-      SeekFrom::End(offset) => self.max_bytes as i64 - offset,
-      SeekFrom::Current(offset) => self.byte_offset as i64 + offset
-    };
-    if new_byte_offset >= 0 || new_byte_offset < self.max_bytes as i64 {
-      self.byte_offset = new_byte_offset as usize;
-      Ok(new_byte_offset as u64)
-    } else {
-      Err(io::Error::new(
-        io::ErrorKind::Other,
-        general_err!("Seek out of bound. Limit is [0, {}], but seeking {}",
-                     self.max_bytes, new_byte_offset)))
-    }
-  }
-}
 
 /// Maximum byte length for a VLQ encoded integer
 // TODO: why maximum is 5?
@@ -479,36 +476,20 @@ mod tests {
   fn test_bit_reader_get_value() {
     let buffer = vec![255, 0];
     let mut bit_reader = BitReader::new(ByteBufferPtr::new(buffer));
-    let v1 = bit_reader.get_value::<i32>(1);
-    assert!(v1.is_ok());
-    assert_eq!(v1.unwrap(), 1);
-    let v2 = bit_reader.get_value::<i32>(2);
-    assert!(v2.is_ok());
-    assert_eq!(v2.unwrap(), 3);
-    let v3 = bit_reader.get_value::<i32>(3);
-    assert!(v3.is_ok());
-    assert_eq!(v3.unwrap(), 7);
-    let v4 = bit_reader.get_value::<i32>(4);
-    assert!(v4.is_ok());
-    assert_eq!(v4.unwrap(), 3);
+    assert_eq!(bit_reader.get_value::<i32>(1).expect("get_value() should return OK"), 1);
+    assert_eq!(bit_reader.get_value::<i32>(2).expect("get_value() should return OK"), 3);
+    assert_eq!(bit_reader.get_value::<i32>(3).expect("get_value() should return OK"), 7);
+    assert_eq!(bit_reader.get_value::<i32>(4).expect("get_value() should return OK"), 3);
   }
 
   #[test]
   fn test_bit_reader_get_value_boundary() {
     let buffer = vec![10, 0, 0, 0, 20, 0, 30, 0, 0, 0, 40, 0];
     let mut bit_reader = BitReader::new(ByteBufferPtr::new(buffer));
-    let v1 = bit_reader.get_value::<i64>(32);
-    assert!(v1.is_ok());
-    assert_eq!(v1.unwrap(), 10);
-    let v2 = bit_reader.get_value::<i16>(16);
-    assert!(v2.is_ok());
-    assert_eq!(v2.unwrap(), 20);
-    let v3 = bit_reader.get_value::<i32>(32);
-    assert!(v3.is_ok());
-    assert_eq!(v3.unwrap(), 30);
-    let v4 = bit_reader.get_value::<i32>(16);
-    assert!(v4.is_ok());
-    assert_eq!(v4.unwrap(), 40);
+    assert_eq!(bit_reader.get_value::<i64>(32).expect("get_value() should return OK"), 10);
+    assert_eq!(bit_reader.get_value::<i64>(16).expect("get_value() should return OK"), 20);
+    assert_eq!(bit_reader.get_value::<i64>(32).expect("get_value() should return OK"), 30);
+    assert_eq!(bit_reader.get_value::<i64>(16).expect("get_value() should return OK"), 40);
   }
 
   #[test]
@@ -516,18 +497,11 @@ mod tests {
     // 01110101 11001011
     let buffer = ByteBufferPtr::new(vec!(0x75, 0xCB));
     let mut bit_reader = BitReader::new(buffer.all());
-    let v1 = bit_reader.get_value::<i32>(3);
-    assert!(v1.is_ok());
-    assert_eq!(v1.unwrap(), 5);
-    let v2 = bit_reader.get_aligned::<i32>(1);
-    assert!(v2.is_ok());
-    assert_eq!(v2.unwrap(), 203);
-    let v3 = bit_reader.get_value::<i32>(1);
-    assert!(v3.is_err());
-
+    assert_eq!(bit_reader.get_value::<i32>(3).expect("get_value() should return OK"), 5);
+    assert_eq!(bit_reader.get_aligned::<i32>(1).expect("get_aligned() should return OK"), 203);
+    let _ = bit_reader.get_value::<i32>(1).expect_err("get_value() should return Err");
     bit_reader.reset(buffer.all());
-    let v4 = bit_reader.get_aligned::<i32>(3);
-    assert!(v4.is_err());
+    let _ = bit_reader.get_aligned::<i32>(3).expect_err("get_value() should return Err");
   }
 
   #[test]
@@ -535,12 +509,8 @@ mod tests {
     // 10001001 00000001 11110010 10110101 00000110
     let buffer: Vec<u8> = vec!(0x89, 0x01, 0xF2, 0xB5, 0x06);
     let mut bit_reader = BitReader::new(ByteBufferPtr::new(buffer));
-    let v = bit_reader.get_vlq_int();
-    assert!(v.is_ok());
-    assert_eq!(v.unwrap(), 137);
-    let v = bit_reader.get_vlq_int();
-    assert!(v.is_ok());
-    assert_eq!(v.unwrap(), 105202);
+    assert_eq!(bit_reader.get_vlq_int().expect("get_vlq_int() should return OK"), 137);
+    assert_eq!(bit_reader.get_vlq_int().expect("get_vlq_int() should return OK"), 105202);
   }
 
   #[test]
@@ -548,10 +518,7 @@ mod tests {
     // 10001001 10000001 11110010 10110101 00000110
     let buffer: Vec<u8> = vec!(0x89, 0x81, 0xF2, 0xB5, 0x06);
     let mut bit_reader = BitReader::new(ByteBufferPtr::new(buffer));
-    let v = bit_reader.get_vlq_int();
-    assert!(v.is_ok());
-    assert_eq!(v.unwrap(), 1723629705);
-
+    assert_eq!(bit_reader.get_vlq_int().expect("get_vlq_int() should return OK"), 1723629705);
 
     // 10001001 10000001 11110010 10110101 10000110 00000001
     let buffer = vec!(0x89, 0x81, 0xF2, 0xB5, 0x86, 0x01);
@@ -566,22 +533,10 @@ mod tests {
   fn test_bit_reader_get_zigzag_vlq_int() {
     let buffer: Vec<u8> = vec!(0, 1, 2, 3);
     let mut bit_reader = BitReader::new(ByteBufferPtr::new(buffer));
-
-    let v = bit_reader.get_zigzag_vlq_int();
-    assert!(v.is_ok());
-    assert_eq!(v.unwrap(), 0);
-
-    let v = bit_reader.get_zigzag_vlq_int();
-    assert!(v.is_ok());
-    assert_eq!(v.unwrap(), -1);
-
-    let v = bit_reader.get_zigzag_vlq_int();
-    assert!(v.is_ok());
-    assert_eq!(v.unwrap(), 1);
-
-    let v = bit_reader.get_zigzag_vlq_int();
-    assert!(v.is_ok());
-    assert_eq!(v.unwrap(), -2);
+    assert_eq!(bit_reader.get_zigzag_vlq_int().expect("get_zigzag_vlq_int() should return OK"), 0);
+    assert_eq!(bit_reader.get_zigzag_vlq_int().expect("get_zigzag_vlq_int() should return OK"), -1);
+    assert_eq!(bit_reader.get_zigzag_vlq_int().expect("get_zigzag_vlq_int() should return OK"), 1);
+    assert_eq!(bit_reader.get_zigzag_vlq_int().expect("get_zigzag_vlq_int() should return OK"), -2);
   }
 
   #[test]
@@ -618,18 +573,16 @@ mod tests {
   }
 
   #[test]
-  fn test_advance_num_bytes() {
+  fn test_skip() {
     let mut writer = BitWriter::new(5);
-    let result = writer.advance_num_bytes(1);
-    assert!(result.is_ok(), "advance_num_bytes() should return OK, but got error:\n{}", result.unwrap_err());
+    let old_offset = writer.skip(1).expect("skip() should return OK");
     writer.put_aligned(42, 4);
-    let _ = writer.seek(SeekFrom::Start(result.unwrap() as u64));
-    writer.put_aligned(0x10, 1);
+    writer.put_aligned_offset(0x10, 1, old_offset);
     let result = writer.consume();
     assert_eq!(result.as_ref(), [0x10, 42, 0, 0, 0]);
 
     writer = BitWriter::new(4);
-    let result = writer.advance_num_bytes(5);
+    let result = writer.skip(5);
     assert!(result.is_err());
   }
 
@@ -637,9 +590,7 @@ mod tests {
   fn test_get_next_byte_ptr() {
     let mut writer = BitWriter::new(5);
     {
-      let result = writer.get_next_byte_ptr(1);
-      assert!(result.is_ok(), "get_next_byte_ptr() should return OK, but got error:\n{}", result.unwrap_err());
-      let first_byte = result.unwrap();
+      let first_byte = writer.get_next_byte_ptr(1).expect("get_next_byte_ptr() should return OK");
       first_byte[0] = 0x10;
     }
     writer.put_aligned(42, 4);
@@ -681,15 +632,14 @@ mod tests {
     let mut reader = BitReader::new(writer.consume());
 
     for i in 0..8 {
-      let result = reader.get_value::<u8>(1);
-      assert!(result.is_ok());
-      assert_eq!(result.unwrap(), i % 2);
+      let val = reader.get_value::<u8>(1)
+        .expect("get_value() should return OK");
+      assert_eq!(val, i % 2);
     }
 
     for i in 0..8 {
-      let result = reader.get_value::<bool>(1);
-      assert!(result.is_ok());
-      let val = result.unwrap();
+      let val = reader.get_value::<bool>(1)
+        .expect("get_value() should return OK");
       match i {
         0 | 1 | 4 | 5 => assert_eq!(val, false),
         _ => assert_eq!(val, true)
@@ -723,9 +673,7 @@ mod tests {
 
     let mut reader = BitReader::new(writer.consume());
     for i in 0..total {
-      let result = reader.get_value::<u64>(num_bits);
-      assert!(result.is_ok(), "[{}]: get_value() returned error:\n {}", i, result.unwrap_err());
-      let v = result.unwrap();
+      let v = reader.get_value::<u64>(num_bits).expect("get_value() should return OK");
       assert_eq!(v, values[i], "[{}]: expected {} but got {}", i, values[i], v);
     }
   }
@@ -768,14 +716,11 @@ mod tests {
     for i in 0..total {
       let j = i / 2;
       if i % 2 == 0 {
-        let result = reader.get_value::<u64>(num_bits);
-        assert!(result.is_ok(), "[{}]: get_value() returned error:\n {}", i, result.unwrap_err());
-        let v = result.unwrap();
+        let v = reader.get_value::<u64>(num_bits).expect("get_value() should return OK");
         assert_eq!(v, values[j] as u64, "[{}]: expected {} but got {}", i, values[j], v);
       } else {
-        let result = reader.get_aligned::<T>(aligned_value_byte_width);
-        assert!(result.is_ok(), "[{}]: get_aligned() returned error:\n {}", i, result.unwrap_err());
-        let v = result.unwrap();
+        let v = reader.get_aligned::<T>(aligned_value_byte_width)
+          .expect("get_aligned() should return OK");
         assert_eq!(v, aligned_values[j], "[{}]: expected {:?} but got {:?}", i, aligned_values[j], v);
       }
     }
@@ -792,9 +737,7 @@ mod tests {
 
     let mut reader = BitReader::new(writer.consume());
     for i in 0..total {
-      let result = reader.get_vlq_int();
-      assert!(result.is_ok(), "[{}]: get_vlq_int() returned error:\n {}", i, result.unwrap_err());
-      let v = result.unwrap();
+      let v = reader.get_vlq_int().expect("get_vlq_int() should return OK");
       assert_eq!(v as u32, values[i], "[{}]: expected {} but got {}", i, values[i], v);
     }
   }
@@ -810,9 +753,7 @@ mod tests {
 
     let mut reader = BitReader::new(writer.consume());
     for i in 0..total {
-      let result = reader.get_zigzag_vlq_int();
-      assert!(result.is_ok(), "[{}]: get_zigzag_vlq_int() returned error:\n {}", i, result.unwrap_err());
-      let v = result.unwrap();
+      let v = reader.get_zigzag_vlq_int().expect("get_zigzag_vlq_int() should return OK");
       assert_eq!(v as i32, values[i], "[{}]: expected {} but got {}", i, values[i], v);
     }
   }
