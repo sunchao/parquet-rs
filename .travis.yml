@@ -14,7 +14,7 @@ rust:
 before_script:
   - git clone https://github.com/apache/thrift.git
   - cd thrift && ./bootstrap.sh
-  - ./configure --without-java --without-python --without-erlang --without-csharp --without-ruby --without-perl --without-php
+  - ./configure --enable-libs=no
   - make && sudo make install
   - cd $TRAVIS_BUILD_DIR/src/parquet_thrift && thrift --gen rs parquet.thrift
   - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
