@@ -326,7 +326,7 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
 
     let mut rle = self.rle_decoder.as_mut().unwrap();
     let num_values = cmp::min(max_values, self.num_values);
-    rle.decode_with_dict(&self.dictionary[..], buffer, num_values)
+    rle.get_batch_with_dict(&self.dictionary[..], buffer, num_values)
   }
 
   /// Number of values left in this decoder stream
@@ -400,7 +400,7 @@ impl Decoder<Int32Type> for RleDecoder<Int32Type> {
 
   #[inline]
   fn decode(&mut self, buffer: &mut [i32], max_values: usize) -> Result<usize> {
-    let values_read = self.decoder.decode(buffer, max_values)?;
+    let values_read = self.decoder.get_batch(buffer, max_values)?;
     self.num_values -= values_read;
     Ok(values_read)
   }
