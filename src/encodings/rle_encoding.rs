@@ -81,10 +81,11 @@ pub struct RawRleEncoder {
 }
 
 impl RawRleEncoder {
-  pub fn new(bit_width: usize) -> Self {
+  pub fn new(bit_width: usize, buffer_len: usize) -> Self {
     assert!(bit_width > 0 && bit_width <= 64, "bit_width ({}) out of range.", bit_width);
     let max_run_byte_size = RawRleEncoder::min_buffer_size(bit_width);
-    let bit_writer = BitWriter::new(max_run_byte_size);
+    assert!(buffer_len >= max_run_byte_size, "buffer_len must be greater than {}", max_run_byte_size);
+    let bit_writer = BitWriter::new(buffer_len);
     RawRleEncoder {
       bit_width: bit_width,
       bit_writer: bit_writer,
@@ -153,10 +154,10 @@ impl RawRleEncoder {
             self.buffered_values[self.num_buffered_values] = 0;
             self.num_buffered_values += 1;
           }
-          self.bit_packed_count += self.num_buffered_values;
-          self.flush_bit_packed_run(true)?;
-          self.repeat_count = 0;
         }
+        self.bit_packed_count += self.num_buffered_values;
+        self.flush_bit_packed_run(true)?;
+        self.repeat_count = 0;
       }
     }
     Ok(self.bit_writer.consume())
@@ -192,7 +193,10 @@ impl RawRleEncoder {
       // Write the indicator byte to the reserved position in `bit_writer`
       let num_groups = self.bit_packed_count / 8;
       let indicator_byte = ((num_groups << 1) | 1) as u8;
-      let _ = self.bit_writer.put_aligned_offset(indicator_byte, 1, self.indicator_byte_pos as usize);
+      if !self.bit_writer.put_aligned_offset(
+        indicator_byte, 1, self.indicator_byte_pos as usize) {
+        return Err(general_err!("Not enough space to write indicator byte"));
+      }
       self.indicator_byte_pos = -1;
       self.bit_packed_count = 0;
     }
@@ -392,17 +396,16 @@ impl RawRleDecoder {
   fn reload(&mut self) -> bool {
     assert!(self.bit_reader.is_some());
     if let Some(ref mut bit_reader) = self.bit_reader {
-      if let Ok(indicator_value) = bit_reader.get_vlq_int() {
-        if indicator_value & 1 == 1 {
-          self.bit_packed_left = ((indicator_value >> 1) * 8) as u32;
-        } else {
-          self.rle_left = (indicator_value >> 1) as u32;
-          let value_width = bit_util::ceil(self.bit_width as i64, 8);
-          self.current_value = bit_reader.get_aligned::<u64>(value_width as usize).ok();
-          assert!(self.current_value.is_some());
-        }
-        return true;
+      let indicator_value = bit_reader.get_vlq_int().expect("Error when reading VLQ int");
+      if indicator_value & 1 == 1 {
+        self.bit_packed_left = ((indicator_value >> 1) * 8) as u32;
+      } else {
+        self.rle_left = (indicator_value >> 1) as u32;
+        let value_width = bit_util::ceil(self.bit_width as i64, 8);
+        self.current_value = bit_reader.get_aligned::<u64>(value_width as usize).ok();
+        assert!(self.current_value.is_some());
       }
+      return true;
     }
     return false;
   }
@@ -502,7 +505,8 @@ mod tests {
   }
 
   fn validate_rle(values: &[i64], bit_width: usize, expected_encoding: Option<&[u8]>, expected_len: i32) {
-    let mut encoder = RawRleEncoder::new(bit_width);
+    let buffer_len = 64 * 1024;
+    let mut encoder = RawRleEncoder::new(bit_width, buffer_len);
     for v in values {
       let result = encoder.put(*v as u64);
       assert!(result.is_ok());
@@ -590,7 +594,7 @@ mod tests {
     validate_rle(&values, bit_width, None, -1);
   }
 
-  // TODO: enable this
+  #[test]
   fn test_rle_values() {
     for width in 1..MAX_WIDTH + 1 {
       test_values(width, 1, -1);

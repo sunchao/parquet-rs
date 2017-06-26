@@ -252,7 +252,7 @@ impl BitWriter {
   /// Return false if there's not enough room left, or the `pos` is not valid. True otherwise.
   #[inline]
   pub fn put_aligned_offset<T: Copy>(&mut self, val: T, num_bytes: usize, offset: usize) -> bool {
-    if num_bytes + offset >= self.byte_offset {
+    if num_bytes + offset > self.max_bytes {
       return false
     }
     memcpy_value(&val, num_bytes, &mut self.buffer[offset..offset + num_bytes]);
