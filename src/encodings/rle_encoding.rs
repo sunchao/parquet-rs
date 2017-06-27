@@ -288,28 +288,31 @@ impl RawRleDecoder {
   }
 
   #[inline]
-  pub fn get<T: Default>(&mut self) -> Result<T> {
+  pub fn get<T: Default>(&mut self) -> Result<Option<T>> {
     assert!(size_of::<T>() <= 8);
 
     while self.rle_left <= 0 && self.bit_packed_left <= 0 {
       if !self.reload() {
-        return Err(general_err!("No more values left"))
+        return Ok(None)
       }
     }
 
-    if self.rle_left > 0 {
-      let repeated_value = unsafe {
-        transmute_copy::<u64, T>(
-          self.current_value.as_mut().expect("current_value should be Some"))
+    let value =
+      if self.rle_left > 0 {
+        let rle_value = unsafe {
+          transmute_copy::<u64, T>(
+            self.current_value.as_mut().expect("current_value should be Some"))
+        };
+        self.rle_left -= 1;
+        rle_value
+      } else { // self.bit_packed_left > 0
+        let mut bit_reader = self.bit_reader.as_mut().expect("bit_reader should be Some");
+        let bit_packed_value = bit_reader.get_value(self.bit_width)?;
+        self.bit_packed_left -= 1;
+        bit_packed_value
       };
-      self.rle_left -= 1;
-      Ok(repeated_value)
-    } else { // self.bit_packed_left > 0
-      let mut bit_reader = self.bit_reader.as_mut().expect("bit_reader should be Some");
-      let value = bit_reader.get_value(self.bit_width)?;
-      self.bit_packed_left -= 1;
-      Ok(value)
-    }
+
+    Ok(Some(value))
   }
 
   #[inline]
@@ -524,14 +527,14 @@ mod tests {
     let mut decoder = RawRleDecoder::new(bit_width);
     decoder.set_data(buffer.all());
     for v in values {
-      let val: i64 = decoder.get().expect("get() should be OK");
+      let val: i64 = decoder.get().expect("get() should be OK").expect("get() should return more value");
       assert_eq!(val, *v);
     }
 
     // Verify batch read
     decoder.set_data(buffer);
     let mut values_read: Vec<i64> = vec![0; values.len()];
-    decoder.get_batch(&mut values_read[..], values.len()).expect("get_batch should be OK");
+    decoder.get_batch(&mut values_read[..], values.len()).expect("get_batch() should be OK");
     assert_eq!(&values_read[..], values);
   }
 
