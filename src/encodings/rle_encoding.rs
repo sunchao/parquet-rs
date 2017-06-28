@@ -417,6 +417,7 @@ impl RawRleDecoder {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use rand::{self, thread_rng, Rng, SeedableRng};
   use util::memory::ByteBufferPtr;
 
   const MAX_WIDTH: usize = 32;
@@ -582,7 +583,7 @@ mod tests {
 
   // `validate_rle` on `num_vals` with width `bit_width`. If `value` is -1, that value
   // is used, otherwise alternating values are used.
-  fn test_values(bit_width: usize, num_vals: usize, value: i32) {
+  fn test_rle_values(bit_width: usize, num_vals: usize, value: i32) {
     let mod_val =
       if bit_width == 64 {
         1
@@ -598,12 +599,67 @@ mod tests {
   }
 
   #[test]
-  fn test_rle_values() {
+  fn test_values() {
     for width in 1..MAX_WIDTH + 1 {
-      test_values(width, 1, -1);
-      test_values(width, 1024, -1);
-      test_values(width, 1024, 0);
-      test_values(width, 1024, 1);
+      test_rle_values(width, 1, -1);
+      test_rle_values(width, 1024, -1);
+      test_rle_values(width, 1024, 0);
+      test_rle_values(width, 1024, 1);
+    }
+  }
+
+  fn test_round_trip(values: &[i32], bit_width: usize) {
+    let buffer_len = 64 * 1024;
+    let mut encoder = RawRleEncoder::new(bit_width, buffer_len);
+    for v in values {
+      let result = encoder.put(*v as u64).expect("put() should be OK");
+      assert!(result, "put() should not return false");
+    }
+
+    let buffer = encoder.flush().expect("flush() should be OK");
+
+    // Verify read
+    let mut decoder = RawRleDecoder::new(bit_width);
+    decoder.set_data(buffer.all());
+    for v in values {
+      let val = decoder.get::<i32>().expect("get() should be OK").expect("get() should return value");
+      assert_eq!(val, *v);
+    }
+
+    // Verify batch read
+    let mut decoder = RawRleDecoder::new(bit_width);
+    decoder.set_data(buffer);
+    let mut values_read: Vec<i32> = vec![0; values.len()];
+    decoder.get_batch(&mut values_read[..], values.len()).expect("get_batch() should be OK");
+    assert_eq!(&values_read[..], values);
+  }
+
+  #[test]
+  fn test_random() {
+    let seed_len = 10;
+    let niters = 50;
+    let ngroups = 1000;
+    let max_group_size = 15;
+    let mut values = vec!();
+
+    for _ in 0..niters {
+      values.clear();
+      let mut rng = thread_rng();
+      let seed = rng.gen_iter::<usize>().take(seed_len).collect::<Vec<usize>>();
+      let mut gen = rand::StdRng::from_seed(&seed[..]);
+
+      let mut parity = false;
+      for _ in 0..ngroups {
+        let mut group_size = gen.gen_range::<u32>(1, 20);
+        if group_size > max_group_size {
+          group_size = 1;
+        }
+        for _ in 0..group_size {
+          values.push(parity as i32);
+        }
+        parity = !parity;
+      }
+      test_round_trip(&values[..], bit_util::num_required_bits(values.len() as u64));
     }
   }
 }

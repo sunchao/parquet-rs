@@ -121,6 +121,17 @@ pub fn unset_array_bit(bits: &mut [u8], i: usize) {
   bits[i / 8] &= !(1 << (i % 8));
 }
 
+/// Returns the minimum number of bits needed to represent the value 'x'
+#[inline]
+pub fn num_required_bits(x: u64) -> usize {
+  for i in (0..64).rev() {
+    if x & (1u64 << i) != 0 {
+      return i + 1
+    }
+  }
+  0
+}
+
 
 /// Utility class for writing bit/byte streams. This class can write data in either
 /// bit packed or byte aligned fashion.
@@ -556,6 +567,18 @@ mod tests {
     assert_eq!(buffer, vec![16, 12, 0]);
     unset_array_bit(&mut buffer[..], 10);
     assert_eq!(buffer, vec![16, 8, 0]);
+  }
+
+  #[test]
+  fn test_num_required_bits() {
+    assert_eq!(num_required_bits(0), 0);
+    assert_eq!(num_required_bits(1), 1);
+    assert_eq!(num_required_bits(2), 2);
+    assert_eq!(num_required_bits(4), 3);
+    assert_eq!(num_required_bits(8), 4);
+    assert_eq!(num_required_bits(10), 4);
+    assert_eq!(num_required_bits(12), 4);
+    assert_eq!(num_required_bits(16), 5);
   }
 
   #[test]
