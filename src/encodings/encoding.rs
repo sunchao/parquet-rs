@@ -86,9 +86,10 @@ impl Encoder<BoolType> for PlainEncoder<BoolType> {
     }
 
     // TODO: maybe we should write directly to `out`?
-    let buf_ptr = self.bit_writer.consume();
-    self.out.write(buf_ptr.as_ref())?;
+    self.bit_writer.flush();
+    self.out.write(self.bit_writer.buffer())?;
     self.out.flush()?;
+    self.bit_writer.clear();
     Ok(())
   }
 }

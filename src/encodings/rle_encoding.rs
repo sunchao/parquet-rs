@@ -82,10 +82,16 @@ pub struct RawRleEncoder {
 
 impl RawRleEncoder {
   pub fn new(bit_width: usize, buffer_len: usize) -> Self {
+    let buffer = vec![0; buffer_len];
+    RawRleEncoder::new_from_buf(bit_width, buffer, 0)
+  }
+
+  /// Initialize the encoder from existing `buffer` and the starting offset `start`.
+  pub fn new_from_buf(bit_width: usize, buffer: Vec<u8>, start: usize) -> Self {
     assert!(bit_width > 0 && bit_width <= 64, "bit_width ({}) out of range.", bit_width);
     let max_run_byte_size = RawRleEncoder::min_buffer_size(bit_width);
-    assert!(buffer_len >= max_run_byte_size, "buffer_len must be greater than {}", max_run_byte_size);
-    let bit_writer = BitWriter::new(buffer_len);
+    assert!(buffer.len() >= max_run_byte_size, "buffer length must be greater than {}", max_run_byte_size);
+    let bit_writer = BitWriter::new_from_buf(buffer, start);
     RawRleEncoder {
       bit_width: bit_width,
       bit_writer: bit_writer,
@@ -138,10 +144,10 @@ impl RawRleEncoder {
     Ok(true)
   }
 
-  /// Flush all remaining values and return the final byte buffer maintained
-  /// by the internal writer.
+  /// Consume this encoder. Flush all remaining values and return the final byte
+  /// buffer maintained by the internal writer.
   #[inline]
-  pub fn flush(&mut self) -> Result<ByteBufferPtr> {
+  pub fn consume(mut self) -> Result<Vec<u8>> {
     if self.bit_packed_count > 0 || self.repeat_count > 0 || self.num_buffered_values > 0 {
       let all_repeat = self.bit_packed_count == 0 &&
         (self.repeat_count == self.num_buffered_values || self.num_buffered_values == 0);
@@ -161,6 +167,23 @@ impl RawRleEncoder {
       }
     }
     Ok(self.bit_writer.consume())
+  }
+
+  #[inline]
+  pub fn buffer(&self) -> &[u8] {
+    self.bit_writer.buffer()
+  }
+
+  /// Clear the internal state so this encoder can be reused (e.g., after becoming full).
+  #[inline]
+  pub fn clear(&mut self) {
+    self.bit_writer.clear();
+    self.buffer_full = false;
+    self.num_buffered_values = 0;
+    self.current_value = 0;
+    self.repeat_count = 0;
+    self.bit_packed_count = 0;
+    self.indicator_byte_pos = -1;
   }
 
   #[inline]
@@ -515,7 +538,7 @@ mod tests {
       let result = encoder.put(*v as u64);
       assert!(result.is_ok());
     }
-    let buffer = encoder.flush().expect("Expect flush() OK");
+    let buffer = ByteBufferPtr::new(encoder.consume().expect("Expect consume() OK"));
     if expected_len != -1 {
       assert_eq!(buffer.len(), expected_len as usize);
     }
@@ -616,7 +639,7 @@ mod tests {
       assert!(result, "put() should not return false");
     }
 
-    let buffer = encoder.flush().expect("flush() should be OK");
+    let buffer = ByteBufferPtr::new(encoder.consume().expect("consume() should be OK"));
 
     // Verify read
     let mut decoder = RawRleDecoder::new(bit_width);
