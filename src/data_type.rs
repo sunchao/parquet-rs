@@ -161,6 +161,14 @@ impl AsBytes for bool {
   }
 }
 
+impl AsBytes for u8 {
+  fn as_bytes(&self) -> &[u8] {
+    unsafe {
+      ::std::slice::from_raw_parts(self as *const u8, 1)
+    }
+  }
+}
+
 impl AsBytes for i32 {
   fn as_bytes(&self) -> &[u8] {
     unsafe {
