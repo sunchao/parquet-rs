@@ -100,11 +100,6 @@ impl<T: Clone> Buffer<T> {
     Buffer { data: vec!(), mem_tracker: None, type_length: ::std::mem::size_of::<T>() }
   }
 
-  pub fn with_capacity(mut self, cap: usize) -> Self {
-    self.data.reserve(cap);
-    self
-  }
-
   pub fn with_mem_tracker(mut self, mc: MemTrackerPtr) -> Self {
     mc.alloc((self.data.capacity() * self.type_length) as i64);
     self.mem_tracker = Some(mc);
@@ -132,6 +127,11 @@ impl<T: Clone> Buffer<T> {
       let capacity_diff = self.data.capacity() as i64 - old_capacity as i64;
       mc.alloc(capacity_diff * self.type_length as i64);
     }
+  }
+
+  #[inline]
+  pub fn clear(&mut self) {
+    self.data.clear()
   }
 
   #[inline]
@@ -399,8 +399,8 @@ mod tests {
     let max_capacity =
     {
       let mut buffer2 = ByteBuffer::new()
-        .with_capacity(30)
         .with_mem_tracker(mem_tracker.clone());
+      buffer2.reserve(30);
       assert_eq!(mem_tracker.cur_bytes(), buffer2.capacity() as i64 + capacity);
       buffer2.set_data(vec![0; 100]);
       assert_eq!(mem_tracker.cur_bytes(), buffer2.capacity() as i64 + capacity);
@@ -452,7 +452,8 @@ mod tests {
     assert_eq!(buffer.size(), 0);
     assert_eq!(buffer.capacity(), 0);
 
-    let buffer2 = ByteBuffer::new().with_capacity(40);
+    let mut buffer2 = ByteBuffer::new();
+    buffer2.reserve(40);
     assert_eq!(buffer2.size(), 0);
     assert_eq!(buffer2.capacity(), 40);
 
