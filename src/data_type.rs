@@ -177,6 +177,14 @@ impl AsBytes for i32 {
   }
 }
 
+impl AsBytes for u32 {
+  fn as_bytes(&self) -> &[u8] {
+    unsafe {
+      ::std::slice::from_raw_parts(self as *const u32 as *const u8, 4)
+    }
+  }
+}
+
 impl AsBytes for i64 {
   fn as_bytes(&self) -> &[u8] {
     unsafe {

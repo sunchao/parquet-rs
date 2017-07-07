@@ -90,7 +90,9 @@ impl RawRleEncoder {
   pub fn new_from_buf(bit_width: usize, buffer: Vec<u8>, start: usize) -> Self {
     assert!(bit_width > 0 && bit_width <= 64, "bit_width ({}) out of range.", bit_width);
     let max_run_byte_size = RawRleEncoder::min_buffer_size(bit_width);
-    assert!(buffer.len() >= max_run_byte_size, "buffer length must be greater than {}", max_run_byte_size);
+    assert!(buffer.len() >= max_run_byte_size,
+            "buffer length {} must be greater than {}",
+            buffer.len(), max_run_byte_size);
     let bit_writer = BitWriter::new_from_buf(buffer, start);
     RawRleEncoder {
       bit_width: bit_width,
@@ -254,7 +256,7 @@ impl RawRleEncoder {
 
   /// Returns the minimum buffer size needed to use the encoder for `bit_width`.
   /// This is the maximum length of a single run for `bit_width`.
-  fn min_buffer_size(bit_width: usize) -> usize {
+  pub fn min_buffer_size(bit_width: usize) -> usize {
     let max_bit_packed_run_size = 1 +
       bit_util::ceil((MAX_VALUES_PER_BIT_PACKED_RUN * bit_width) as i64, 8) as usize;
     let max_rle_run_size = bit_util::MAX_VLQ_BYTE_LEN + bit_util::ceil(bit_width as i64, 8) as usize;
@@ -262,7 +264,7 @@ impl RawRleEncoder {
   }
 
   /// Returns the maximum buffer size takes to encode `num_values` values with `bit_width`.
-  fn max_buffer_size(bit_width: usize, num_values: usize) -> usize {
+  pub fn max_buffer_size(bit_width: usize, num_values: usize) -> usize {
     // First the maximum size for bit-packed run
     let bytes_per_run = bit_width;
     let num_runs = bit_util::ceil(num_values as i64, 8) as usize;

@@ -110,6 +110,10 @@ impl<T: Clone> Buffer<T> {
     self.data.as_slice()
   }
 
+  pub fn mut_data(&mut self) -> &mut [T] {
+    self.data.as_mut_slice()
+  }
+
   #[inline]
   pub fn set_data(&mut self, new_data: Vec<T>) {
     if let Some(ref mc) = self.mem_tracker {
@@ -135,12 +139,14 @@ impl<T: Clone> Buffer<T> {
   }
 
   #[inline]
-  pub fn reserve(&mut self, new_capacity: usize) {
+  pub fn reserve(&mut self, additional_capacity: usize) {
     let old_capacity = self.data.capacity();
-    self.data.reserve(new_capacity);
-    if let Some(ref mc) = self.mem_tracker {
-      let capacity_diff = self.data.capacity() as i64 - old_capacity as i64;
-      mc.alloc(capacity_diff * self.type_length as i64);
+    self.data.reserve(additional_capacity);
+    if self.data.capacity() > old_capacity {
+      if let Some(ref mc) = self.mem_tracker {
+        let capacity_diff = self.data.capacity() as i64 - old_capacity as i64;
+        mc.alloc(capacity_diff * self.type_length as i64);
+      }
     }
   }
 
@@ -242,6 +248,10 @@ impl<T> BufferPtr<T> {
   pub fn new(v: Vec<T>) -> Self {
     let len = v.len();
     Self { data: Rc::new(v), start: 0, len: len, mem_tracker: None }
+  }
+
+  pub fn data(&self) -> &[T] {
+    &self.data
   }
 
   pub fn with_range(mut self, start: usize, len: usize) -> Self {

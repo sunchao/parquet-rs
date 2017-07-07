@@ -50,8 +50,8 @@ pub fn convert_to_bytes<T>(val: &T, num_bytes: usize) -> Vec<u8> {
 }
 
 #[inline]
-fn memcpy(source: &[u8], target: &mut [u8]) {
-  assert!(target.len() > source.len());
+pub fn memcpy(source: &[u8], target: &mut [u8]) {
+  assert!(target.len() >= source.len());
   unsafe {
     ::std::ptr::copy_nonoverlapping(
       source.as_ptr(),
@@ -62,7 +62,7 @@ fn memcpy(source: &[u8], target: &mut [u8]) {
 }
 
 #[inline]
-fn memcpy_value<T>(source: &T, num_bytes: usize, target: &mut [u8]) {
+pub fn memcpy_value<T>(source: &T, num_bytes: usize, target: &mut [u8]) {
   assert!(target.len() >= num_bytes,
           "Not enough space. Only had {} bytes but need to put {} bytes",
           target.len(), num_bytes);
