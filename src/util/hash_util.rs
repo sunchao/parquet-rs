@@ -48,59 +48,15 @@ fn murmur_hash2_64a<T: AsBytes>(data: &T, seed: u64) -> u64 {
 
   let data2 = &data_bytes[len_64..];
 
-  // TODO: no pattern matching w/ fallthrough in Rust makes this very awkward
-  match len & 7 {
-    1 => {
-      h ^= data2[0] as u64;
-      h = h.wrapping_mul(MURMUR_PRIME)
-    },
-    2 => {
-      h ^= (data2[1] as u64) << 8;
-      h ^= data2[0] as u64;
-      h = h.wrapping_mul(MURMUR_PRIME)
-    },
-    3 => {
-      h ^= (data2[2] as u64) << 16;
-      h ^= (data2[1] as u64) << 8;
-      h ^= data2[0] as u64;
-      h = h.wrapping_mul(MURMUR_PRIME)
-    },
-    4 => {
-      h ^= (data2[3] as u64) << 24;
-      h ^= (data2[2] as u64) << 16;
-      h ^= (data2[1] as u64) << 8;
-      h ^= data2[0] as u64;
-      h = h.wrapping_mul(MURMUR_PRIME)
-    },
-    5 => {
-      h ^= (data2[4] as u64) << 32;
-      h ^= (data2[3] as u64) << 24;
-      h ^= (data2[2] as u64) << 16;
-      h ^= (data2[1] as u64) << 8;
-      h ^= data2[0] as u64;
-      h = h.wrapping_mul(MURMUR_PRIME)
-    },
-    6 => {
-      h ^= (data2[5] as u64) << 40;
-      h ^= (data2[4] as u64) << 32;
-      h ^= (data2[3] as u64) << 24;
-      h ^= (data2[2] as u64) << 16;
-      h ^= (data2[1] as u64) << 8;
-      h ^= data2[0] as u64;
-      h = h.wrapping_mul(MURMUR_PRIME)
-    },
-    7 => {
-      h ^= (data2[6] as u64) << 48;
-      h ^= (data2[5] as u64) << 40;
-      h ^= (data2[4] as u64) << 32;
-      h ^= (data2[3] as u64) << 24;
-      h ^= (data2[2] as u64) << 16;
-      h ^= (data2[1] as u64) << 8;
-      h ^= data2[0] as u64;
-      h = h.wrapping_mul(MURMUR_PRIME)
-    },
-    _ => panic!("Impossible!")
-  }
+  let v = len & 7;
+  if v == 7 { h ^= (data2[6] as u64) << 48; }
+  if v >= 6 { h ^= (data2[5] as u64) << 40; }
+  if v >= 5 { h ^= (data2[4] as u64) << 32; }
+  if v >= 4 { h ^= (data2[3] as u64) << 24; }
+  if v >= 3 { h ^= (data2[2] as u64) << 16; }
+  if v >= 2 { h ^= (data2[1] as u64) << 8; }
+  if v >= 1 { h ^= data2[0] as u64; }
+  if v > 0 { h = h.wrapping_mul(MURMUR_PRIME); }
 
   h ^= h >> MURMUR_R;
   h = h.wrapping_mul(MURMUR_PRIME);
