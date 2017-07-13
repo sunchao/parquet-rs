@@ -153,66 +153,31 @@ pub trait AsBytes {
   fn as_bytes(&self) -> &[u8];
 }
 
-impl AsBytes for bool {
-  fn as_bytes(&self) -> &[u8] {
-    unsafe {
-      ::std::slice::from_raw_parts(self as *const bool as *const u8, 1)
+macro_rules! gen_as_bytes {
+  ($source_ty:ident) => {
+    impl AsBytes for $source_ty {
+      fn as_bytes(&self) -> &[u8] {
+        unsafe {
+          ::std::slice::from_raw_parts(
+            self as *const $source_ty as *const u8, ::std::mem::size_of::<$source_ty>())
+        }
+      }
     }
-  }
+  };
 }
 
-impl AsBytes for u8 {
-  fn as_bytes(&self) -> &[u8] {
-    unsafe {
-      ::std::slice::from_raw_parts(self as *const u8, 1)
-    }
-  }
-}
-
-impl AsBytes for i32 {
-  fn as_bytes(&self) -> &[u8] {
-    unsafe {
-      ::std::slice::from_raw_parts(self as *const i32 as *const u8, 4)
-    }
-  }
-}
-
-impl AsBytes for u32 {
-  fn as_bytes(&self) -> &[u8] {
-    unsafe {
-      ::std::slice::from_raw_parts(self as *const u32 as *const u8, 4)
-    }
-  }
-}
-
-impl AsBytes for i64 {
-  fn as_bytes(&self) -> &[u8] {
-    unsafe {
-      ::std::slice::from_raw_parts(self as *const i64 as *const u8, 8)
-    }
-  }
-}
+gen_as_bytes!(bool);
+gen_as_bytes!(u8);
+gen_as_bytes!(i32);
+gen_as_bytes!(u32);
+gen_as_bytes!(i64);
+gen_as_bytes!(f32);
+gen_as_bytes!(f64);
 
 impl AsBytes for Int96 {
   fn as_bytes(&self) -> &[u8] {
     unsafe {
       ::std::slice::from_raw_parts(self.data() as *const [u32] as *const u8, 12)
-    }
-  }
-}
-
-impl AsBytes for f32 {
-  fn as_bytes(&self) -> &[u8] {
-    unsafe {
-      ::std::slice::from_raw_parts(self as *const f32 as *const u8, 4)
-    }
-  }
-}
-
-impl AsBytes for f64 {
-  fn as_bytes(&self) -> &[u8] {
-    unsafe {
-      ::std::slice::from_raw_parts(self as *const f64 as *const u8, 8)
     }
   }
 }
@@ -295,6 +260,7 @@ mod tests {
     assert_eq!(true.as_bytes(), &[1]);
     assert_eq!((7 as i32).as_bytes(), &[7, 0, 0, 0]);
     assert_eq!((555 as i32).as_bytes(), &[43, 2, 0, 0]);
+    assert_eq!((555 as u32).as_bytes(), &[43, 2, 0, 0]);
     assert_eq!(i32::max_value().as_bytes(), &[255, 255, 255, 127]);
     assert_eq!(i32::min_value().as_bytes(), &[0, 0, 0, 128]);
     assert_eq!((7 as i64).as_bytes(), &[7, 0, 0, 0, 0, 0, 0, 0]);
