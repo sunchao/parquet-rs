@@ -50,7 +50,10 @@ pub struct PlainEncoder<T: DataType> {
 }
 
 impl<T: DataType> PlainEncoder<T> {
-  pub fn new(out: BufWriter<ByteBuffer>, descr: ColumnDescPtr) -> Self {
+  pub fn new(descr: ColumnDescPtr, mem_tracker: MemTrackerPtr, vec: Vec<u8>) -> Self {
+    let mut byte_buffer = ByteBuffer::new().with_mem_tracker(mem_tracker);
+    byte_buffer.set_data(vec);
+    let out = BufWriter::new(byte_buffer);
     Self { out: out, bit_writer: BitWriter::new(256), descr: descr, _phantom: PhantomData }
   }
 }
@@ -500,8 +503,7 @@ mod tests {
     let mem_tracker = MemTracker::new_ptr(None).unwrap();
     let encoder = match enc {
       Encoding::PLAIN => {
-        let writer = BufWriter::new(ByteBuffer::new());
-        Box::new(PlainEncoder::<T>::new(writer, Rc::new(desc)))
+        Box::new(PlainEncoder::<T>::new(Rc::new(desc), mem_tracker, vec!()))
       },
       Encoding::PLAIN_DICTIONARY => {
         Box::new(DictEncoder::<T>::new(Rc::new(desc), mem_tracker)) as Box<Encoder<T>>
