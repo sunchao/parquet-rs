@@ -1,5 +1,5 @@
 [package]
-name = "parquet-rs"
+name = "parquet_rs"
 version = "0.1.0"
 authors = ["Chao Sun <sunchao@apache.org>"]
 
