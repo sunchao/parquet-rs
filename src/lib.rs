@@ -34,16 +34,18 @@ extern crate brotli;
 extern crate flate2;
 extern crate rand;
 
+// TODO: don't expose everything!
 #[macro_use]
-mod errors;
-mod basic;
-mod data_type;
+pub mod errors;
+pub mod basic;
+pub mod data_type;
 mod parquet_thrift;
+
 #[macro_use]
-mod util;
-mod column;
-mod compression;
-mod encodings;
+pub mod util;
+pub mod column;
+pub mod compression;
 
 pub mod schema;
 pub mod file;
+pub mod encodings;
