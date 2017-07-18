@@ -19,31 +19,29 @@ use basic::*;
 use data_type::*;
 use schema::types::ColumnDescPtr;
 use encodings::decoding::{get_decoder, Decoder, ValueType};
-use util::memory::{ByteBufferPtr, MemoryPool};
+use util::memory::ByteBufferPtr;
 use errors::{Result, ParquetError};
 use super::page::{Page, PageReader};
 
-pub enum ColumnReader<'a, 'm> {
-  BoolColumnReader(ColumnReaderImpl<'a, 'm, BoolType>),
-  Int32ColumnReader(ColumnReaderImpl<'a, 'm, Int32Type>),
-  Int64ColumnReader(ColumnReaderImpl<'a, 'm, Int64Type>),
-  Int96ColumnReader(ColumnReaderImpl<'a, 'm, Int96Type>),
-  FloatColumnReader(ColumnReaderImpl<'a, 'm, FloatType>),
-  DoubleColumnReader(ColumnReaderImpl<'a, 'm, DoubleType>),
-  ByteArrayColumnReader(ColumnReaderImpl<'a, 'm, ByteArrayType>),
-  FixedLenByteArrayColumnReader(ColumnReaderImpl<'a, 'm, FixedLenByteArrayType>),
+pub enum ColumnReader<'a> {
+  BoolColumnReader(ColumnReaderImpl<'a, BoolType>),
+  Int32ColumnReader(ColumnReaderImpl<'a, Int32Type>),
+  Int64ColumnReader(ColumnReaderImpl<'a, Int64Type>),
+  Int96ColumnReader(ColumnReaderImpl<'a, Int96Type>),
+  FloatColumnReader(ColumnReaderImpl<'a, FloatType>),
+  DoubleColumnReader(ColumnReaderImpl<'a, DoubleType>),
+  ByteArrayColumnReader(ColumnReaderImpl<'a, ByteArrayType>),
+  FixedLenByteArrayColumnReader(ColumnReaderImpl<'a, FixedLenByteArrayType>),
 }
 
 /// A value reader for a particular primitive column.
-/// Lifetime parameters:
-///   1. 'a is the lifetime of the page reader
-///   2. 'm is the lifetime of the memory pool
-pub struct ColumnReaderImpl<'a, 'm, T: DataType> where T: 'm {
+/// The lifetime parameter 'a denotes the lifetime of the page reader
+pub struct ColumnReaderImpl<'a, T: DataType> {
   descr: ColumnDescPtr,
-  def_level_decoder: Option<Box<Decoder<Int32Type> + 'm>>,
-  rep_level_decoder: Option<Box<Decoder<Int32Type> + 'm>>,
+  def_level_decoder: Option<Box<Decoder<Int32Type>>>,
+  rep_level_decoder: Option<Box<Decoder<Int32Type>>>,
   page_reader: Box<PageReader + 'a>,
-  current_decoder: Option<Box<Decoder<T> + 'm>>,
+  current_decoder: Option<Box<Decoder<T>>>,
 
   // The total number of values stored in the data page.
   num_buffered_values: u32,
@@ -51,15 +49,13 @@ pub struct ColumnReaderImpl<'a, 'm, T: DataType> where T: 'm {
   // The number of values from the current data page that has been
   // decoded into memory so far.
   num_decoded_values: u32,
-
-  memory_pool: &'m MemoryPool
 }
 
-impl<'a, 'm, T: DataType> ColumnReaderImpl<'a, 'm, T> where T: 'm {
-  pub fn new(descr: ColumnDescPtr, page_reader: Box<PageReader + 'a>, mem_pool: &'m MemoryPool) -> Self {
+impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
+  pub fn new(descr: ColumnDescPtr, page_reader: Box<PageReader + 'a>) -> Self {
     Self { descr: descr, def_level_decoder: None, rep_level_decoder: None,
            page_reader: page_reader, current_decoder: None,
-           num_buffered_values: 0, num_decoded_values: 0, memory_pool: mem_pool }
+           num_buffered_values: 0, num_decoded_values: 0 }
   }
 
   /// Read a new page. Returns false if there's no page left.
@@ -87,16 +83,16 @@ impl<'a, 'm, T: DataType> ColumnReaderImpl<'a, 'm, T> where T: 'm {
               let mut buffer_ptr = ByteBufferPtr::new(buf);
 
               if self.descr.max_def_level() > 0 {
-                let mut def_decoder = get_decoder::<'m, Int32Type>(
-                  self.descr.clone(), def_level_encoding, ValueType::DEF_LEVEL, &self.memory_pool)?;
+                let mut def_decoder = get_decoder::<Int32Type>(
+                  self.descr.clone(), def_level_encoding, ValueType::DEF_LEVEL)?;
                 def_decoder.set_data(buffer_ptr.all(), num_values as usize)?;
                 buffer_ptr = buffer_ptr.start_from(def_decoder.total_bytes()?);
                 self.def_level_decoder = Some(def_decoder);
               }
 
               if self.descr.max_rep_level() > 0 {
-                let mut rep_decoder = get_decoder::<'m, Int32Type>(
-                  self.descr.clone(), rep_level_encoding, ValueType::REP_LEVEL, &self.memory_pool)?;
+                let mut rep_decoder = get_decoder::<Int32Type>(
+                  self.descr.clone(), rep_level_encoding, ValueType::REP_LEVEL)?;
                 rep_decoder.set_data(buffer_ptr.all(), num_values as usize)?;
                 buffer_ptr = buffer_ptr.start_from(rep_decoder.total_bytes()?);
                 self.rep_level_decoder = Some(rep_decoder);
@@ -105,7 +101,7 @@ impl<'a, 'm, T: DataType> ColumnReaderImpl<'a, 'm, T> where T: 'm {
               // Initialize decoder for this page
               let mut data_decoder = match encoding {
                 Encoding::PLAIN => {
-                  get_decoder::<'m, T>(self.descr.clone(), encoding, ValueType::VALUE, &self.memory_pool)?
+                  get_decoder::<T>(self.descr.clone(), encoding, ValueType::VALUE)?
                 },
                 en => {
                   return Err(nyi_err!("Unsupported encoding {}", en))

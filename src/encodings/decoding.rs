@@ -25,7 +25,7 @@ use data_type::*;
 use errors::{Result, ParquetError};
 use schema::types::ColumnDescPtr;
 use util::bit_util::{log2, BitReader};
-use util::memory::{ByteBufferPtr, ByteBuffer, MemoryPool};
+use util::memory::{ByteBufferPtr, ByteBuffer};
 use super::rle_encoding::RawRleDecoder;
 
 
@@ -70,15 +70,13 @@ impl fmt::Display for ValueType {
 /// Get a decoder for the particular data type `T` and encoding `encoding`.
 /// `descr` and `value_type` currently are only used when getting a `RleDecoder`
 /// and is used to decide whether this is for definition level or repetition level.
-// TODO: think about T: 'm here.
-pub fn get_decoder<'m, T: DataType>(
+pub fn get_decoder<T: DataType>(
   descr: ColumnDescPtr,
   encoding: Encoding,
-  value_type: ValueType,
-  mem_pool: &'m MemoryPool) -> Result<Box<Decoder<T> + 'm>> where T: 'm {
+  value_type: ValueType) -> Result<Box<Decoder<T>>> where T: 'static {
   let decoder = match encoding {
     // TODO: why Rust cannot infer result type without the `as Box<...>`?
-    Encoding::PLAIN => Box::new(PlainDecoder::new(descr.type_length())) as Box<Decoder<T> + 'm>,
+    Encoding::PLAIN => Box::new(PlainDecoder::new(descr.type_length())) as Box<Decoder<T>>,
     Encoding::RLE => {
       let level = match value_type {
         ValueType::DEF_LEVEL => descr.max_def_level(),
@@ -90,7 +88,7 @@ pub fn get_decoder<'m, T: DataType>(
     },
     Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackDecoder::new()),
     Encoding::DELTA_LENGTH_BYTE_ARRAY => Box::new(DeltaLengthByteArrayDecoder::new()),
-    Encoding::DELTA_BYTE_ARRAY => Box::new(DeltaByteArrayDecoder::new(mem_pool)),
+    Encoding::DELTA_BYTE_ARRAY => Box::new(DeltaByteArrayDecoder::new()),
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
       return Err(general_err!("Cannot initialize this encoding through this function"))
     },
@@ -646,7 +644,7 @@ impl Decoder<ByteArrayType> for DeltaLengthByteArrayDecoder<ByteArrayType> {
 // ----------------------------------------------------------------------
 // DELTA_BYTE_ARRAY Decoding
 
-pub struct DeltaByteArrayDecoder<'m, T: DataType> {
+pub struct DeltaByteArrayDecoder<T: DataType> {
   // Prefix lengths for each byte array
   // TODO: add memory tracker to this
   prefix_lengths: Vec<i64>,
@@ -660,9 +658,6 @@ pub struct DeltaByteArrayDecoder<'m, T: DataType> {
   // The last byte array, used to derive the current prefix
   previous_value: Option<ByteBufferPtr>,
 
-  // Memory pool that used to track allocated bytes in this struct.
-  mem_pool: &'m MemoryPool,
-
   // Number of values left
   num_values: usize,
 
@@ -670,14 +665,14 @@ pub struct DeltaByteArrayDecoder<'m, T: DataType> {
   _phantom: PhantomData<T>
 }
 
-impl<'m, T: DataType> DeltaByteArrayDecoder<'m, T> {
-  pub fn new(mem_pool: &'m MemoryPool) -> Self {
+impl<T: DataType> DeltaByteArrayDecoder<T> {
+  pub fn new() -> Self {
     Self { prefix_lengths: vec!(), current_idx: 0, suffix_decoder: None,
-           previous_value: None, mem_pool: mem_pool, num_values: 0, _phantom: PhantomData }
+           previous_value: None, num_values: 0, _phantom: PhantomData }
   }
 }
 
-default impl<'m, T: DataType> Decoder<T> for DeltaByteArrayDecoder<'m, T> {
+default impl<'m, T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
   fn set_data(&mut self, _: ByteBufferPtr, _: usize) -> Result<()> {
     Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
@@ -699,7 +694,7 @@ default impl<'m, T: DataType> Decoder<T> for DeltaByteArrayDecoder<'m, T> {
   }
 }
 
-impl<'m> Decoder<ByteArrayType> for DeltaByteArrayDecoder<'m, ByteArrayType> {
+impl<> Decoder<ByteArrayType> for DeltaByteArrayDecoder<ByteArrayType> {
   fn set_data(&mut self, data: ByteBufferPtr, num_values: usize) -> Result<()> {
     let mut prefix_len_decoder = DeltaBitPackDecoder::new();
     prefix_len_decoder.set_data(data.all(), num_values)?;
