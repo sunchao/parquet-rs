@@ -15,14 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::{BufWriter, Write};
+use std::io::Write;
 use std::marker::PhantomData;
+use std::mem;
+use std::slice;
+
 use basic::*;
 use data_type::*;
 use errors::{Result};
 use schema::types::ColumnDescPtr;
 use util::memory::{ByteBufferPtr, ByteBuffer, Buffer, MemTrackerPtr};
-use util::bit_util::{BitWriter, convert_to_bytes, ceil, log2, memcpy};
+use util::bit_util::{BitWriter, log2};
 use util::hash_util::{self};
 use encodings::rle_encoding::RawRleEncoder;
 
@@ -43,7 +46,7 @@ pub trait Encoder<T: DataType> {
 // Plain encoding
 
 pub struct PlainEncoder<T: DataType> {
-  out: BufWriter<ByteBuffer>,
+  buffer: ByteBuffer,
   bit_writer: BitWriter,
   descr: ColumnDescPtr,
   _phantom: PhantomData<T>
@@ -53,23 +56,18 @@ impl<T: DataType> PlainEncoder<T> {
   pub fn new(descr: ColumnDescPtr, mem_tracker: MemTrackerPtr, vec: Vec<u8>) -> Self {
     let mut byte_buffer = ByteBuffer::new().with_mem_tracker(mem_tracker);
     byte_buffer.set_data(vec);
-    let out = BufWriter::new(byte_buffer);
-    Self { out: out, bit_writer: BitWriter::new(256), descr: descr, _phantom: PhantomData }
+    Self { buffer: byte_buffer, bit_writer: BitWriter::new(256), descr: descr, _phantom: PhantomData }
   }
 }
 
 default impl<T: DataType> Encoder<T> for PlainEncoder<T> {
   fn put(&mut self, src: &[T::T], num_values: usize) -> Result<()> {
     assert!(src.len() >= num_values);
-    for i in 0..num_values {
-      let p: *const T::T = &src[i];
-      let p: *const u8 = p as *const u8;
-      let s: &[u8] = unsafe {
-        ::std::slice::from_raw_parts(p, ::std::mem::size_of::<T::T>())
-      };
-      self.out.write(s)?;
-    }
-    self.out.flush()?;
+    let bytes = unsafe {
+      slice::from_raw_parts(&src[0..num_values] as *const [T::T] as *const u8,
+                            mem::size_of::<T::T>() * num_values)
+    };
+    self.buffer.write(bytes)?;
     Ok(())
   }
 
@@ -78,7 +76,7 @@ default impl<T: DataType> Encoder<T> for PlainEncoder<T> {
   }
 
   fn consume_buffer(&mut self) -> Result<ByteBufferPtr> {
-    Ok(self.out.get_mut().consume())
+    Ok(self.buffer.consume())
   }
 }
 
@@ -91,8 +89,11 @@ impl Encoder<BoolType> for PlainEncoder<BoolType> {
 
     // TODO: maybe we should write directly to `out`?
     self.bit_writer.flush();
-    self.out.write(self.bit_writer.buffer())?;
-    self.out.flush()?;
+    {
+      let bit_buffer = self.bit_writer.buffer();
+      self.buffer.write(&bit_buffer[0..self.bit_writer.byte_offset()])?;
+      self.buffer.flush()?;
+    }
     self.bit_writer.clear();
     Ok(())
   }
@@ -102,11 +103,9 @@ impl Encoder<Int96Type> for PlainEncoder<Int96Type> {
   fn put(&mut self, src: &[Int96], num_values: usize) -> Result<()> {
     assert!(src.len() >= num_values);
     for i in 0..num_values {
-      for j in src[i].data() {
-        self.out.write(&convert_to_bytes::<u32>(&j, ::std::mem::size_of::<u32>()))?;
-      }
+      self.buffer.write(src[i].as_bytes())?;
     }
-    self.out.flush()?;
+    self.buffer.flush()?;
     Ok(())
   }
 }
@@ -115,11 +114,10 @@ impl Encoder<ByteArrayType> for PlainEncoder<ByteArrayType> {
   fn put(&mut self, src: &[ByteArray], num_values: usize) -> Result<()> {
     assert!(src.len() >= num_values);
     for i in 0..num_values {
-      let len_bytes = convert_to_bytes::<u32>(&(src[i].len().to_le() as u32), ::std::mem::size_of::<u32>());
-      self.out.write(&len_bytes)?;
-      self.out.write(src[i].data())?;
+      self.buffer.write(&(src[i].len().to_le() as u32).as_bytes())?;
+      self.buffer.write(src[i].data())?;
     }
-    self.out.flush()?;
+    self.buffer.flush()?;
     Ok(())
   }
 }
@@ -128,9 +126,9 @@ impl Encoder<FixedLenByteArrayType> for PlainEncoder<FixedLenByteArrayType> {
   fn put(&mut self, src: &[ByteArray], num_values: usize) -> Result<()> {
     assert!(src.len() >= num_values);
     for i in 0..num_values {
-      self.out.write(src[i].data())?;
+      self.buffer.write(src[i].data())?;
     }
-    self.out.flush()?;
+    self.buffer.flush()?;
     Ok(())
   }
 }
@@ -142,15 +140,6 @@ impl Encoder<FixedLenByteArrayType> for PlainEncoder<FixedLenByteArrayType> {
 const INITIAL_HASH_TABLE_SIZE: usize = 1024;
 const MAX_HASH_LOAD: f32 = 0.7;
 const HASH_SLOT_EMPTY: i32 = -1;
-
-pub trait DictEncoderTrait<T: DataType>: Encoder<T> {
-  /// Write out all unique values encountered in PLAIN encoding.
-  fn write_dict(&self) -> ByteBufferPtr;
-
-  /// Write out all buffered indices to a buffer where the first byte stores
-  /// the bit width of the data. Return the fully written buffer.
-  fn write_indices(&mut self) -> Result<ByteBufferPtr>;
-}
 
 pub struct DictEncoder<T: DataType> {
   /// Descriptor for the column to be encoded.
@@ -201,6 +190,35 @@ default impl<T: DataType> DictEncoder<T> {
     self.uniques.size()
   }
 
+  /// Write out the dictionary values with PLAIN encoding in a byte
+  /// buffer, and return the result.
+  #[inline]
+  pub fn write_dict(&self) -> Result<ByteBufferPtr> {
+    let mut plain_encoder = PlainEncoder::<T>::new(self.desc.clone(), self.mem_tracker.clone(), vec!());
+    plain_encoder.put(self.uniques.data(), self.uniques.size())?;
+    plain_encoder.consume_buffer()
+  }
+
+  /// Write out the dictionary values with RLE encoding in a byte
+  /// buffer, and return the result.
+  #[inline]
+  pub fn write_indices(&mut self) -> Result<ByteBufferPtr> {
+    let bit_width = self.bit_width();
+    let buffer_len = 1 + RawRleEncoder::min_buffer_size(bit_width);
+    let mut buffer: Vec<u8> = vec![0; buffer_len as usize];
+    buffer[0] = bit_width as u8;
+    self.mem_tracker.alloc(buffer.capacity() as i64);
+
+    // Write bit width in the first byte
+    buffer.write((self.bit_width() as u8).as_bytes())?;
+    let mut encoder = RawRleEncoder::new_from_buf(self.bit_width(), buffer, 1);
+    for index in self.buffered_indices.data() {
+      assert!(encoder.put(*index as u64)?);
+    }
+    self.buffered_indices.clear();
+    Ok(ByteBufferPtr::new(encoder.consume()?))
+  }
+
   #[inline]
   fn put_one(&mut self, value: &T::T) -> Result<()> {
     let mut j = (hash_util::hash(value, 0) & self.mod_bitmask) as usize;
@@ -231,7 +249,7 @@ default impl<T: DataType> DictEncoder<T> {
   #[inline]
   fn add_dict_key(&mut self, value: T::T) {
     self.uniques.push(value);
-    self.dict_encoded_size += ::std::mem::size_of::<T::T>() as u64;
+    self.dict_encoded_size += mem::size_of::<T::T>() as u64;
   }
 
   #[inline]
@@ -266,7 +284,7 @@ default impl<T: DataType> DictEncoder<T> {
 
     self.hash_table_size = new_size;
     self.mod_bitmask = (new_size - 1) as u64;
-    ::std::mem::replace(&mut self.hash_slots, new_hash_slots);
+    mem::replace(&mut self.hash_slots, new_hash_slots);
   }
 }
 
@@ -279,6 +297,7 @@ default impl<T: DataType> Encoder<T> for DictEncoder<T> {
     Ok(())
   }
 
+  #[inline]
   fn encoding(&self) -> Encoding {
     Encoding::PLAIN_DICTIONARY
   }
@@ -289,99 +308,6 @@ default impl<T: DataType> Encoder<T> for DictEncoder<T> {
   }
 }
 
-default impl<T: DataType> DictEncoderTrait<T> for DictEncoder<T> {
-  #[inline]
-  fn write_dict(&self) -> ByteBufferPtr {
-    let capacity = self.uniques.size() * ::std::mem::size_of::<T::T>();
-    self.mem_tracker.alloc(capacity as i64);
-    let mut buf: Vec<u8> = vec![0; capacity];
-    self.mem_tracker.alloc(buf.capacity() as i64);
-    // TODO: extract this into a function like `bit_util::memcpy`
-    unsafe {
-      ::std::ptr::copy_nonoverlapping(
-        self.uniques.data().as_ptr() as *const T::T,
-        buf.as_mut_ptr() as *mut u8 as *mut T::T,
-        self.uniques.size())
-    }
-    ByteBufferPtr::new(buf).with_mem_tracker(self.mem_tracker.clone())
-  }
-
-  #[inline]
-  fn write_indices(&mut self) -> Result<ByteBufferPtr> {
-    let bit_width = self.bit_width();
-    let buffer_len = 1 + RawRleEncoder::min_buffer_size(bit_width);
-    let mut buffer: Vec<u8> = vec![0; buffer_len as usize];
-    buffer[0] = bit_width as u8;
-    self.mem_tracker.alloc(buffer.capacity() as i64);
-
-    // Write bit width in the first byte
-    buffer.write((self.bit_width() as u8).as_bytes())?;
-    let mut encoder = RawRleEncoder::new_from_buf(self.bit_width(), buffer, 1);
-    for index in self.buffered_indices.data() {
-      let success = encoder.put(*index as u64)?;
-      assert!(success, "Buffer should have enough capacity");
-    }
-    self.buffered_indices.clear();
-    Ok(ByteBufferPtr::new(encoder.consume()?))
-  }
-}
-
-impl DictEncoderTrait<BoolType> for DictEncoder<BoolType> {
-  #[inline]
-  fn write_dict(&self) -> ByteBufferPtr {
-    let capacity = ceil(self.uniques.size() as i64, 8) as usize;
-    let buf: Vec<u8> = vec![0; capacity];
-    self.mem_tracker.alloc(buf.capacity() as i64);
-    let mut bit_writer = BitWriter::new_from_buf(buf, 0);
-    for v in self.uniques.data() {
-      let success = bit_writer.put_value(*v as u64, 1);
-      assert!(success, "Not enough room in bit writer");
-    }
-    let result = bit_writer.consume();
-    ByteBufferPtr::new(result).with_mem_tracker(self.mem_tracker.clone())
-  }
-}
-
-impl DictEncoderTrait<Int96Type> for DictEncoder<Int96Type> {
-  #[inline]
-  fn write_dict(&self) -> ByteBufferPtr {
-    let capacity = self.uniques.size() * 12;
-    self.mem_tracker.alloc(capacity as i64);
-    let mut buf: Vec<u8> = vec![0; capacity];
-    self.mem_tracker.alloc(buf.capacity() as i64);
-    for (i, v) in self.uniques.data().iter().enumerate() {
-      memcpy(v.as_bytes(), &mut buf[i * 12..]);
-    }
-    ByteBufferPtr::new(buf).with_mem_tracker(self.mem_tracker.clone())
-  }
-}
-
-impl DictEncoderTrait<ByteArrayType> for DictEncoder<ByteArrayType> {
-  #[inline]
-  fn write_dict(&self) -> ByteBufferPtr {
-    let mut buf: Vec<u8> = vec!();
-    for v in self.uniques.data() {
-      let len = v.len();
-      self.mem_tracker.alloc((::std::mem::size_of::<u32>() + len) as i64);
-      buf.extend_from_slice((len.to_le() as u32).as_bytes());
-      buf.extend_from_slice(v.data());
-    }
-    ByteBufferPtr::new(buf).with_mem_tracker(self.mem_tracker.clone())
-  }
-}
-
-impl DictEncoderTrait<FixedLenByteArrayType> for DictEncoder<FixedLenByteArrayType> {
-  #[inline]
-  fn write_dict(&self) -> ByteBufferPtr {
-    let type_len = self.desc.type_length() as usize;
-    let mut buf = ByteBuffer::new().with_mem_tracker(self.mem_tracker.clone());
-    buf.resize(type_len * self.uniques.size(), 0);
-    for (i, v) in self.uniques.data().iter().enumerate() {
-      memcpy(v.data(), &mut buf.mut_data()[(i * type_len)..])
-    }
-    buf.consume()
-  }
-}
 
 #[cfg(test)]
 mod tests {
@@ -481,7 +407,7 @@ mod tests {
       let data = encoder.consume_buffer()?;
       let mut decoder = create_test_dict_decoder::<T>();
       let mut dict_decoder = PlainDecoder::<T>::new(type_length);
-      dict_decoder.set_data(encoder.write_dict(), encoder.num_entries())?;
+      dict_decoder.set_data(encoder.write_dict()?, encoder.num_entries())?;
       decoder.set_dict(Box::new(dict_decoder))?;
       let mut result_data = vec![T::T::default(); total];
       decoder.set_data(data, total)?;

@@ -100,18 +100,16 @@ impl<T: Clone> Buffer<T> {
     Buffer { data: vec!(), mem_tracker: None, type_length: ::std::mem::size_of::<T>() }
   }
 
+  #[inline]
   pub fn with_mem_tracker(mut self, mc: MemTrackerPtr) -> Self {
     mc.alloc((self.data.capacity() * self.type_length) as i64);
     self.mem_tracker = Some(mc);
     self
   }
 
+  #[inline]
   pub fn data(&self) -> &[T] {
     self.data.as_slice()
-  }
-
-  pub fn mut_data(&mut self) -> &mut [T] {
-    self.data.as_mut_slice()
   }
 
   #[inline]
@@ -165,18 +163,22 @@ impl<T: Clone> Buffer<T> {
     self.data.push(value)
   }
 
+  #[inline]
   pub fn capacity(&self) -> usize {
     self.data.capacity()
   }
 
+  #[inline]
   pub fn size(&self) -> usize {
     self.data.len()
   }
 
+  #[inline]
   pub fn is_mem_tracked(&self) -> bool {
     self.mem_tracker.is_some()
   }
 
+  #[inline]
   pub fn mem_tracker(&self) -> &MemTrackerPtr {
    self.mem_tracker.as_ref().unwrap()
   }
@@ -199,16 +201,18 @@ impl<T: Sized + Clone> IndexMut<usize> for Buffer<T> {
 impl Write for Buffer<u8> {
   #[inline]
   fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
-    // Check if we have enough capacity for the new data
-    if self.data.len() + buf.len() > self.data.capacity() {
-      let new_capacity = ::std::cmp::max(
-        self.data.capacity() * 2, self.data.len() + buf.len());
-      self.reserve(new_capacity);
+    let old_capacity = self.data.capacity();
+    let bytes_written = self.data.write(buf)?;
+    if let Some(ref mc) = self.mem_tracker {
+      if self.data.capacity() - old_capacity > 0 {
+        mc.alloc((self.data.capacity() - old_capacity) as i64)
+      }
     }
-    self.data.write(buf)
+    Ok(bytes_written)
   }
 
   fn flush(&mut self) -> IoResult<()> {
+    // No-op
     self.data.flush()
   }
 }
