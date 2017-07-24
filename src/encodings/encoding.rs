@@ -29,6 +29,10 @@ use util::bit_util::{BitWriter, log2};
 use util::hash_util::{self};
 use encodings::rle_encoding::RawRleEncoder;
 
+/// An Parquet encoder for the data type `T`.
+/// Currently this allocate internal buffers for the encoded values.
+/// After done putting values, caller should call `consume_buffer()` to
+/// get an immutable buffer pointer.
 pub trait Encoder<T: DataType> {
   /// Encode `num_values` of values from `src`.
   fn put(&mut self, src: &[T::T], num_values: usize) -> Result<()>;
@@ -48,15 +52,15 @@ pub trait Encoder<T: DataType> {
 pub struct PlainEncoder<T: DataType> {
   buffer: ByteBuffer,
   bit_writer: BitWriter,
-  descr: ColumnDescPtr,
+  desc: ColumnDescPtr,
   _phantom: PhantomData<T>
 }
 
 impl<T: DataType> PlainEncoder<T> {
-  pub fn new(descr: ColumnDescPtr, mem_tracker: MemTrackerPtr, vec: Vec<u8>) -> Self {
+  pub fn new(desc: ColumnDescPtr, mem_tracker: MemTrackerPtr, vec: Vec<u8>) -> Self {
     let mut byte_buffer = ByteBuffer::new().with_mem_tracker(mem_tracker);
     byte_buffer.set_data(vec);
-    Self { buffer: byte_buffer, bit_writer: BitWriter::new(256), descr: descr, _phantom: PhantomData }
+    Self { buffer: byte_buffer, bit_writer: BitWriter::new(256), desc: desc, _phantom: PhantomData }
   }
 }
 
