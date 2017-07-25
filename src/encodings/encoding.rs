@@ -34,8 +34,8 @@ use encodings::rle_encoding::RawRleEncoder;
 /// After done putting values, caller should call `consume_buffer()` to
 /// get an immutable buffer pointer.
 pub trait Encoder<T: DataType> {
-  /// Encode `num_values` of values from `src`.
-  fn put(&mut self, src: &[T::T], num_values: usize) -> Result<()>;
+  /// Encode data from `values`.
+  fn put(&mut self, values: &[T::T]) -> Result<()>;
 
   /// Return the encoding type of this encoder.
   fn encoding(&self) -> Encoding;
@@ -65,11 +65,10 @@ impl<T: DataType> PlainEncoder<T> {
 }
 
 default impl<T: DataType> Encoder<T> for PlainEncoder<T> {
-  fn put(&mut self, src: &[T::T], num_values: usize) -> Result<()> {
-    assert!(src.len() >= num_values);
+  fn put(&mut self, values: &[T::T]) -> Result<()> {
     let bytes = unsafe {
-      slice::from_raw_parts(&src[0..num_values] as *const [T::T] as *const u8,
-                            mem::size_of::<T::T>() * num_values)
+      slice::from_raw_parts(values as *const [T::T] as *const u8,
+                            mem::size_of::<T::T>() * values.len())
     };
     self.buffer.write(bytes)?;
     Ok(())
@@ -85,10 +84,9 @@ default impl<T: DataType> Encoder<T> for PlainEncoder<T> {
 }
 
 impl Encoder<BoolType> for PlainEncoder<BoolType> {
-  fn put(&mut self, src: &[bool], num_values: usize) -> Result<()> {
-    assert!(src.len() >= num_values);
-    for i in 0..num_values {
-      self.bit_writer.put_value(src[i] as u64, 1);
+  fn put(&mut self, values: &[bool]) -> Result<()> {
+    for v in values {
+      self.bit_writer.put_value(*v as u64, 1);
     }
 
     // TODO: maybe we should write directly to `out`?
@@ -104,10 +102,9 @@ impl Encoder<BoolType> for PlainEncoder<BoolType> {
 }
 
 impl Encoder<Int96Type> for PlainEncoder<Int96Type> {
-  fn put(&mut self, src: &[Int96], num_values: usize) -> Result<()> {
-    assert!(src.len() >= num_values);
-    for i in 0..num_values {
-      self.buffer.write(src[i].as_bytes())?;
+  fn put(&mut self, values: &[Int96]) -> Result<()> {
+    for v in values {
+      self.buffer.write(v.as_bytes())?;
     }
     self.buffer.flush()?;
     Ok(())
@@ -115,11 +112,10 @@ impl Encoder<Int96Type> for PlainEncoder<Int96Type> {
 }
 
 impl Encoder<ByteArrayType> for PlainEncoder<ByteArrayType> {
-  fn put(&mut self, src: &[ByteArray], num_values: usize) -> Result<()> {
-    assert!(src.len() >= num_values);
-    for i in 0..num_values {
-      self.buffer.write(&(src[i].len().to_le() as u32).as_bytes())?;
-      self.buffer.write(src[i].data())?;
+  fn put(&mut self, values: &[ByteArray]) -> Result<()> {
+    for v in values {
+      self.buffer.write(&(v.len().to_le() as u32).as_bytes())?;
+      self.buffer.write(v.data())?;
     }
     self.buffer.flush()?;
     Ok(())
@@ -127,10 +123,9 @@ impl Encoder<ByteArrayType> for PlainEncoder<ByteArrayType> {
 }
 
 impl Encoder<FixedLenByteArrayType> for PlainEncoder<FixedLenByteArrayType> {
-  fn put(&mut self, src: &[ByteArray], num_values: usize) -> Result<()> {
-    assert!(src.len() >= num_values);
-    for i in 0..num_values {
-      self.buffer.write(src[i].data())?;
+  fn put(&mut self, values: &[ByteArray]) -> Result<()> {
+    for v in values {
+      self.buffer.write(v.data())?;
     }
     self.buffer.flush()?;
     Ok(())
@@ -199,7 +194,7 @@ default impl<T: DataType> DictEncoder<T> {
   #[inline]
   pub fn write_dict(&self) -> Result<ByteBufferPtr> {
     let mut plain_encoder = PlainEncoder::<T>::new(self.desc.clone(), self.mem_tracker.clone(), vec!());
-    plain_encoder.put(self.uniques.data(), self.uniques.size())?;
+    plain_encoder.put(self.uniques.data())?;
     plain_encoder.consume_buffer()
   }
 
@@ -294,9 +289,9 @@ default impl<T: DataType> DictEncoder<T> {
 
 default impl<T: DataType> Encoder<T> for DictEncoder<T> {
   #[inline]
-  fn put(&mut self, src: &[T::T], num_values: usize) -> Result<()> {
-    for i in 0..num_values {
-      self.put_one(&src[i])?
+  fn put(&mut self, values: &[T::T]) -> Result<()> {
+    for i in values {
+      self.put_one(&i)?
     }
     Ok(())
   }
@@ -391,7 +386,7 @@ mod tests {
     fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()> {
       let mut encoder = create_test_encoder::<T>(type_length, enc);
       let values = <T as RandGen<T>>::gen_vec(type_length, total);
-      encoder.put(&values[..], total)?;
+      encoder.put(&values[..])?;
 
       let data = encoder.consume_buffer()?;
       let mut decoder = create_test_decoder::<T>(type_length, enc);
@@ -406,7 +401,7 @@ mod tests {
     fn test_dict_internal(total: usize, type_length: i32) -> Result<()> {
       let mut encoder = create_test_dict_encoder::<T>(type_length);
       let values = <T as RandGen<T>>::gen_vec(type_length, total);
-      encoder.put(&values[..], total)?;
+      encoder.put(&values[..])?;
 
       let data = encoder.consume_buffer()?;
       let mut decoder = create_test_dict_decoder::<T>();
