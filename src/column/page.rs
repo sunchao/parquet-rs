@@ -16,8 +16,8 @@
 // under the License.
 
 use basic::{PageType, Encoding};
-use errors::Result;
 use util::memory::ByteBufferPtr;
+use errors::Result;
 
 /// Parquet Page definition.
 /// These are basically 1-to-1 mapped from the equivalent Thrift

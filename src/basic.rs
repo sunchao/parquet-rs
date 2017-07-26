@@ -74,7 +74,7 @@ pub enum Repetition {
 }
 
 /// Mirrors `parquet::Encoding`
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Encoding {
   PLAIN,
   PLAIN_DICTIONARY,

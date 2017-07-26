@@ -29,14 +29,14 @@ use super::rle_encoding::{RleEncoder, RleDecoder};
 /// wrapper on `RleEncoder`. Currently only support RLE encoding.
 pub struct LevelEncoder {
   encoding: Encoding,
-  bit_width: usize,
+  bit_width: u8,
   rle_encoder: RleEncoder
 }
 
 impl LevelEncoder {
   pub fn new(encoding: Encoding, max_level: i16, byte_buffer: Vec<u8>) -> Self {
     assert!(encoding == Encoding::RLE, "Currently only support RLE encoding");
-    let bit_width = log2(max_level as u64 + 1) as usize;
+    let bit_width = log2(max_level as u64 + 1) as u8;
 
     Self {
       encoding: encoding,
@@ -52,12 +52,13 @@ impl LevelEncoder {
       if !self.rle_encoder.put(*v as u64)? { break; }
       num_encoded += 1;
     }
+    self.rle_encoder.flush()?;
     Ok(num_encoded)
   }
 
   #[inline]
   pub fn max_buffer_size(encoding: Encoding, max_level: i16, num_buffered_values: usize) -> usize {
-    let bit_width = log2(max_level as u64 + 1) as usize;
+    let bit_width = log2(max_level as u64 + 1) as u8;
     match encoding {
       Encoding::RLE => {
         RleEncoder::max_buffer_size(bit_width, num_buffered_values) +
@@ -82,14 +83,14 @@ impl LevelEncoder {
 /// wrapper on `RleDecoder`. Currently it only support RLE encoding.
 pub struct LevelDecoder {
   encoding: Encoding,
-  bit_width: usize,
+  bit_width: u8,
   rle_decoder: RleDecoder
 }
 
 impl LevelDecoder {
   pub fn new(encoding: Encoding, max_level: i16) -> Self {
     assert!(encoding == Encoding::RLE, "Currently only support RLE encoding");
-    let bit_width = log2(max_level as u64) as usize;
+    let bit_width = log2(max_level as u64 + 1) as u8;
     Self {
       encoding: encoding,
       bit_width: bit_width,
@@ -114,6 +115,23 @@ impl LevelDecoder {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn test_level_encoder() {
+    let max_level = 1;
+    let levels = vec![0, 1, 1, 1, 1, 0, 0, 0, 0, 1];
+    let max_buffer_size = LevelEncoder::max_buffer_size(Encoding::RLE, max_level, levels.len());
+    let mut encoder = LevelEncoder::new(Encoding::RLE, max_level, vec![0; max_buffer_size]);
+    encoder.put(&levels).expect("put() should be OK");
+    let encoded_levels = encoder.consume().expect("consume() should be OK");
+
+    let mut decoder = LevelDecoder::new(Encoding::RLE, max_level);
+    decoder.set_data(ByteBufferPtr::new(encoded_levels));
+    let mut buffer = vec![0; levels.len()];
+    let num_decoded = decoder.get(&mut buffer).expect("get() should be OK");
+    assert_eq!(num_decoded, levels.len());
+    assert_eq!(buffer, levels);
+  }
 
   #[test]
   fn test_roundtrip() {

@@ -47,6 +47,23 @@ pub trait Encoder<T: DataType> {
 }
 
 
+/// Get a encoder for the particular data type `T` and encoding `encoding`. Memory usage for
+/// the encoder instance is tracked by `mem_tracker`.
+pub fn get_encoder<T: DataType>(desc: ColumnDescPtr,
+                                encoding: Encoding,
+                                mem_tracker: MemTrackerPtr)
+                                -> Result<Box<Encoder<T>>> where T: 'static {
+  let encoder = match encoding {
+    Encoding::PLAIN => Box::new(PlainEncoder::new(desc, mem_tracker, vec!())) as Box<Encoder<T>>,
+    Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
+      Box::new(DictEncoder::new(desc, mem_tracker))
+    },
+    e => return Err(nyi_err!("Encoding {} is not supported.", e))
+  };
+  Ok(encoder)
+}
+
+
 // ----------------------------------------------------------------------
 // Plain encoding
 
@@ -257,9 +274,11 @@ default impl<T: DataType> DictEncoder<T> {
   }
 
   #[inline]
-  fn bit_width(&self) -> usize {
+  fn bit_width(&self) -> u8 {
     let num_entries = self.uniques.size();
-    log2(num_entries as u64) as usize
+    if num_entries == 0 { 0 }
+    else if num_entries == 1 { 1 }
+    else { log2(num_entries as u64) as u8 }
   }
 
   #[inline]

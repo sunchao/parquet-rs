@@ -273,7 +273,7 @@ impl<T: DataType> DictDecoder<T> {
 impl<T: DataType> Decoder<T> for DictDecoder<T> {
   fn set_data(&mut self, data: ByteBufferPtr, num_values: usize) -> Result<()> {
     // first byte in `data` is bit width
-    let bit_width = data.as_ref()[0] as usize;
+    let bit_width = data.as_ref()[0];
     let mut rle_decoder = RleDecoder::new(bit_width);
     rle_decoder.set_data(data.start_from(1));
     self.num_values = num_values;
