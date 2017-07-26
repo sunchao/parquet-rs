@@ -30,7 +30,7 @@ use schema::types::{self, SchemaDescriptor};
 use column::page::{Page, PageReader};
 use column::reader::{ColumnReader, ColumnReaderImpl};
 use compression::{Codec, create_codec};
-use util::memory::{MemoryPool};
+use util::memory::{MemoryPool, ByteBufferPtr};
 
 // ----------------------------------------------------------------------
 // APIs for file & row group readers
@@ -310,7 +310,7 @@ impl PageReader for SerializedPageReader {
           let is_sorted = dict_header.is_sorted.unwrap_or(false);
           self.seen_num_values += dict_header.num_values as i64;
           Page::DictionaryPage {
-            buf: buffer, num_values: dict_header.num_values as u32,
+            buf: ByteBufferPtr::new(buffer), num_values: dict_header.num_values as u32,
             encoding: Encoding::from(dict_header.encoding), is_sorted: is_sorted
           }
         },
@@ -319,7 +319,7 @@ impl PageReader for SerializedPageReader {
           let header = page_header.data_page_header.as_ref().unwrap();
           self.seen_num_values += header.num_values as i64;
           Page::DataPage {
-            buf: buffer, num_values: header.num_values as u32,
+            buf: ByteBufferPtr::new(buffer), num_values: header.num_values as u32,
             encoding: Encoding::from(header.encoding),
             def_level_encoding: Encoding::from(header.definition_level_encoding),
             rep_level_encoding: Encoding::from(header.repetition_level_encoding)
@@ -331,7 +331,7 @@ impl PageReader for SerializedPageReader {
           let is_compressed = header.is_compressed.unwrap_or(true);
           self.seen_num_values += header.num_values as i64;
           Page::DataPageV2 {
-            buf: buffer, num_values: header.num_values as u32,
+            buf: ByteBufferPtr::new(buffer), num_values: header.num_values as u32,
             encoding: Encoding::from(header.encoding),
             num_nulls: header.num_nulls as u32, num_rows: header.num_rows as u32,
             def_levels_byte_len: header.definition_levels_byte_length as u32,

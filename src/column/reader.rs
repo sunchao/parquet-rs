@@ -80,7 +80,7 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
               self.num_buffered_values = num_values;
               self.num_decoded_values = 0;
 
-              let mut buffer_ptr = ByteBufferPtr::new(buf);
+              let mut buffer_ptr = buf;
 
               if self.descr.max_def_level() > 0 {
                 let mut def_decoder = get_decoder::<Int32Type>(

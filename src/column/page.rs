@@ -17,6 +17,7 @@
 
 use basic::{PageType, Encoding};
 use errors::Result;
+use util::memory::ByteBufferPtr;
 
 /// Parquet Page definition.
 /// These are basically 1-to-1 mapped from the equivalent Thrift
@@ -24,17 +25,17 @@ use errors::Result;
 /// of the page.
 pub enum Page {
   DataPage {
-    buf: Vec<u8>, num_values: u32, encoding: Encoding,
+    buf: ByteBufferPtr, num_values: u32, encoding: Encoding,
     def_level_encoding: Encoding, rep_level_encoding: Encoding
   },
   DataPageV2 {
-    buf: Vec<u8>, num_values: u32,  encoding: Encoding,
+    buf: ByteBufferPtr, num_values: u32,  encoding: Encoding,
     num_nulls: u32, num_rows: u32,
     def_levels_byte_len: u32, rep_levels_byte_len: u32,
     is_compressed: bool
   },
   DictionaryPage {
-    buf: Vec<u8>, num_values: u32, encoding: Encoding, is_sorted: bool
+    buf: ByteBufferPtr, num_values: u32, encoding: Encoding, is_sorted: bool
   }
 }
 
@@ -47,7 +48,7 @@ impl Page {
     }
   }
 
-  pub fn buffer(&self) -> &[u8] {
+  pub fn buffer(&self) -> &ByteBufferPtr {
     match self {
       &Page::DataPage{ ref buf, .. } => &buf,
       &Page::DataPageV2{ ref buf, .. } => &buf,
@@ -88,29 +89,30 @@ mod tests {
   #[test]
   fn test_page() {
     let data_page = Page::DataPage {
-      buf: vec![0, 1, 2], num_values: 10,
+      buf: ByteBufferPtr::new(vec![0, 1, 2]), num_values: 10,
       encoding: Encoding::PLAIN, def_level_encoding: Encoding::RLE,
       rep_level_encoding: Encoding::RLE };
     assert_eq!(data_page.page_type(), PageType::DATA_PAGE);
-    assert_eq!(data_page.buffer(), vec![0, 1, 2].as_slice());
+    assert_eq!(data_page.buffer().data(), vec![0, 1, 2].as_slice());
     assert_eq!(data_page.num_values(), 10);
     assert_eq!(data_page.encoding(), Encoding::PLAIN);
 
     let data_page_v2 = Page::DataPageV2 {
-      buf: vec![0, 1, 2], num_values: 10, encoding: Encoding::PLAIN,
+      buf: ByteBufferPtr::new(vec![0, 1, 2]), num_values: 10, encoding: Encoding::PLAIN,
       num_nulls: 5, num_rows: 20, def_levels_byte_len: 30, rep_levels_byte_len: 40,
       is_compressed: false
     };
     assert_eq!(data_page_v2.page_type(), PageType::DATA_PAGE_V2);
-    assert_eq!(data_page_v2.buffer(), vec![0, 1, 2].as_slice());
+    assert_eq!(data_page_v2.buffer().data(), vec![0, 1, 2].as_slice());
     assert_eq!(data_page_v2.num_values(), 10);
     assert_eq!(data_page_v2.encoding(), Encoding::PLAIN);
 
     let dict_page = Page::DictionaryPage {
-      buf: vec![0, 1, 2], num_values: 10, encoding: Encoding::PLAIN, is_sorted: false
+      buf: ByteBufferPtr::new(vec![0, 1, 2]), num_values: 10,
+      encoding: Encoding::PLAIN, is_sorted: false
     };
     assert_eq!(dict_page.page_type(), PageType::DICTIONARY_PAGE);
-    assert_eq!(dict_page.buffer(), vec![0, 1, 2].as_slice());
+    assert_eq!(dict_page.buffer().data(), vec![0, 1, 2].as_slice());
     assert_eq!(dict_page.num_values(), 10);
     assert_eq!(dict_page.encoding(), Encoding::PLAIN);
   }
