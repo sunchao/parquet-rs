@@ -37,10 +37,12 @@ pub trait Decoder<T: DataType> {
   /// values to decode.
   fn set_data(&mut self, data: ByteBufferPtr, num_values: usize) -> Result<()>;
 
-  /// Try to consume at most `max_values` from this decoder and write
-  /// the result to `buffer`.. Return the actual number of values written.
-  /// N.B., `buffer.len()` must at least be `max_values`.
-  fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize>;
+  /// Try to consume values from this decoder and write
+  /// the results to `buffer`. This will try to fill up `buffer`.
+  /// Return the actual number of values written, which should be equal to
+  /// `buffer.len()` unless the remaining number of values is less
+  /// than `buffer.len()`.
+  fn get(&mut self, buffer: &mut [T::T]) -> Result<usize>;
 
   /// Number of values left in this decoder stream
   fn values_left(&self) -> usize;
@@ -155,12 +157,11 @@ default impl<T: DataType> Decoder<T> for PlainDecoder<T> {
   }
 
   #[inline]
-  fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize> {
-    assert!(buffer.len() >= max_values);
+  fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
     assert!(self.data.is_some());
 
     let data = self.data.as_mut().unwrap();
-    let num_values = cmp::min(max_values, self.num_values);
+    let num_values = cmp::min(buffer.len(), self.num_values);
     let bytes_left = data.len() - self.start;
     let bytes_to_decode = mem::size_of::<T::T>() * num_values;
     if bytes_left < bytes_to_decode {
@@ -178,12 +179,11 @@ default impl<T: DataType> Decoder<T> for PlainDecoder<T> {
 }
 
 impl Decoder<Int96Type> for PlainDecoder<Int96Type> {
-  fn decode(&mut self, buffer: &mut [Int96], max_values: usize) -> Result<usize> {
-    assert!(buffer.len() >= max_values);
+  fn get(&mut self, buffer: &mut [Int96]) -> Result<usize> {
     assert!(self.data.is_some());
 
     let data = self.data.as_mut().unwrap();
-    let num_values = cmp::min(max_values, self.num_values);
+    let num_values = cmp::min(buffer.len(), self.num_values);
     let bytes_left = data.len() - self.start;
     let bytes_to_decode = 12 * num_values;
     if bytes_left < bytes_to_decode {
@@ -213,12 +213,11 @@ impl Decoder<BoolType> for PlainDecoder<BoolType> {
     Ok(())
   }
 
-  fn decode(&mut self, buffer: &mut [bool], max_values: usize) -> Result<usize> {
-    assert!(buffer.len() >= max_values);
+  fn get(&mut self, buffer: &mut [bool]) -> Result<usize> {
     assert!(self.bit_reader.is_some());
 
     let mut bit_reader = self.bit_reader.as_mut().unwrap();
-    let num_values = cmp::min(max_values, self.num_values);
+    let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
       bit_reader.get_value::<bool>(1).map(|b| {
         buffer[i] = b;
@@ -231,12 +230,11 @@ impl Decoder<BoolType> for PlainDecoder<BoolType> {
 }
 
 impl Decoder<ByteArrayType> for PlainDecoder<ByteArrayType> {
-  fn decode(&mut self, buffer: &mut [ByteArray], max_values: usize) -> Result<usize> {
-    assert!(buffer.len() >= max_values);
+  fn get(&mut self, buffer: &mut [ByteArray]) -> Result<usize> {
     assert!(self.data.is_some());
 
     let data = self.data.as_mut().unwrap();
-    let num_values = cmp::min(max_values, self.num_values);
+    let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
       let len: usize = read_num_bytes!(u32, 4, data.start_from(self.start).as_ref()) as usize;
       self.start += mem::size_of::<u32>();
@@ -253,14 +251,13 @@ impl Decoder<ByteArrayType> for PlainDecoder<ByteArrayType> {
 }
 
 impl Decoder<FixedLenByteArrayType> for PlainDecoder<FixedLenByteArrayType> {
-  fn decode(&mut self, buffer: &mut [ByteArray], max_values: usize) -> Result<usize> {
-    assert!(buffer.len() >= max_values);
+  fn get(&mut self, buffer: &mut [ByteArray]) -> Result<usize> {
     assert!(self.data.is_some());
     assert!(self.type_length > 0);
 
     let data = self.data.as_mut().unwrap();
     let type_length = self.type_length as usize;
-    let num_values = cmp::min(max_values, self.num_values);
+    let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
       if data.len() < self.start + type_length {
         return Err(general_err!("Not enough bytes to decode"));
@@ -300,7 +297,7 @@ impl<T: DataType> DictDecoder<T> {
   pub fn set_dict(&mut self, mut decoder: Box<Decoder<T>>) -> Result<()> {
     let num_values = decoder.values_left();
     self.dictionary.resize(num_values, T::T::default());
-    let _ = decoder.decode(&mut self.dictionary, num_values)?;
+    let _ = decoder.get(&mut self.dictionary)?;
     self.has_dictionary = true;
     Ok(())
   }
@@ -317,13 +314,12 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
     Ok(())
   }
 
-  fn decode(&mut self, buffer: &mut [T::T], max_values: usize) -> Result<usize> {
-    assert!(buffer.len() >= max_values);
+  fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
     assert!(self.rle_decoder.is_some());
     assert!(self.has_dictionary, "Must call set_dict() first!");
 
     let mut rle = self.rle_decoder.as_mut().unwrap();
-    let num_values = cmp::min(max_values, self.num_values);
+    let num_values = cmp::min(buffer.len(), self.num_values);
     rle.get_batch_with_dict(&self.dictionary[..], buffer, num_values)
   }
 
@@ -366,7 +362,7 @@ default impl<T: DataType> Decoder<T> for RleDecoder<T> {
     Err(general_err!("RleDecoder only support Int32Type"))
   }
 
-  fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+  fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
     Err(general_err!("RleDecoder only support Int32Type"))
   }
 
@@ -397,8 +393,8 @@ impl Decoder<Int32Type> for RleDecoder<Int32Type> {
   }
 
   #[inline]
-  fn decode(&mut self, buffer: &mut [i32], max_values: usize) -> Result<usize> {
-    let values_read = self.decoder.get_batch(buffer, max_values)?;
+  fn get(&mut self, buffer: &mut [i32]) -> Result<usize> {
+    let values_read = self.decoder.get_batch(buffer)?;
     self.num_values -= values_read;
     Ok(values_read)
   }
@@ -474,7 +470,7 @@ default impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
     Err(general_err!("DeltaBitPackDecoder only support Int64Type"))
   }
 
-  fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+  fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
     Err(general_err!("DeltaBitPackDecoder only support Int64Type"))
   }
 
@@ -512,11 +508,10 @@ impl Decoder<Int64Type> for DeltaBitPackDecoder<Int64Type> {
 
   // TODO: same impl for i32?
   #[inline]
-  fn decode(&mut self, buffer: &mut [i64], max_values: usize) -> Result<usize> {
-    assert!(buffer.len() >= max_values);
+  fn get(&mut self, buffer: &mut [i64]) -> Result<usize> {
     assert!(self.bit_reader.is_some());
 
-    let num_values = cmp::min(max_values, self.num_values);
+    let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
       if !self.first_value_read {
         buffer[i] = self.first_value;
@@ -590,7 +585,7 @@ default impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
     Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
-  fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+  fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
     Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
@@ -614,7 +609,7 @@ impl Decoder<ByteArrayType> for DeltaLengthByteArrayDecoder<ByteArrayType> {
     len_decoder.set_data(data.all(), num_values)?;
     let num_lengths = len_decoder.values_left();
     self.lengths.resize(num_lengths, 0);
-    len_decoder.decode(&mut self.lengths[..], num_lengths)?;
+    len_decoder.get(&mut self.lengths[..])?;
 
     self.data = Some(data.start_from(len_decoder.get_offset()));
     self.offset = 0;
@@ -623,12 +618,11 @@ impl Decoder<ByteArrayType> for DeltaLengthByteArrayDecoder<ByteArrayType> {
     Ok(())
   }
 
-  fn decode(&mut self, buffer: &mut [ByteArray], max_values: usize) -> Result<usize> {
+  fn get(&mut self, buffer: &mut [ByteArray]) -> Result<usize> {
     assert!(self.data.is_some());
-    assert!(buffer.len() >= max_values);
 
     let data = self.data.as_ref().unwrap();
-    let num_values = cmp::min(self.num_values, max_values);
+    let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
       let len = self.lengths[self.current_idx] as usize;
       buffer[i].set_data(data.range(self.offset, len));
@@ -677,7 +671,7 @@ default impl<'m, T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
     Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
-  fn decode(&mut self, _: &mut [T::T], _: usize) -> Result<usize> {
+  fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
     Err(general_err!("DeltaByteArrayDecoder only support ByteArrayType"))
   }
 
@@ -700,7 +694,7 @@ impl<> Decoder<ByteArrayType> for DeltaByteArrayDecoder<ByteArrayType> {
     prefix_len_decoder.set_data(data.all(), num_values)?;
     let num_prefixes = prefix_len_decoder.values_left();
     self.prefix_lengths.resize(num_prefixes, 0);
-    prefix_len_decoder.decode(&mut self.prefix_lengths[..], num_prefixes)?;
+    prefix_len_decoder.get(&mut self.prefix_lengths[..])?;
 
     let mut suffix_decoder = DeltaLengthByteArrayDecoder::new();
     suffix_decoder.set_data(data.start_from(prefix_len_decoder.get_offset()), num_values)?;
@@ -709,11 +703,10 @@ impl<> Decoder<ByteArrayType> for DeltaByteArrayDecoder<ByteArrayType> {
     Ok(())
   }
 
-  fn decode(&mut self, buffer: &mut [ByteArray], max_values: usize) -> Result<usize> {
-    assert!(buffer.len() >= max_values);
+  fn get(&mut self, buffer: &mut [ByteArray]) -> Result<usize> {
     assert!(self.suffix_decoder.is_some());
 
-    let num_values = cmp::min(self.num_values, max_values);
+    let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
       // Process prefix
       let mut prefix_slice: Option<Vec<u8>> = None;
@@ -727,7 +720,7 @@ impl<> Decoder<ByteArrayType> for DeltaByteArrayDecoder<ByteArrayType> {
       // TODO: this is awkward - maybe we should add a non-vectorized API?
       let mut suffix = vec![ByteArray::new(); 1];
       let suffix_decoder = self.suffix_decoder.as_mut().unwrap();
-      suffix_decoder.decode(&mut suffix[..], 1)?;
+      suffix_decoder.get(&mut suffix[..])?;
 
       // Concatenate prefix with suffix
       let result: Vec<u8> = match prefix_slice {
@@ -834,12 +827,15 @@ mod tests {
     test_plain_decode::<FixedLenByteArrayType>(ByteBufferPtr::new(data_bytes), 3, 4, &mut buffer[..], &data[..]);
   }
 
-  fn test_plain_decode<T: DataType>(data: ByteBufferPtr, num_values: usize, type_length: i32,
-                                    buffer: &mut [T::T], expected: &[T::T]) {
+  fn test_plain_decode<T: DataType>(data: ByteBufferPtr,
+                                    num_values: usize,
+                                    type_length: i32,
+                                    buffer: &mut [T::T],
+                                    expected: &[T::T]) {
     let mut decoder: PlainDecoder<T> = PlainDecoder::new(type_length);
     let result = decoder.set_data(data, num_values);
     assert!(result.is_ok());
-    let result = decoder.decode(&mut buffer[..], num_values);
+    let result = decoder.get(&mut buffer[..]);
     assert!(result.is_ok());
     assert_eq!(decoder.values_left(), 0);
     assert_eq!(buffer, expected);

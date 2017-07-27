@@ -19,7 +19,6 @@ use basic::*;
 use data_type::*;
 use schema::types::ColumnDescPtr;
 use encodings::decoding::{get_decoder, Decoder, ValueType};
-use util::memory::ByteBufferPtr;
 use errors::{Result, ParquetError};
 use super::page::{Page, PageReader};
 

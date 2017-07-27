@@ -392,7 +392,7 @@ mod tests {
       let mut decoder = create_test_decoder::<T>(type_length, enc);
       let mut result_data = vec![T::T::default(); total];
       decoder.set_data(data, total)?;
-      let _ = decoder.decode(&mut result_data, total)?;
+      let _ = decoder.get(&mut result_data)?;
 
       assert_eq!(result_data, values);
       Ok(())
@@ -410,7 +410,7 @@ mod tests {
       decoder.set_dict(Box::new(dict_decoder))?;
       let mut result_data = vec![T::T::default(); total];
       decoder.set_data(data, total)?;
-      let _ = decoder.decode(&mut result_data, total)?;
+      let _ = decoder.get(&mut result_data)?;
 
       assert_eq!(result_data, values);
       Ok(())

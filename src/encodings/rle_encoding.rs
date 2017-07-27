@@ -341,16 +341,15 @@ impl RawRleDecoder {
   }
 
   #[inline]
-  pub fn get_batch<T: Default>(&mut self, buffer: &mut [T], max_values: usize) -> Result<usize> {
-    assert!(buffer.len() >= max_values);
+  pub fn get_batch<T: Default>(&mut self, buffer: &mut [T]) -> Result<usize> {
     assert!(self.bit_reader.is_some());
     assert!(size_of::<T>() <= 8);
 
     let mut values_read = 0;
-    while values_read < max_values {
+    while values_read < buffer.len() {
       if self.rle_left > 0 {
         assert!(self.current_value.is_some());
-        let num_values = cmp::min(max_values - values_read, self.rle_left as usize);
+        let num_values = cmp::min(buffer.len() - values_read, self.rle_left as usize);
         for i in 0..num_values {
           let repeated_value = unsafe {
             transmute_copy::<u64, T>(self.current_value.as_mut().unwrap())
@@ -361,7 +360,7 @@ impl RawRleDecoder {
         values_read += num_values;
       } else if self.bit_packed_left > 0 {
         assert!(self.bit_reader.is_some());
-        let num_values = cmp::min(max_values - values_read, self.bit_packed_left as usize);
+        let num_values = cmp::min(buffer.len() - values_read, self.bit_packed_left as usize);
         if let Some(ref mut bit_reader) = self.bit_reader {
           for i in 0..num_values {
             bit_reader.get_value(self.bit_width).map(|v| {
@@ -456,7 +455,7 @@ mod tests {
     decoder.set_data(data);
     let mut buffer = vec!(0; 8);
     let expected = vec!(0, 1, 2, 3, 4, 5, 6, 7);
-    let result = decoder.get_batch::<i32>(&mut buffer, 8);
+    let result = decoder.get_batch::<i32>(&mut buffer);
     assert!(result.is_ok());
     assert_eq!(buffer, expected);
   }
@@ -485,7 +484,7 @@ mod tests {
         expected.push(false);
       }
     }
-    let result = decoder.get_batch::<bool>(&mut buffer, 100);
+    let result = decoder.get_batch::<bool>(&mut buffer);
     assert!(result.is_ok());
     assert_eq!(buffer, expected);
 
@@ -499,7 +498,7 @@ mod tests {
         expected.push(true);
       }
     }
-    let result = decoder.get_batch::<bool>(&mut buffer, 100);
+    let result = decoder.get_batch::<bool>(&mut buffer);
     assert!(result.is_ok());
     assert_eq!(buffer, expected);
   }
@@ -560,7 +559,7 @@ mod tests {
     // Verify batch read
     decoder.set_data(buffer);
     let mut values_read: Vec<i64> = vec![0; values.len()];
-    decoder.get_batch(&mut values_read[..], values.len()).expect("get_batch() should be OK");
+    decoder.get_batch(&mut values_read[..]).expect("get_batch() should be OK");
     assert_eq!(&values_read[..], values);
   }
 
@@ -655,7 +654,7 @@ mod tests {
     let mut decoder = RawRleDecoder::new(bit_width);
     decoder.set_data(buffer);
     let mut values_read: Vec<i32> = vec![0; values.len()];
-    decoder.get_batch(&mut values_read[..], values.len()).expect("get_batch() should be OK");
+    decoder.get_batch(&mut values_read[..]).expect("get_batch() should be OK");
     assert_eq!(&values_read[..], values);
   }
 
