@@ -25,7 +25,7 @@ use errors::{Result, ParquetError};
 use schema::types::ColumnDescPtr;
 use util::bit_util::BitReader;
 use util::memory::{ByteBufferPtr, ByteBuffer};
-use super::rle_encoding::RawRleDecoder;
+use super::rle_encoding::RleDecoder;
 
 
 // ----------------------------------------------------------------------
@@ -250,7 +250,7 @@ pub struct DictDecoder<T: DataType> {
   has_dictionary: bool,
 
   // The decoder for the value ids
-  rle_decoder: Option<RawRleDecoder>,
+  rle_decoder: Option<RleDecoder>,
 
   // Number of values left in the data stream
   num_values: usize,
@@ -274,7 +274,7 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
   fn set_data(&mut self, data: ByteBufferPtr, num_values: usize) -> Result<()> {
     // first byte in `data` is bit width
     let bit_width = data.as_ref()[0] as usize;
-    let mut rle_decoder = RawRleDecoder::new(bit_width);
+    let mut rle_decoder = RleDecoder::new(bit_width);
     rle_decoder.set_data(data.start_from(1));
     self.num_values = num_values;
     self.rle_decoder = Some(rle_decoder);

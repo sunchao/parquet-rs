@@ -27,7 +27,7 @@ use schema::types::ColumnDescPtr;
 use util::memory::{ByteBufferPtr, ByteBuffer, Buffer, MemTrackerPtr};
 use util::bit_util::{BitWriter, log2};
 use util::hash_util::{self};
-use encodings::rle_encoding::RawRleEncoder;
+use encodings::rle_encoding::RleEncoder;
 
 /// An Parquet encoder for the data type `T`.
 /// Currently this allocate internal buffers for the encoded values.
@@ -203,14 +203,14 @@ default impl<T: DataType> DictEncoder<T> {
   #[inline]
   pub fn write_indices(&mut self) -> Result<ByteBufferPtr> {
     let bit_width = self.bit_width();
-    let buffer_len = 1 + RawRleEncoder::min_buffer_size(bit_width);
+    let buffer_len = 1 + RleEncoder::min_buffer_size(bit_width);
     let mut buffer: Vec<u8> = vec![0; buffer_len as usize];
     buffer[0] = bit_width as u8;
     self.mem_tracker.alloc(buffer.capacity() as i64);
 
     // Write bit width in the first byte
     buffer.write((self.bit_width() as u8).as_bytes())?;
-    let mut encoder = RawRleEncoder::new_from_buf(self.bit_width(), buffer, 1);
+    let mut encoder = RleEncoder::new_from_buf(self.bit_width(), buffer, 1);
     for index in self.buffered_indices.data() {
       assert!(encoder.put(*index as u64)?);
     }

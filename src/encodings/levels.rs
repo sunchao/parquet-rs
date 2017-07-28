@@ -22,27 +22,27 @@ use data_type::AsBytes;
 use errors::Result;
 use util::bit_util::log2;
 use util::memory::ByteBufferPtr;
-use super::rle_encoding::{RawRleEncoder, RawRleDecoder};
+use super::rle_encoding::{RleEncoder, RleDecoder};
 
 
 /// A encoder for definition/repetition levels. This is a thin
-/// wrapper on `RawRleDecoder`. Currently only support RLE encoding.
+/// wrapper on `RleEncoder`. Currently only support RLE encoding.
 pub struct LevelEncoder {
   encoding: Encoding,
   bit_width: usize,
-  rle_encoder: RawRleEncoder
+  rle_encoder: RleEncoder
 }
 
 impl LevelEncoder {
   pub fn new(encoding: Encoding, max_level: i16) -> Self {
     assert!(encoding == Encoding::RLE, "Currently only support RLE encoding");
     let bit_width = log2(max_level as u64) as usize;
-    let max_buffer_size = RawRleEncoder::min_buffer_size(bit_width);
+    let max_buffer_size = RleEncoder::min_buffer_size(bit_width);
     let buffer = vec![0; max_buffer_size + mem::size_of::<i32>()];
     Self {
       encoding: encoding,
       bit_width: bit_width,
-      rle_encoder: RawRleEncoder::new_from_buf(bit_width, buffer, mem::size_of::<i32>())
+      rle_encoder: RleEncoder::new_from_buf(bit_width, buffer, mem::size_of::<i32>())
     }
   }
 
@@ -67,11 +67,11 @@ impl LevelEncoder {
 }
 
 /// A encoder for definition/repetition levels. This is a thin
-/// wrapper on `RawRleDecoder`. Currently it only support RLE encoding.
+/// wrapper on `RleDecoder`. Currently it only support RLE encoding.
 pub struct LevelDecoder {
   encoding: Encoding,
   bit_width: usize,
-  rle_decoder: RawRleDecoder
+  rle_decoder: RleDecoder
 }
 
 impl LevelDecoder {
@@ -81,7 +81,7 @@ impl LevelDecoder {
     Self {
       encoding: encoding,
       bit_width: bit_width,
-      rle_decoder: RawRleDecoder::new(bit_width),
+      rle_decoder: RleDecoder::new(bit_width),
     }
   }
 

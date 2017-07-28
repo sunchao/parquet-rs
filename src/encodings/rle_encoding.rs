@@ -45,7 +45,7 @@ const MAX_VALUES_PER_BIT_PACKED_RUN: usize = MAX_GROUPS_PER_BIT_PACKED_RUN * 8;
 const MAX_WRITER_BUF_SIZE: usize = 1 << 10;
 
 /// A RLE/Bit-Packing hybrid encoder.
-pub struct RawRleEncoder {
+pub struct RleEncoder {
   /// Number of bits needed to encode the value. Must be in the range of (0, 64].
   bit_width: usize,
 
@@ -80,21 +80,21 @@ pub struct RawRleEncoder {
   indicator_byte_pos: i64
 }
 
-impl RawRleEncoder {
+impl RleEncoder {
   pub fn new(bit_width: usize, buffer_len: usize) -> Self {
     let buffer = vec![0; buffer_len];
-    RawRleEncoder::new_from_buf(bit_width, buffer, 0)
+    RleEncoder::new_from_buf(bit_width, buffer, 0)
   }
 
   /// Initialize the encoder from existing `buffer` and the starting offset `start`.
   pub fn new_from_buf(bit_width: usize, buffer: Vec<u8>, start: usize) -> Self {
     assert!(bit_width > 0 && bit_width <= 64, "bit_width ({}) out of range.", bit_width);
-    let max_run_byte_size = RawRleEncoder::min_buffer_size(bit_width);
+    let max_run_byte_size = RleEncoder::min_buffer_size(bit_width);
     assert!(buffer.len() >= max_run_byte_size,
             "buffer length {} must be greater than {}",
             buffer.len(), max_run_byte_size);
     let bit_writer = BitWriter::new_from_buf(buffer, start);
-    RawRleEncoder {
+    RleEncoder {
       bit_width: bit_width,
       bit_writer: bit_writer,
       buffer_full: false,
@@ -284,7 +284,7 @@ impl RawRleEncoder {
 
 
 /// A RLE/Bit-Packing hybrid decoder.
-pub struct RawRleDecoder {
+pub struct RleDecoder {
   /// Number of bits used to encode the value
   bit_width: usize,
 
@@ -301,9 +301,9 @@ pub struct RawRleDecoder {
   current_value: Option<u64>,
 }
 
-impl RawRleDecoder {
+impl RleDecoder {
   pub fn new(bit_width: usize) -> Self {
-    RawRleDecoder { bit_width: bit_width, rle_left: 0, bit_packed_left: 0,
+    RleDecoder { bit_width: bit_width, rle_left: 0, bit_packed_left: 0,
                     bit_reader: None, current_value: None }
   }
 
@@ -456,7 +456,7 @@ mod tests {
     // test data: 0-7 with bit width 3
     // 00000011 10001000 11000110 11111010
     let data = ByteBufferPtr::new(vec!(0x03, 0x88, 0xC6, 0xFA));
-    let mut decoder: RawRleDecoder = RawRleDecoder::new(3);
+    let mut decoder: RleDecoder = RleDecoder::new(3);
     decoder.set_data(data);
     let mut buffer = vec!(0; 8);
     let expected = vec!(0, 1, 2, 3, 4, 5, 6, 7);
@@ -478,7 +478,7 @@ mod tests {
       vec!(0x1B, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA,
            0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0xAA, 0x0A));
 
-    let mut decoder: RawRleDecoder = RawRleDecoder::new(1);
+    let mut decoder: RleDecoder = RleDecoder::new(1);
     decoder.set_data(data1);
     let mut buffer = vec!(false; 100);
     let mut expected = vec!();
@@ -514,7 +514,7 @@ mod tests {
     // 00000110 00000000 00001000 00000001 00001010 00000010
     let dict = vec!(10, 20, 30);
     let data = ByteBufferPtr::new(vec!(0x06, 0x00, 0x08, 0x01, 0x0A, 0x02));
-    let mut decoder: RawRleDecoder = RawRleDecoder::new(3);
+    let mut decoder: RleDecoder = RleDecoder::new(3);
     decoder.set_data(data);
     let mut buffer = vec!(0; 12);
     let expected = vec!(10, 10, 10, 20, 20, 20, 20, 30, 30, 30, 30, 30);
@@ -527,7 +527,7 @@ mod tests {
     // 00000011 01100011 11000111 10001110 00000011 01100101 00001011
     let dict = vec!("aaa", "bbb", "ccc", "ddd", "eee", "fff");
     let data = ByteBufferPtr::new(vec!(0x03, 0x63, 0xC7, 0x8E, 0x03, 0x65, 0x0B));
-    let mut decoder: RawRleDecoder = RawRleDecoder::new(3);
+    let mut decoder: RleDecoder = RleDecoder::new(3);
     decoder.set_data(data);
     let mut buffer = vec!(""; 12);
     let expected = vec!("ddd", "eee", "fff", "ddd", "eee", "fff",
@@ -539,7 +539,7 @@ mod tests {
 
   fn validate_rle(values: &[i64], bit_width: usize, expected_encoding: Option<&[u8]>, expected_len: i32) {
     let buffer_len = 64 * 1024;
-    let mut encoder = RawRleEncoder::new(bit_width, buffer_len);
+    let mut encoder = RleEncoder::new(bit_width, buffer_len);
     for v in values {
       let result = encoder.put(*v as u64);
       assert!(result.is_ok());
@@ -554,7 +554,7 @@ mod tests {
     }
 
     // Verify read
-    let mut decoder = RawRleDecoder::new(bit_width);
+    let mut decoder = RleDecoder::new(bit_width);
     decoder.set_data(buffer.all());
     for v in values {
       let val: i64 = decoder.get().expect("get() should be OK").expect("get() should return more value");
@@ -639,7 +639,7 @@ mod tests {
 
   fn test_round_trip(values: &[i32], bit_width: usize) {
     let buffer_len = 64 * 1024;
-    let mut encoder = RawRleEncoder::new(bit_width, buffer_len);
+    let mut encoder = RleEncoder::new(bit_width, buffer_len);
     for v in values {
       let result = encoder.put(*v as u64).expect("put() should be OK");
       assert!(result, "put() should not return false");
@@ -648,7 +648,7 @@ mod tests {
     let buffer = ByteBufferPtr::new(encoder.consume().expect("consume() should be OK"));
 
     // Verify read
-    let mut decoder = RawRleDecoder::new(bit_width);
+    let mut decoder = RleDecoder::new(bit_width);
     decoder.set_data(buffer.all());
     for v in values {
       let val = decoder.get::<i32>().expect("get() should be OK").expect("get() should return value");
@@ -656,7 +656,7 @@ mod tests {
     }
 
     // Verify batch read
-    let mut decoder = RawRleDecoder::new(bit_width);
+    let mut decoder = RleDecoder::new(bit_width);
     decoder.set_data(buffer);
     let mut values_read: Vec<i32> = vec![0; values.len()];
     decoder.get_batch(&mut values_read[..]).expect("get_batch() should be OK");
