@@ -18,7 +18,8 @@
 use basic::*;
 use data_type::*;
 use schema::types::ColumnDescPtr;
-use encodings::decoding::{get_decoder, Decoder, ValueType};
+use encodings::decoding::{get_decoder, Decoder};
+use encodings::levels::LevelDecoder;
 use errors::{Result, ParquetError};
 use super::page::{Page, PageReader};
 
@@ -37,8 +38,8 @@ pub enum ColumnReader<'a> {
 /// The lifetime parameter 'a denotes the lifetime of the page reader
 pub struct ColumnReaderImpl<'a, T: DataType> {
   descr: ColumnDescPtr,
-  def_level_decoder: Option<Box<Decoder<Int32Type>>>,
-  rep_level_decoder: Option<Box<Decoder<Int32Type>>>,
+  def_level_decoder: Option<LevelDecoder>,
+  rep_level_decoder: Option<LevelDecoder>,
   page_reader: Box<PageReader + 'a>,
   current_decoder: Option<Box<Decoder<T>>>,
 
@@ -81,26 +82,24 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
 
               let mut buffer_ptr = buf;
 
-              if self.descr.max_def_level() > 0 {
-                let mut def_decoder = get_decoder::<Int32Type>(
-                  self.descr.clone(), def_level_encoding, ValueType::DEF_LEVEL)?;
-                def_decoder.set_data(buffer_ptr.all(), num_values as usize)?;
-                buffer_ptr = buffer_ptr.start_from(def_decoder.total_bytes()?);
-                self.def_level_decoder = Some(def_decoder);
+              if self.descr.max_rep_level() > 0 {
+                let mut rep_decoder = LevelDecoder::new(rep_level_encoding, self.descr.max_rep_level());
+                let total_bytes = rep_decoder.set_data(buffer_ptr.all());
+                buffer_ptr = buffer_ptr.start_from(total_bytes);
+                self.rep_level_decoder = Some(rep_decoder);
               }
 
-              if self.descr.max_rep_level() > 0 {
-                let mut rep_decoder = get_decoder::<Int32Type>(
-                  self.descr.clone(), rep_level_encoding, ValueType::REP_LEVEL)?;
-                rep_decoder.set_data(buffer_ptr.all(), num_values as usize)?;
-                buffer_ptr = buffer_ptr.start_from(rep_decoder.total_bytes()?);
-                self.rep_level_decoder = Some(rep_decoder);
+              if self.descr.max_def_level() > 0 {
+                let mut def_decoder = LevelDecoder::new(def_level_encoding, self.descr.max_def_level());
+                let total_bytes = def_decoder.set_data(buffer_ptr.all());
+                buffer_ptr = buffer_ptr.start_from(total_bytes);
+                self.def_level_decoder = Some(def_decoder);
               }
 
               // Initialize decoder for this page
               let mut data_decoder = match encoding {
                 Encoding::PLAIN => {
-                  get_decoder::<T>(self.descr.clone(), encoding, ValueType::VALUE)?
+                  get_decoder::<T>(self.descr.clone(), encoding)?
                 },
                 en => {
                   return Err(nyi_err!("Unsupported encoding {}", en))

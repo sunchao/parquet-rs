@@ -16,7 +16,6 @@
 // under the License.
 
 use std::cmp;
-use std::fmt;
 use std::mem;
 use std::marker::PhantomData;
 use std::slice::from_raw_parts_mut;
@@ -24,7 +23,7 @@ use basic::*;
 use data_type::*;
 use errors::{Result, ParquetError};
 use schema::types::ColumnDescPtr;
-use util::bit_util::{log2, BitReader};
+use util::bit_util::BitReader;
 use util::memory::{ByteBufferPtr, ByteBuffer};
 use super::rle_encoding::RawRleDecoder;
 
@@ -49,45 +48,18 @@ pub trait Decoder<T: DataType> {
 
   /// Return the encoding for this decoder
   fn encoding(&self) -> Encoding;
-
-  /// Return the total number of bytes to be decoded.
-  /// NOTE: not all decoder types support this, and it returns `Err` if not supported.
-  fn total_bytes(&self) -> Result<usize>;
 }
 
-
-#[derive(Debug)]
-pub enum ValueType {
-  DEF_LEVEL,
-  REP_LEVEL,
-  VALUE
-}
-
-impl fmt::Display for ValueType {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self)
-  }
-}
 
 /// Get a decoder for the particular data type `T` and encoding `encoding`.
 /// `descr` and `value_type` currently are only used when getting a `RleDecoder`
 /// and is used to decide whether this is for definition level or repetition level.
-pub fn get_decoder<T: DataType>(
-  descr: ColumnDescPtr,
-  encoding: Encoding,
-  value_type: ValueType) -> Result<Box<Decoder<T>>> where T: 'static {
+pub fn get_decoder<T: DataType>(descr: ColumnDescPtr,
+                                encoding: Encoding) ->
+    Result<Box<Decoder<T>>> where T: 'static {
   let decoder = match encoding {
     // TODO: why Rust cannot infer result type without the `as Box<...>`?
     Encoding::PLAIN => Box::new(PlainDecoder::new(descr.type_length())) as Box<Decoder<T>>,
-    Encoding::RLE => {
-      let level = match value_type {
-        ValueType::DEF_LEVEL => descr.max_def_level(),
-        ValueType::REP_LEVEL => descr.max_rep_level(),
-        t => return Err(general_err!("Unexpected value type {}", t))
-      };
-      let level_bit_width = log2(level as u64);
-      Box::new(RleDecoder::new(level_bit_width as usize))
-    },
     Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackDecoder::new()),
     Encoding::DELTA_LENGTH_BYTE_ARRAY => Box::new(DeltaLengthByteArrayDecoder::new()),
     Encoding::DELTA_BYTE_ARRAY => Box::new(DeltaByteArrayDecoder::new()),
@@ -149,11 +121,6 @@ default impl<T: DataType> Decoder<T> for PlainDecoder<T> {
   #[inline]
   fn encoding(&self) -> Encoding {
     Encoding::PLAIN
-  }
-
-  #[inline]
-  fn total_bytes(&self) -> Result<usize> {
-    Err(general_err!("PlainDecoder does not support total_bytes()"))
   }
 
   #[inline]
@@ -331,77 +298,6 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
   fn encoding(&self) -> Encoding {
     Encoding::PLAIN_DICTIONARY
   }
-
-  fn total_bytes(&self) -> Result<usize> {
-    Err(general_err!("DictDecoder does not support total_bytes()"))
-  }
-}
-
-
-// ----------------------------------------------------------------------
-// RLE Decoding
-
-/// A RLE/Bit-Packing hybrid decoder. This is a wrapper on `rle_encoding::RawRleDecoder`.
-pub struct RleDecoder<T: DataType> {
-  bit_width: usize,
-  decoder: RawRleDecoder,
-  num_values: usize,
-  total_bytes: usize,
-  _phantom: PhantomData<T>
-}
-
-impl<T: DataType> RleDecoder<T> {
-  pub fn new(bit_width: usize) -> Self {
-    Self { bit_width: bit_width, decoder: RawRleDecoder::new(bit_width),
-           num_values: 0, total_bytes: 0, _phantom: PhantomData }
-  }
-}
-
-default impl<T: DataType> Decoder<T> for RleDecoder<T> {
-  fn set_data(&mut self, _: ByteBufferPtr, _: usize) -> Result<()> {
-    Err(general_err!("RleDecoder only support Int32Type"))
-  }
-
-  fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
-    Err(general_err!("RleDecoder only support Int32Type"))
-  }
-
-  fn total_bytes(&self) -> Result<usize> {
-    Err(general_err!("RleDecoder only support Int32Type"))
-  }
-
-  fn encoding(&self) -> Encoding {
-    Encoding::RLE
-  }
-
-  fn values_left(&self) -> usize {
-    self.num_values
-  }
-}
-
-
-impl Decoder<Int32Type> for RleDecoder<Int32Type> {
-  #[inline]
-  fn set_data(&mut self, data: ByteBufferPtr, num_values: usize) -> Result<()> {
-    let i32_size = mem::size_of::<i32>();
-    let num_bytes = read_num_bytes!(i32, i32_size, data.as_ref()) as usize;
-    // TODO: set total size?
-    self.decoder.set_data(data.start_from(i32_size));
-    self.num_values = num_values;
-    self.total_bytes = i32_size + num_bytes;
-    Ok(())
-  }
-
-  #[inline]
-  fn get(&mut self, buffer: &mut [i32]) -> Result<usize> {
-    let values_read = self.decoder.get_batch(buffer)?;
-    self.num_values -= values_read;
-    Ok(values_read)
-  }
-
-  fn total_bytes(&self) -> Result<usize> {
-    Ok(self.total_bytes)
-  }
 }
 
 
@@ -472,11 +368,6 @@ default impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
 
   fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
     Err(general_err!("DeltaBitPackDecoder only support Int64Type"))
-  }
-
-  // TODO: is there a way to calculate this?
-  fn total_bytes(&self) -> Result<usize> {
-    Err(general_err!("DeltaBitPackDecoder does not support total_bytes()"))
   }
 
   fn values_left(&self) -> usize {
@@ -589,11 +480,6 @@ default impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
     Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
-  // TODO: is there a way to calculate this?
-  fn total_bytes(&self) -> Result<usize> {
-    Err(general_err!("DeltaLengthByteArrayDecoder does not support total_bytes()"))
-  }
-
   fn values_left(&self) -> usize {
     self.num_values
   }
@@ -673,10 +559,6 @@ default impl<'m, T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
 
   fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
     Err(general_err!("DeltaByteArrayDecoder only support ByteArrayType"))
-  }
-
-  fn total_bytes(&self) -> Result<usize> {
-    Err(general_err!("DeltaByteArrayDecoder does not support total_bytes()"))
   }
 
   fn values_left(&self) -> usize {

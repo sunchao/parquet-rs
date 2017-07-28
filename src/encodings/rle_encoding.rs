@@ -108,6 +108,28 @@ impl RawRleEncoder {
     }
   }
 
+  /// Returns the minimum buffer size needed to use the encoder for `bit_width`.
+  /// This is the maximum length of a single run for `bit_width`.
+  pub fn min_buffer_size(bit_width: usize) -> usize {
+    let max_bit_packed_run_size = 1 +
+      bit_util::ceil((MAX_VALUES_PER_BIT_PACKED_RUN * bit_width) as i64, 8) as usize;
+    let max_rle_run_size = bit_util::MAX_VLQ_BYTE_LEN + bit_util::ceil(bit_width as i64, 8) as usize;
+    ::std::cmp::max(max_bit_packed_run_size, max_rle_run_size)
+  }
+
+  /// Returns the maximum buffer size takes to encode `num_values` values with `bit_width`.
+  pub fn max_buffer_size(bit_width: usize, num_values: usize) -> usize {
+    // First the maximum size for bit-packed run
+    let bytes_per_run = bit_width;
+    let num_runs = bit_util::ceil(num_values as i64, 8) as usize;
+    let bit_packed_max_size = num_runs + num_runs * bytes_per_run;
+
+    // Second the maximum size for RLE run
+    let min_rle_run_size = 1 + bit_util::ceil(bit_width as i64, 8) as usize;
+    let rle_max_size = bit_util::ceil(num_values as i64, 8) as usize * min_rle_run_size;
+    ::std::cmp::max(bit_packed_max_size, rle_max_size) as usize
+  }
+
   /// Encode `value`, which must be representable with `bit_width` bits.
   /// Returns true if the value fits in buffer, false if it doesn't, or
   /// error if something is wrong.
@@ -149,7 +171,7 @@ impl RawRleEncoder {
   /// Consume this encoder. Flush all remaining values and return the final byte
   /// buffer maintained by the internal writer.
   #[inline]
-  pub fn consume(mut self) -> Result<Vec<u8>> {
+  pub fn consume(&mut self) -> Result<Vec<u8>> {
     if self.bit_packed_count > 0 || self.repeat_count > 0 || self.num_buffered_values > 0 {
       let all_repeat = self.bit_packed_count == 0 &&
         (self.repeat_count == self.num_buffered_values || self.num_buffered_values == 0);
@@ -174,6 +196,11 @@ impl RawRleEncoder {
   #[inline]
   pub fn buffer(&self) -> &[u8] {
     self.bit_writer.buffer()
+  }
+
+  #[inline]
+  pub fn len(&self) -> usize {
+    self.bit_writer.bytes_written()
   }
 
   /// Clear the internal state so this encoder can be reused (e.g., after becoming full).
@@ -252,28 +279,6 @@ impl RawRleEncoder {
     }
     self.repeat_count = 0;
     Ok(())
-  }
-
-  /// Returns the minimum buffer size needed to use the encoder for `bit_width`.
-  /// This is the maximum length of a single run for `bit_width`.
-  pub fn min_buffer_size(bit_width: usize) -> usize {
-    let max_bit_packed_run_size = 1 +
-      bit_util::ceil((MAX_VALUES_PER_BIT_PACKED_RUN * bit_width) as i64, 8) as usize;
-    let max_rle_run_size = bit_util::MAX_VLQ_BYTE_LEN + bit_util::ceil(bit_width as i64, 8) as usize;
-    ::std::cmp::max(max_bit_packed_run_size, max_rle_run_size)
-  }
-
-  /// Returns the maximum buffer size takes to encode `num_values` values with `bit_width`.
-  pub fn max_buffer_size(bit_width: usize, num_values: usize) -> usize {
-    // First the maximum size for bit-packed run
-    let bytes_per_run = bit_width;
-    let num_runs = bit_util::ceil(num_values as i64, 8) as usize;
-    let bit_packed_max_size = num_runs + num_runs * bytes_per_run;
-
-    // Second the maximum size for RLE run
-    let min_rle_run_size = 1 + bit_util::ceil(bit_width as i64, 8) as usize;
-    let rle_max_size = bit_util::ceil(num_values as i64, 8) as usize * min_rle_run_size;
-    ::std::cmp::max(bit_packed_max_size, rle_max_size) as usize
   }
 }
 

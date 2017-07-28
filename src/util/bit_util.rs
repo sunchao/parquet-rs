@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::mem::{size_of, transmute_copy};
+use std::mem::{size_of, transmute_copy, replace};
 use std::cmp;
 
 use errors::{Result, ParquetError};
@@ -172,9 +172,9 @@ impl BitWriter {
 
   /// Consume and return the current buffer.
   #[inline]
-  pub fn consume(mut self) -> Vec<u8> {
+  pub fn consume(&mut self) -> Vec<u8> {
     self.flush();
-    let mut buffer = self.buffer;
+    let mut buffer = replace(&mut self.buffer, Vec::new());
     buffer.truncate(self.byte_offset);
     buffer
   }
