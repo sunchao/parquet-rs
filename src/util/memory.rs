@@ -255,7 +255,7 @@ impl<T> BufferPtr<T> {
   }
 
   pub fn data(&self) -> &[T] {
-    &self.data
+    &self.data[self.start..self.start + self.len]
   }
 
   pub fn with_range(mut self, start: usize, len: usize) -> Self {
