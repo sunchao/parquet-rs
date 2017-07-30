@@ -215,7 +215,8 @@ default impl<T: DataType> DictEncoder<T> {
       assert!(encoder.put(*index as u64)?);
     }
     self.buffered_indices.clear();
-    Ok(ByteBufferPtr::new(encoder.consume()?))
+    encoder.flush()?;
+    Ok(ByteBufferPtr::new(encoder.consume()))
   }
 
   #[inline]

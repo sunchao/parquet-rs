@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::mem::{size_of, transmute_copy, replace};
+use std::mem::{size_of, transmute_copy};
 use std::cmp;
 
 use errors::{Result, ParquetError};
@@ -172,11 +172,10 @@ impl BitWriter {
 
   /// Consume and return the current buffer.
   #[inline]
-  pub fn consume(&mut self) -> Vec<u8> {
+  pub fn consume(mut self) -> Vec<u8> {
     self.flush();
-    let mut buffer = replace(&mut self.buffer, Vec::new());
-    buffer.truncate(self.byte_offset);
-    buffer
+    self.buffer.truncate(self.byte_offset);
+    self.buffer
   }
 
   /// Clear the internal state so the buffer can be reused.
@@ -185,6 +184,17 @@ impl BitWriter {
     self.buffered_values = 0;
     self.byte_offset = self.start;
     self.bit_offset = 0;
+  }
+
+  /// Flush the internal buffered bits and the align the buffer to the next byte.
+  #[inline]
+  pub fn flush(&mut self) {
+    let num_bytes = ceil(self.bit_offset as i64, 8) as usize;
+    assert!(self.byte_offset + num_bytes <= self.max_bytes);
+    memcpy_value(&self.buffered_values, num_bytes, &mut self.buffer[self.byte_offset..]);
+    self.buffered_values = 0;
+    self.bit_offset = 0;
+    self.byte_offset += num_bytes;
   }
 
   /// Advance the current offset by skipping `num_bytes`, flushing the internal bit
@@ -218,12 +228,12 @@ impl BitWriter {
 
   #[inline]
   pub fn bytes_written(&self) -> usize {
-    self.byte_offset + ceil(self.bit_offset as i64, 8) as usize
+    self.byte_offset - self.start + ceil(self.bit_offset as i64, 8) as usize
   }
 
   #[inline]
   pub fn buffer(&self) -> &[u8] {
-    &self.buffer
+    &self.buffer[self.start..]
   }
 
   #[inline]
@@ -320,17 +330,6 @@ impl BitWriter {
   pub fn put_zigzag_vlq_int(&mut self, v: i64) -> bool {
     let u: u64 = ((v << 1) ^ (v >> 63)) as u64;
     self.put_vlq_int(u)
-  }
-
-  /// Flush the internal buffered bits and the align the buffer to the next byte.
-  #[inline]
-  pub fn flush(&mut self) {
-    let num_bytes = ceil(self.bit_offset as i64, 8) as usize;
-    assert!(self.byte_offset + num_bytes <= self.max_bytes);
-    memcpy_value(&self.buffered_values, num_bytes, &mut self.buffer[self.byte_offset..]);
-    self.buffered_values = 0;
-    self.bit_offset = 0;
-    self.byte_offset += num_bytes;
   }
 }
 

@@ -45,38 +45,39 @@ const MAX_VALUES_PER_BIT_PACKED_RUN: usize = MAX_GROUPS_PER_BIT_PACKED_RUN * 8;
 const MAX_WRITER_BUF_SIZE: usize = 1 << 10;
 
 /// A RLE/Bit-Packing hybrid encoder.
+// TODO: tracking memory usage
 pub struct RleEncoder {
-  /// Number of bits needed to encode the value. Must be in the range of (0, 64].
+  // Number of bits needed to encode the value. Must be in the range of (0, 64].
   bit_width: usize,
 
-  /// Underlying writer which holds an internal buffer.
+  // Underlying writer which holds an internal buffer.
   bit_writer: BitWriter,
 
-  /// If this is true, the buffer is full and subsequent `put()` calls will fail.
+  // If this is true, the buffer is full and subsequent `put()` calls will fail.
   buffer_full: bool,
 
-  /// The maximum byte size a single run can take.
+  // The maximum byte size a single run can take.
   max_run_byte_size: usize,
 
-  /// Buffered values for bit-packed runs.
+  // Buffered values for bit-packed runs.
   buffered_values: [u64; 8],
 
-  /// Number of current buffered values. Must be less than 8.
+  // Number of current buffered values. Must be less than 8.
   num_buffered_values: usize,
 
-  /// The current (also last) value that was written and the count of how many
-  /// times in a row that value has been seen.
+  // The current (also last) value that was written and the count of how many
+  // times in a row that value has been seen.
   current_value: u64,
 
-  /// The number of repetitions for `current_value`. If this gets too high we'd
-  /// switch to use RLE encoding.
+  // The number of repetitions for `current_value`. If this gets too high we'd
+  // switch to use RLE encoding.
   repeat_count: usize,
 
-  /// Number of bit-packed values in the current run. This doesn't include values
+  // Number of bit-packed values in the current run. This doesn't include values
   // in `buffered_values`.
   bit_packed_count: usize,
 
-  /// The position of the indicator byte in the `bit_writer`.
+  // The position of the indicator byte in the `bit_writer`.
   indicator_byte_pos: i64
 }
 
@@ -168,10 +169,37 @@ impl RleEncoder {
     Ok(true)
   }
 
-  /// Consume this encoder. Flush all remaining values and return the final byte
+  #[inline]
+  pub fn buffer(&self) -> &[u8] {
+    self.bit_writer.buffer()
+  }
+
+  #[inline]
+  pub fn len(&self) -> usize {
+    self.bit_writer.bytes_written()
+  }
+
+  #[inline]
+  pub fn consume(self) -> Vec<u8> {
+    self.bit_writer.consume()
+  }
+
+  /// Clear the internal state so this encoder can be reused (e.g., after becoming full).
+  #[inline]
+  pub fn clear(&mut self) {
+    self.bit_writer.clear();
+    self.buffer_full = false;
+    self.num_buffered_values = 0;
+    self.current_value = 0;
+    self.repeat_count = 0;
+    self.bit_packed_count = 0;
+    self.indicator_byte_pos = -1;
+  }
+
+  /// Flush all remaining values and return the final byte
   /// buffer maintained by the internal writer.
   #[inline]
-  pub fn consume(&mut self) -> Result<Vec<u8>> {
+  pub fn flush(&mut self) -> Result<()> {
     if self.bit_packed_count > 0 || self.repeat_count > 0 || self.num_buffered_values > 0 {
       let all_repeat = self.bit_packed_count == 0 &&
         (self.repeat_count == self.num_buffered_values || self.num_buffered_values == 0);
@@ -190,29 +218,7 @@ impl RleEncoder {
         self.repeat_count = 0;
       }
     }
-    Ok(self.bit_writer.consume())
-  }
-
-  #[inline]
-  pub fn buffer(&self) -> &[u8] {
-    self.bit_writer.buffer()
-  }
-
-  #[inline]
-  pub fn len(&self) -> usize {
-    self.bit_writer.bytes_written()
-  }
-
-  /// Clear the internal state so this encoder can be reused (e.g., after becoming full).
-  #[inline]
-  pub fn clear(&mut self) {
-    self.bit_writer.clear();
-    self.buffer_full = false;
-    self.num_buffered_values = 0;
-    self.current_value = 0;
-    self.repeat_count = 0;
-    self.bit_packed_count = 0;
-    self.indicator_byte_pos = -1;
+    Ok(())
   }
 
   #[inline]
@@ -285,19 +291,19 @@ impl RleEncoder {
 
 /// A RLE/Bit-Packing hybrid decoder.
 pub struct RleDecoder {
-  /// Number of bits used to encode the value
+  // Number of bits used to encode the value
   bit_width: usize,
 
-  /// Bit reader loaded with input buffer.
+  // Bit reader loaded with input buffer.
   bit_reader: Option<BitReader>,
 
-  /// The remaining number of values in RLE for this run
+  // The remaining number of values in RLE for this run
   rle_left: u32,
 
-  /// The remaining number of values in Bit-Packing for this run
+  // The remaining number of values in Bit-Packing for this run
   bit_packed_left: u32,
 
-  /// The current value for the case of RLE mode
+  // The current value for the case of RLE mode
   current_value: Option<u64>,
 }
 
@@ -544,7 +550,8 @@ mod tests {
       let result = encoder.put(*v as u64);
       assert!(result.is_ok());
     }
-    let buffer = ByteBufferPtr::new(encoder.consume().expect("Expect consume() OK"));
+    encoder.flush().expect("Expect flush() OK");
+    let buffer = ByteBufferPtr::new(encoder.consume());
     if expected_len != -1 {
       assert_eq!(buffer.len(), expected_len as usize);
     }
@@ -645,7 +652,8 @@ mod tests {
       assert!(result, "put() should not return false");
     }
 
-    let buffer = ByteBufferPtr::new(encoder.consume().expect("consume() should be OK"));
+    encoder.flush().expect("flush() should be OK");
+    let buffer = ByteBufferPtr::new(encoder.consume());
 
     // Verify read
     let mut decoder = RleDecoder::new(bit_width);

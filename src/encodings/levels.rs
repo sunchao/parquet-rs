@@ -27,8 +27,6 @@ use super::rle_encoding::{RleEncoder, RleDecoder};
 
 /// A encoder for definition/repetition levels. This is a thin
 /// wrapper on `RleEncoder`. Currently only support RLE encoding.
-
-// TODO: track memory usage.
 pub struct LevelEncoder {
   encoding: Encoding,
   bit_width: usize,
@@ -36,15 +34,14 @@ pub struct LevelEncoder {
 }
 
 impl LevelEncoder {
-  pub fn new(encoding: Encoding, max_level: i16) -> Self {
+  pub fn new(encoding: Encoding, max_level: i16, byte_buffer: Vec<u8>) -> Self {
     assert!(encoding == Encoding::RLE, "Currently only support RLE encoding");
     let bit_width = log2(max_level as u64 + 1) as usize;
-    let max_buffer_size = RleEncoder::min_buffer_size(bit_width);
-    let buffer = vec![0; max_buffer_size + mem::size_of::<i32>()];
+
     Self {
       encoding: encoding,
       bit_width: bit_width,
-      rle_encoder: RleEncoder::new_from_buf(bit_width, buffer, mem::size_of::<i32>())
+      rle_encoder: RleEncoder::new_from_buf(bit_width, byte_buffer, mem::size_of::<i32>())
     }
   }
 
@@ -59,10 +56,23 @@ impl LevelEncoder {
   }
 
   #[inline]
-  pub fn consume(&mut self) -> Result<Vec<u8>> {
+  pub fn max_buffer_size(encoding: Encoding, max_level: i16, num_buffered_values: usize) -> usize {
+    let bit_width = log2(max_level as u64 + 1) as usize;
+    match encoding {
+      Encoding::RLE => {
+        RleEncoder::max_buffer_size(bit_width, num_buffered_values) +
+          RleEncoder::min_buffer_size(bit_width)
+      },
+      _ => panic!("Unsupported encoding type {}", encoding)
+    }
+  }
+
+  #[inline]
+  pub fn consume(mut self) -> Result<Vec<u8>> {
+    self.rle_encoder.flush()?;
     let len = (self.rle_encoder.len() as i32).to_le();
     let len_bytes = len.as_bytes();
-    let mut encoded_data = self.rle_encoder.consume()?;
+    let mut encoded_data = self.rle_encoder.consume();
     encoded_data[0..len_bytes.len()].copy_from_slice(len_bytes);
     Ok(encoded_data)
   }
@@ -108,7 +118,8 @@ mod tests {
   #[test]
   fn test_roundtrip() {
     let max_level = 10;
-    let mut encoder = LevelEncoder::new(Encoding::RLE, max_level);
+    let buffer = vec![0; LevelEncoder::max_buffer_size(Encoding::RLE, max_level, 10)];
+    let mut encoder = LevelEncoder::new(Encoding::RLE, max_level, buffer);
     let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
     encoder.put(&data).expect("put() should be OK");
 
