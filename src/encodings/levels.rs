@@ -27,6 +27,8 @@ use super::rle_encoding::{RleEncoder, RleDecoder};
 
 /// A encoder for definition/repetition levels. This is a thin
 /// wrapper on `RleEncoder`. Currently only support RLE encoding.
+
+// TODO: track memory usage.
 pub struct LevelEncoder {
   encoding: Encoding,
   bit_width: usize,
@@ -36,7 +38,7 @@ pub struct LevelEncoder {
 impl LevelEncoder {
   pub fn new(encoding: Encoding, max_level: i16) -> Self {
     assert!(encoding == Encoding::RLE, "Currently only support RLE encoding");
-    let bit_width = log2(max_level as u64) as usize;
+    let bit_width = log2(max_level as u64 + 1) as usize;
     let max_buffer_size = RleEncoder::min_buffer_size(bit_width);
     let buffer = vec![0; max_buffer_size + mem::size_of::<i32>()];
     Self {
@@ -88,9 +90,9 @@ impl LevelDecoder {
   #[inline]
   pub fn set_data(&mut self, data: ByteBufferPtr) -> usize {
     let i32_size = mem::size_of::<i32>();
-    let total_bytes = i32_size + read_num_bytes!(i32, i32_size, data.as_ref()) as usize;
-    self.rle_decoder.set_data(data.start_from(i32_size));
-    total_bytes
+    let data_size = read_num_bytes!(i32, i32_size, data.as_ref()) as usize;
+    self.rle_decoder.set_data(data.range(i32_size, data_size));
+    i32_size + data_size
   }
 
   #[inline]
@@ -104,7 +106,7 @@ mod tests {
   use super::*;
 
   #[test]
-  fn test_level_decoder() {
+  fn test_roundtrip() {
     let max_level = 10;
     let mut encoder = LevelEncoder::new(Encoding::RLE, max_level);
     let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
