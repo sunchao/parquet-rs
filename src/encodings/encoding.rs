@@ -22,7 +22,7 @@ use std::slice;
 
 use basic::*;
 use data_type::*;
-use errors::{Result};
+use errors::{Result, ParquetError};
 use schema::types::ColumnDescPtr;
 use util::memory::{ByteBufferPtr, ByteBuffer, Buffer, MemTrackerPtr};
 use util::bit_util::{BitWriter, log2};
@@ -40,9 +40,10 @@ pub trait Encoder<T: DataType> {
   /// Return the encoding type of this encoder.
   fn encoding(&self) -> Encoding;
 
-  /// Consume the underlying byte buffer that's being processed
-  /// by this encoder, and return it.
-  fn consume_buffer(&mut self) -> Result<ByteBufferPtr>;
+  /// Flush the underlying byte buffer that's being processed
+  /// by this encoder, and return the immutable copy of it.
+  /// This will also reset the internal state.
+  fn flush_buffer(&mut self) -> Result<ByteBufferPtr>;
 }
 
 
@@ -78,7 +79,17 @@ default impl<T: DataType> Encoder<T> for PlainEncoder<T> {
     Encoding::PLAIN
   }
 
-  fn consume_buffer(&mut self) -> Result<ByteBufferPtr> {
+  #[inline]
+  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+    // TODO: maybe we should write directly to `out`?
+    self.bit_writer.flush();
+    {
+      let bit_buffer = self.bit_writer.buffer();
+      self.buffer.write(&bit_buffer[0..self.bit_writer.byte_offset()])?;
+      self.buffer.flush()?;
+    }
+    self.bit_writer.clear();
+
     Ok(self.buffer.consume())
   }
 }
@@ -88,15 +99,6 @@ impl Encoder<BoolType> for PlainEncoder<BoolType> {
     for v in values {
       self.bit_writer.put_value(*v as u64, 1);
     }
-
-    // TODO: maybe we should write directly to `out`?
-    self.bit_writer.flush();
-    {
-      let bit_buffer = self.bit_writer.buffer();
-      self.buffer.write(&bit_buffer[0..self.bit_writer.byte_offset()])?;
-      self.buffer.flush()?;
-    }
-    self.bit_writer.clear();
     Ok(())
   }
 }
@@ -195,7 +197,7 @@ default impl<T: DataType> DictEncoder<T> {
   pub fn write_dict(&self) -> Result<ByteBufferPtr> {
     let mut plain_encoder = PlainEncoder::<T>::new(self.desc.clone(), self.mem_tracker.clone(), vec!());
     plain_encoder.put(self.uniques.data())?;
-    plain_encoder.consume_buffer()
+    plain_encoder.flush_buffer()
   }
 
   /// Write out the dictionary values with RLE encoding in a byte
@@ -212,7 +214,9 @@ default impl<T: DataType> DictEncoder<T> {
     buffer.write((self.bit_width() as u8).as_bytes())?;
     let mut encoder = RleEncoder::new_from_buf(self.bit_width(), buffer, 1);
     for index in self.buffered_indices.data() {
-      assert!(encoder.put(*index as u64)?);
+      if !encoder.put(*index as u64)? {
+        return Err(general_err!("Encoder doesn't have enough space"));
+      }
     }
     self.buffered_indices.clear();
     encoder.flush()?;
@@ -303,7 +307,7 @@ default impl<T: DataType> Encoder<T> for DictEncoder<T> {
   }
 
   #[inline]
-  fn consume_buffer(&mut self) -> Result<ByteBufferPtr> {
+  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
     self.write_indices()
   }
 }
@@ -386,34 +390,65 @@ mod tests {
   default impl<T: DataType> EncodingTester<T> for T where T: 'static {
     fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()> {
       let mut encoder = create_test_encoder::<T>(type_length, enc);
-      let values = <T as RandGen<T>>::gen_vec(type_length, total);
+      let mut values = <T as RandGen<T>>::gen_vec(type_length, total);
       encoder.put(&values[..])?;
 
-      let data = encoder.consume_buffer()?;
+      let mut data = encoder.flush_buffer()?;
       let mut decoder = create_test_decoder::<T>(type_length, enc);
       let mut result_data = vec![T::T::default(); total];
       decoder.set_data(data, total)?;
-      let _ = decoder.get(&mut result_data)?;
+      let mut actual_total = decoder.get(&mut result_data)?;
 
+      assert_eq!(actual_total, total);
       assert_eq!(result_data, values);
+
+      // Encode more data after flush and test with decoder
+
+      values = <T as RandGen<T>>::gen_vec(type_length, total);
+      encoder.put(&values[..])?;
+      data = encoder.flush_buffer()?;
+
+      decoder.set_data(data, total)?;
+      actual_total = decoder.get(&mut result_data)?;
+
+      assert_eq!(actual_total, total);
+      assert_eq!(result_data, values);
+
       Ok(())
     }
 
     fn test_dict_internal(total: usize, type_length: i32) -> Result<()> {
       let mut encoder = create_test_dict_encoder::<T>(type_length);
-      let values = <T as RandGen<T>>::gen_vec(type_length, total);
+      let mut values = <T as RandGen<T>>::gen_vec(type_length, total);
       encoder.put(&values[..])?;
 
-      let data = encoder.consume_buffer()?;
+      let mut data = encoder.flush_buffer()?;
       let mut decoder = create_test_dict_decoder::<T>();
       let mut dict_decoder = PlainDecoder::<T>::new(type_length);
       dict_decoder.set_data(encoder.write_dict()?, encoder.num_entries())?;
       decoder.set_dict(Box::new(dict_decoder))?;
       let mut result_data = vec![T::T::default(); total];
       decoder.set_data(data, total)?;
-      let _ = decoder.get(&mut result_data)?;
+      let mut actual_total = decoder.get(&mut result_data)?;
 
+      assert_eq!(actual_total, total);
       assert_eq!(result_data, values);
+
+      // Encode more data after flush and test with decoder
+
+      values = <T as RandGen<T>>::gen_vec(type_length, total);
+      encoder.put(&values[..])?;
+      data = encoder.flush_buffer()?;
+
+      let mut dict_decoder = PlainDecoder::<T>::new(type_length);
+      dict_decoder.set_data(encoder.write_dict()?, encoder.num_entries())?;
+      decoder.set_dict(Box::new(dict_decoder))?;
+      decoder.set_data(data, total)?;
+      actual_total = decoder.get(&mut result_data)?;
+
+      assert_eq!(actual_total, total);
+      assert_eq!(result_data, values);
+
       Ok(())
     }
   }
