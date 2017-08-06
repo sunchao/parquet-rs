@@ -41,6 +41,8 @@ pub enum ColumnReader<'a> {
   FixedLenByteArrayColumnReader(ColumnReaderImpl<'a, FixedLenByteArrayType>),
 }
 
+/// Get a specific column reader corresponding to `col_descr`. The column
+/// reader will read from pages in `col_page_reader`.
 pub fn get_column_reader<'a>(col_descr: ColumnDescPtr,
                              col_page_reader: Box<PageReader + 'a>)
                              -> ColumnReader<'a> {
@@ -82,7 +84,7 @@ pub fn get_typed_column_reader<'a, T: DataType>(
 }
 
 /// A value reader for a particular primitive column.
-/// The lifetime parameter 'a denotes the lifetime of the page reader
+/// The lifetime parameter `'a` denotes the lifetime of the page reader
 pub struct ColumnReaderImpl<'a, T: DataType> {
   descr: ColumnDescPtr,
   def_level_decoder: Option<LevelDecoder>,

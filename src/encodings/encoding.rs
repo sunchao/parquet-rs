@@ -31,7 +31,7 @@ use encodings::rle_encoding::RleEncoder;
 
 /// An Parquet encoder for the data type `T`.
 /// Currently this allocate internal buffers for the encoded values.
-/// After done putting values, caller should call `consume_buffer()` to
+/// After done putting values, caller should call `flush_buffer()` to
 /// get an immutable buffer pointer.
 pub trait Encoder<T: DataType> {
   /// Encode data from `values`.
@@ -160,31 +160,31 @@ const MAX_HASH_LOAD: f32 = 0.7;
 const HASH_SLOT_EMPTY: i32 = -1;
 
 pub struct DictEncoder<T: DataType> {
-  /// Descriptor for the column to be encoded.
+  // Descriptor for the column to be encoded.
   desc: ColumnDescPtr,
 
-  /// Size of the table. **Must be** a power of 2.
+  // Size of the table. **Must be** a power of 2.
   hash_table_size: usize,
 
-  /// Store `hash_table_size` - 1, so that `j & mod_bitmask` is equivalent to
-  /// `j % hash_table_size`, but uses far fewer CPU cycles.
+  // Store `hash_table_size` - 1, so that `j & mod_bitmask` is equivalent to
+  // `j % hash_table_size`, but uses far fewer CPU cycles.
   mod_bitmask: u64,
 
-  /// Stores indices which map (many-to-one) to the values in the `uniques` array.
-  /// Here we are using fix-sized array with linear probing.
-  /// A slot with `HASH_SLOT_EMPTY` indicates the slot is not currently occupied.
+  // Stores indices which map (many-to-one) to the values in the `uniques` array.
+  // Here we are using fix-sized array with linear probing.
+  // A slot with `HASH_SLOT_EMPTY` indicates the slot is not currently occupied.
   hash_slots: Buffer<i32>,
 
-  /// Indices that have not yet be written out by `write_indices()`.
+  // Indices that have not yet be written out by `write_indices()`.
   buffered_indices: Buffer<i32>,
 
-  /// The unique observed values.
+  // The unique observed values.
   uniques: Buffer<T::T>,
 
-  /// The number of bytes needed to encode this dictionary
+  // The number of bytes needed to encode this dictionary
   dict_encoded_size: u64,
 
-  /// Tracking memory usage for the various data structures in this struct.
+  // Tracking memory usage for the various data structures in this struct.
   mem_tracker: MemTrackerPtr
 }
 

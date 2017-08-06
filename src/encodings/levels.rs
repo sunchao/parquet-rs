@@ -117,7 +117,7 @@ mod tests {
   use super::*;
 
   #[test]
-  fn test_level_encoder() {
+  fn test_roundtrip_one() {
     let max_level = 1;
     let levels = vec![0, 1, 1, 1, 1, 0, 0, 0, 0, 1];
     let max_buffer_size = LevelEncoder::max_buffer_size(Encoding::RLE, max_level, levels.len());

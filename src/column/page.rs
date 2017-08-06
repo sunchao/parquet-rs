@@ -20,7 +20,8 @@ use util::memory::ByteBufferPtr;
 use errors::Result;
 
 /// Parquet Page definition.
-/// These are basically 1-to-1 mapped from the equivalent Thrift
+///
+/// These are 1-to-1 mapped from the equivalent Thrift
 /// definitions, except `buf` which used to store uncompressed bytes
 /// of the page.
 pub enum Page {

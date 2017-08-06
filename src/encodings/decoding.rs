@@ -52,9 +52,9 @@ pub trait Decoder<T: DataType> {
 }
 
 
-/// Get a decoder for the particular data type `T` and encoding `encoding`.
-/// `descr` and `value_type` currently are only used when getting a `RleDecoder`
-/// and is used to decide whether this is for definition level or repetition level.
+/// Get a decoder for the column descriptor `descr` and encoding `encoding`.
+/// NOTE: the primitive type in `descr` MUST match the data type `T`, otherwise
+/// disastrous consequence could occur.
 pub fn get_decoder<T: DataType>(descr: ColumnDescPtr,
                                 encoding: Encoding) ->
     Result<Box<Decoder<T>>> where T: 'static {
@@ -240,7 +240,7 @@ impl Decoder<FixedLenByteArrayType> for PlainDecoder<FixedLenByteArrayType> {
 
 
 // ----------------------------------------------------------------------
-// PLAIN_DICTIONARY Decoding
+// RLE_DICTIONARY/PLAIN_DICTIONARY Decoding
 
 pub struct DictDecoder<T: DataType> {
   // The dictionary, which maps ids to the values
@@ -296,7 +296,7 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
   }
 
   fn encoding(&self) -> Encoding {
-    Encoding::PLAIN_DICTIONARY
+    Encoding::RLE_DICTIONARY
   }
 }
 
