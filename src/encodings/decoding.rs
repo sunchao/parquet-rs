@@ -38,7 +38,8 @@ pub trait Decoder<T: DataType> {
 
   /// Try to consume values from this decoder and write
   /// the results to `buffer`. This will try to fill up `buffer`.
-  /// Return the actual number of values written, which should be equal to
+  ///
+  /// Return the actual number of values decoded, which should be equal to
   /// `buffer.len()` unless the remaining number of values is less
   /// than `buffer.len()`.
   fn get(&mut self, buffer: &mut [T::T]) -> Result<usize>;
@@ -132,7 +133,7 @@ default impl<T: DataType> Decoder<T> for PlainDecoder<T> {
     let bytes_left = data.len() - self.start;
     let bytes_to_decode = mem::size_of::<T::T>() * num_values;
     if bytes_left < bytes_to_decode {
-      return Err(general_err!("Not enough bytes to decode"));
+      return Err(eof_err!("Not enough bytes to decode"));
     }
     let raw_buffer: &mut [u8] = unsafe {
       from_raw_parts_mut(buffer.as_ptr() as *mut u8, bytes_to_decode)
@@ -154,7 +155,7 @@ impl Decoder<Int96Type> for PlainDecoder<Int96Type> {
     let bytes_left = data.len() - self.start;
     let bytes_to_decode = 12 * num_values;
     if bytes_left < bytes_to_decode {
-      return Err(general_err!("Not enough bytes to decode"));
+      return Err(eof_err!("Not enough bytes to decode"));
     }
     for i in 0..num_values {
       buffer[i].set_data(
@@ -186,9 +187,8 @@ impl Decoder<BoolType> for PlainDecoder<BoolType> {
     let mut bit_reader = self.bit_reader.as_mut().unwrap();
     let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
-      bit_reader.get_value::<bool>(1).map(|b| {
-        buffer[i] = b;
-      })?;
+      buffer[i] = bit_reader.get_value::<bool>(1)
+        .ok_or(eof_err!("Not enough bytes to decode"))?;
     }
     self.num_values -= num_values;
 
@@ -206,7 +206,7 @@ impl Decoder<ByteArrayType> for PlainDecoder<ByteArrayType> {
       let len: usize = read_num_bytes!(u32, 4, data.start_from(self.start).as_ref()) as usize;
       self.start += mem::size_of::<u32>();
       if data.len() < self.start + len {
-        return Err(general_err!("Not enough bytes to decode"));
+        return Err(eof_err!("Not enough bytes to decode"));
       }
       buffer[i].set_data(data.range(self.start, len));
       self.start += len;
@@ -227,7 +227,7 @@ impl Decoder<FixedLenByteArrayType> for PlainDecoder<FixedLenByteArrayType> {
     let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
       if data.len() < self.start + type_length {
-        return Err(general_err!("Not enough bytes to decode"));
+        return Err(eof_err!("Not enough bytes to decode"));
       }
       buffer[i].set_data(data.range(self.start, type_length));
       self.start += type_length;
@@ -347,12 +347,16 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
     assert!(self.bit_reader.is_some());
     let mut bit_reader = self.bit_reader.as_mut().unwrap();
 
-    self.min_delta = bit_reader.get_zigzag_vlq_int()?;
+    self.min_delta = bit_reader.get_zigzag_vlq_int()
+      .ok_or(eof_err!("Not enough data to decode 'min_delta'"))?;
+
     let mut widths = vec!();
     for _ in 0..self.num_mini_blocks {
-      let w = bit_reader.get_aligned::<u8>(1)?;
+      let w = bit_reader.get_aligned::<u8>(1)
+        .ok_or(eof_err!("Not enough data to decode 'width'"))?;
       widths.push(w);
     }
+
     self.delta_bit_widths.set_data(widths);
     self.mini_block_idx = 0;
     self.values_current_mini_block = self.values_per_mini_block;
@@ -385,10 +389,14 @@ impl Decoder<Int64Type> for DeltaBitPackDecoder<Int64Type> {
   fn set_data(&mut self, data: ByteBufferPtr, _: usize) -> Result<()> {
     let mut bit_reader = BitReader::new(data);
 
-    let block_size = bit_reader.get_vlq_int()?;
-    self.num_mini_blocks = bit_reader.get_vlq_int()?;
-    self.num_values = bit_reader.get_vlq_int()? as usize;
-    self.first_value = bit_reader.get_zigzag_vlq_int()?;
+    let block_size = bit_reader.get_vlq_int()
+      .ok_or(eof_err!("Not enough data to decode 'block_size'"))?;
+    self.num_mini_blocks = bit_reader.get_vlq_int()
+      .ok_or(eof_err!("Not enough data to decode 'num_mini_blocks'"))?;
+    self.num_values = bit_reader.get_vlq_int()
+      .ok_or(eof_err!("Not enough data to decode 'num_values'"))? as usize;
+    self.first_value = bit_reader.get_zigzag_vlq_int()
+      .ok_or(eof_err!("Not enough data to decode 'first_value'"))?;
     self.first_value_read = false;
     self.values_per_mini_block = (block_size / self.num_mini_blocks) as i64;
     assert!(self.values_per_mini_block % 8 == 0);
@@ -428,7 +436,8 @@ impl Decoder<Int64Type> for DeltaBitPackDecoder<Int64Type> {
       let bit_reader = self.bit_reader.as_mut().unwrap();
 
       // TODO: use SIMD to optimize this?
-      let delta = bit_reader.get_value(self.delta_bit_width as usize)?;
+      let delta = bit_reader.get_value(self.delta_bit_width as usize)
+        .ok_or(eof_err!("Not enough data to decode 'delta'"))?;
       self.current_value += self.min_delta;
       self.current_value += delta;
       buffer[i] = self.current_value;

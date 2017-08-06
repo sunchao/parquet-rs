@@ -343,7 +343,8 @@ impl RleDecoder {
         rle_value
       } else { // self.bit_packed_left > 0
         let mut bit_reader = self.bit_reader.as_mut().expect("bit_reader should be Some");
-        let bit_packed_value = bit_reader.get_value(self.bit_width)?;
+        let bit_packed_value = bit_reader.get_value(self.bit_width)
+          .ok_or(eof_err!("Not enough data for 'bit_packed_value'"))?;
         self.bit_packed_left -= 1;
         bit_packed_value
       };
@@ -374,9 +375,9 @@ impl RleDecoder {
         let num_values = cmp::min(buffer.len() - values_read, self.bit_packed_left as usize);
         if let Some(ref mut bit_reader) = self.bit_reader {
           for i in 0..num_values {
-            bit_reader.get_value(self.bit_width).map(|v| {
-              buffer[values_read + i] = v;
-            })?;
+            bit_reader.get_value(self.bit_width)
+              .map(|v| { buffer[values_read + i] = v; })
+              .ok_or(eof_err!("Not enough data left"))?;
           }
           self.bit_packed_left -= num_values as u32;
           values_read += num_values;
@@ -413,9 +414,9 @@ impl RleDecoder {
         let num_values = cmp::min(max_values - values_read, self.bit_packed_left as usize);
         if let Some(ref mut bit_reader) = self.bit_reader {
           for i in 0..num_values {
-            bit_reader.get_value::<i32>(self.bit_width).map(|v| {
-              buffer[values_read + i] = dict[v as usize].clone();
-            })?;
+            bit_reader.get_value::<i32>(self.bit_width)
+              .map(|v| { buffer[values_read + i] = dict[v as usize].clone(); })
+              .ok_or(eof_err!("Not enough data left"))?;
           }
           self.bit_packed_left -= num_values as u32;
           values_read += num_values;
@@ -440,7 +441,7 @@ impl RleDecoder {
       } else {
         self.rle_left = (indicator_value >> 1) as u32;
         let value_width = bit_util::ceil(self.bit_width as i64, 8);
-        self.current_value = bit_reader.get_aligned::<u64>(value_width as usize).ok();
+        self.current_value = bit_reader.get_aligned::<u64>(value_width as usize);
         assert!(self.current_value.is_some());
       }
       return true;

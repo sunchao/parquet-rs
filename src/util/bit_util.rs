@@ -390,13 +390,16 @@ impl BitReader {
     self.byte_offset + self.bit_offset / 8 + 1
   }
 
+  /// Read a value of type `T` and of size `num_bits`.
+  ///
+  /// Return `None` if there's not enough data available. `Some` otherwise.
   #[inline]
-  pub fn get_value<T: Default>(&mut self, num_bits: usize) -> Result<T> {
+  pub fn get_value<T: Default>(&mut self, num_bits: usize) -> Option<T> {
     assert!(num_bits <= 32);
     assert!(num_bits <= size_of::<T>() * 8);
 
     if self.byte_offset * 8 + self.bit_offset + num_bits > self.total_bytes * 8 {
-      return Err(general_err!("Not enough bytes left"));
+      return None;
     }
 
     let mut v = trailing_bits(self.buffered_values, self.bit_offset + num_bits) >> self.bit_offset;
@@ -417,19 +420,20 @@ impl BitReader {
     let result: T = unsafe {
       transmute_copy::<u64, T>(&v)
     };
-    Ok(result)
+    Some(result)
   }
 
   /// Read a `num_bytes`-sized value from this buffer and return it.
   /// `T` needs to be a little-endian native type. The value is assumed to
   /// be byte aligned so the bit reader will be advanced to the start of
-  /// the next byte before reading the value. Return `None` if there's not
-  /// enough bytes left.
+  /// the next byte before reading the value.
+
+  /// Return `Some` if there's enough bytes left to form a value of `T`. Otherwise `None`.
   #[inline]
-  pub fn get_aligned<T: Default>(&mut self, num_bytes: usize) -> Result<T> {
+  pub fn get_aligned<T: Default>(&mut self, num_bytes: usize) -> Option<T> {
     let bytes_read = ceil(self.bit_offset as i64, 8) as usize;
     if self.byte_offset + bytes_read + num_bytes > self.total_bytes {
-      return Err(general_err!("Not enough bytes left"));
+      return None;
     }
 
     // Advance byte_offset to next unread byte and read num_bytes
@@ -442,28 +446,27 @@ impl BitReader {
     let bytes_remaining = cmp::min(self.total_bytes - self.byte_offset, 8);
     self.buffered_values = read_num_bytes!(
       u64, bytes_remaining, self.buffer.start_from(self.byte_offset).as_ref());
-    Ok(v)
+    Some(v)
   }
 
   /// Read a VLQ encoded (in little endian order) int from the stream.
   /// The encoded int must start at the beginning of a byte.
-  /// Returns `None` if the number of bytes exceed `MAX_VLQ_BYTE_LEN`, or
-  /// there's not enough bytes in the stream.
+  ///
+  /// Returns `None` if there's not enough bytes in the stream. `Some` otherwise.
   #[inline]
-  pub fn get_vlq_int(&mut self) -> Result<i64> {
+  pub fn get_vlq_int(&mut self) -> Option<i64> {
     let mut shift = 0;
     let mut v: i64 = 0;
-    while let Ok(byte) = self.get_aligned::<u8>(1) {
+    while let Some(byte) = self.get_aligned::<u8>(1) {
       v |= ((byte & 0x7F) as i64) << shift;
       shift += 7;
-      if shift > MAX_VLQ_BYTE_LEN * 7 {
-        return Err(general_err!("Num of bytes exceed MAX_VLQ_BYTE_LEN ({})", MAX_VLQ_BYTE_LEN));
-      }
+      assert!(shift <= MAX_VLQ_BYTE_LEN * 7,
+        "Num of bytes exceed MAX_VLQ_BYTE_LEN ({})", MAX_VLQ_BYTE_LEN);
       if byte & 0x80 == 0 {
-        return Ok(v);
+        return Some(v);
       }
     }
-    Err(general_err!("Not enough bytes left"))
+    None
   }
 
   /// Read a zigzag-VLQ encoded (in little endian order) int from the stream
@@ -471,11 +474,12 @@ impl BitReader {
   /// numbers are encoded in a zigzag fashion.
   /// See: https://developers.google.com/protocol-buffers/docs/encoding
   ///
-  /// The encoded int must start at the beginning of a byte.
-  /// Returns `None` if the number of bytes exceed `MAX_VLQ_BYTE_LEN`, or
-  /// there's not enough bytes in the stream.
+  /// Note: the encoded int must start at the beginning of a byte.
+  ///
+  /// Returns `None` if the number of bytes there's not enough bytes in the stream.
+  /// `Some` otherwise.
   #[inline]
-  pub fn get_zigzag_vlq_int(&mut self) -> Result<i64> {
+  pub fn get_zigzag_vlq_int(&mut self) -> Option<i64> {
     self.get_vlq_int().map(|v| {
       let u = v as u64;
       ((u >> 1) as i64 ^ -((u & 1) as i64))
@@ -493,7 +497,6 @@ impl From<Vec<u8>> for BitReader {
 
 #[cfg(test)]
 mod tests {
-  use std::error::Error;
   use std::fmt::Debug;
   use rand::Rand;
 
@@ -520,20 +523,20 @@ mod tests {
   fn test_bit_reader_get_value() {
     let buffer = vec![255, 0];
     let mut bit_reader = BitReader::from(buffer);
-    assert_eq!(bit_reader.get_value::<i32>(1).expect("get_value() should return OK"), 1);
-    assert_eq!(bit_reader.get_value::<i32>(2).expect("get_value() should return OK"), 3);
-    assert_eq!(bit_reader.get_value::<i32>(3).expect("get_value() should return OK"), 7);
-    assert_eq!(bit_reader.get_value::<i32>(4).expect("get_value() should return OK"), 3);
+    assert_eq!(bit_reader.get_value::<i32>(1), Some(1));
+    assert_eq!(bit_reader.get_value::<i32>(2), Some(3));
+    assert_eq!(bit_reader.get_value::<i32>(3), Some(7));
+    assert_eq!(bit_reader.get_value::<i32>(4), Some(3));
   }
 
   #[test]
   fn test_bit_reader_get_value_boundary() {
     let buffer = vec![10, 0, 0, 0, 20, 0, 30, 0, 0, 0, 40, 0];
     let mut bit_reader = BitReader::from(buffer);
-    assert_eq!(bit_reader.get_value::<i64>(32).expect("get_value() should return OK"), 10);
-    assert_eq!(bit_reader.get_value::<i64>(16).expect("get_value() should return OK"), 20);
-    assert_eq!(bit_reader.get_value::<i64>(32).expect("get_value() should return OK"), 30);
-    assert_eq!(bit_reader.get_value::<i64>(16).expect("get_value() should return OK"), 40);
+    assert_eq!(bit_reader.get_value::<i64>(32), Some(10));
+    assert_eq!(bit_reader.get_value::<i64>(16), Some(20));
+    assert_eq!(bit_reader.get_value::<i64>(32), Some(30));
+    assert_eq!(bit_reader.get_value::<i64>(16), Some(40));
   }
 
   #[test]
@@ -541,11 +544,11 @@ mod tests {
     // 01110101 11001011
     let buffer = ByteBufferPtr::new(vec!(0x75, 0xCB));
     let mut bit_reader = BitReader::new(buffer.all());
-    assert_eq!(bit_reader.get_value::<i32>(3).expect("get_value() should return OK"), 5);
-    assert_eq!(bit_reader.get_aligned::<i32>(1).expect("get_aligned() should return OK"), 203);
-    let _ = bit_reader.get_value::<i32>(1).expect_err("get_value() should return Err");
+    assert_eq!(bit_reader.get_value::<i32>(3), Some(5));
+    assert_eq!(bit_reader.get_aligned::<i32>(1), Some(203));
+    assert_eq!(bit_reader.get_value::<i32>(1), None);
     bit_reader.reset(buffer.all());
-    let _ = bit_reader.get_aligned::<i32>(3).expect_err("get_value() should return Err");
+    assert_eq!(bit_reader.get_aligned::<i32>(3), None);
   }
 
   #[test]
@@ -553,34 +556,32 @@ mod tests {
     // 10001001 00000001 11110010 10110101 00000110
     let buffer: Vec<u8> = vec!(0x89, 0x01, 0xF2, 0xB5, 0x06);
     let mut bit_reader = BitReader::from(buffer);
-    assert_eq!(bit_reader.get_vlq_int().expect("get_vlq_int() should return OK"), 137);
-    assert_eq!(bit_reader.get_vlq_int().expect("get_vlq_int() should return OK"), 105202);
+    assert_eq!(bit_reader.get_vlq_int(), Some(137));
+    assert_eq!(bit_reader.get_vlq_int(), Some(105202));
   }
 
   #[test]
+  #[should_panic(expected = "Num of bytes exceed MAX_VLQ_BYTE_LEN (5)")]
   fn test_bit_reader_get_vlq_int_overflow() {
     // 10001001 10000001 11110010 10110101 00000110
     let buffer: Vec<u8> = vec!(0x89, 0x81, 0xF2, 0xB5, 0x06);
     let mut bit_reader = BitReader::from(buffer);
-    assert_eq!(bit_reader.get_vlq_int().expect("get_vlq_int() should return OK"), 1723629705);
+    assert_eq!(bit_reader.get_vlq_int(), Some(1723629705));
 
     // 10001001 10000001 11110010 10110101 10000110 00000001
     let buffer = vec!(0x89, 0x81, 0xF2, 0xB5, 0x86, 0x01);
     let mut bit_reader = BitReader::from(buffer);
-    let v = bit_reader.get_vlq_int();
-    assert!(v.is_err());
-    assert_eq!(v.unwrap_err().description(),
-      format!("Num of bytes exceed MAX_VLQ_BYTE_LEN ({})", MAX_VLQ_BYTE_LEN));
+    let _ = bit_reader.get_vlq_int();
   }
 
   #[test]
   fn test_bit_reader_get_zigzag_vlq_int() {
     let buffer: Vec<u8> = vec!(0, 1, 2, 3);
     let mut bit_reader = BitReader::from(buffer);
-    assert_eq!(bit_reader.get_zigzag_vlq_int().expect("get_zigzag_vlq_int() should return OK"), 0);
-    assert_eq!(bit_reader.get_zigzag_vlq_int().expect("get_zigzag_vlq_int() should return OK"), -1);
-    assert_eq!(bit_reader.get_zigzag_vlq_int().expect("get_zigzag_vlq_int() should return OK"), 1);
-    assert_eq!(bit_reader.get_zigzag_vlq_int().expect("get_zigzag_vlq_int() should return OK"), -2);
+    assert_eq!(bit_reader.get_zigzag_vlq_int(), Some(0));
+    assert_eq!(bit_reader.get_zigzag_vlq_int(), Some(-1));
+    assert_eq!(bit_reader.get_zigzag_vlq_int(), Some(1));
+    assert_eq!(bit_reader.get_zigzag_vlq_int(), Some(-2));
   }
 
   #[test]

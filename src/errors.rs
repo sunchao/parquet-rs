@@ -38,6 +38,10 @@ quick_error! {
       display("NYI: {}", message)
       description(message)
     }
+    EOF(message: String) {
+      display("EOF: {}", message)
+      description(message)
+    }
   }
 }
 
@@ -66,3 +70,9 @@ macro_rules! nyi_err {
   ($fmt:expr) => (ParquetError::NYI($fmt.to_owned()));
   ($fmt:expr, $($args:expr),*) => (ParquetError::NYI(format!($fmt, $($args),*)));
 }
+
+macro_rules! eof_err {
+  ($fmt:expr) => (ParquetError::EOF($fmt.to_owned()));
+  ($fmt:expr, $($args:expr),*) => (ParquetError::EOF(format!($fmt, $($args),*)));
+}
+
