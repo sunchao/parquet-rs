@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-extern crate parquet_rs;
+extern crate parquet;
 
 use std::env;
 use std::process;
 use std::fs::File;
 use std::path::Path;
 
-use parquet_rs::file::reader::{FileReader, SerializedFileReader};
-use parquet_rs::schema::printer::{print_parquet_metadata, print_file_metadata};
+use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet::schema::printer::{print_parquet_metadata, print_file_metadata};
 
 fn main() {
   let args: Vec<_> = env::args().collect();

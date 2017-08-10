@@ -16,14 +16,11 @@
 // under the License.
 
 use std::mem;
-use std::rc::Rc;
 use std::collections::HashMap;
 
 use basic::*;
-use basic::Type as PhysicalType;
 use data_type::*;
-use schema::types::{ColumnPath, ColumnDescriptor, ColumnDescPtr};
-use schema::types::Type as SchemaType;
+use schema::types::ColumnDescPtr;
 use encodings::decoding::{get_decoder, Decoder, PlainDecoder, DictDecoder};
 use encodings::levels::LevelDecoder;
 use util::memory::ByteBufferPtr;
@@ -319,13 +316,16 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
 #[cfg]
 mod tests {
   use super::*;
+  use std::rc::Rc;
   use std::collections::VecDeque;
   use std::vec::IntoIter;
   use rand::distributions::range::SampleRange;
 
+  use basic::Type as PhysicalType;
   use column::page::Page;
   use encodings::encoding::{get_encoder, Encoder, DictEncoder};
   use encodings::levels::LevelEncoder;
+  use schema::types::{Type as SchemaType, ColumnDescriptor, ColumnPath};
   use util::memory::{MemTracker, MemTrackerPtr};
   use util::test_common::random_numbers_range;
 
