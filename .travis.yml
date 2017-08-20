@@ -10,6 +10,7 @@ addons:
 
 rust:
   - nightly-2017-07-15
+  - nightly
 
 before_script:
   - git clone https://github.com/apache/thrift.git
