@@ -1,7 +1,12 @@
 [package]
 name = "parquet"
 version = "0.1.0"
+license = "Apache-2.0"
+description = "Apache Parquet implementation in Rust"
 authors = ["Chao Sun <sunchao@apache.org>"]
+homepage = "https://github.com/sunchao/parquet-rs"
+repository = "https://github.com/sunchao/parquet-rs"
+keywords = ["parquet", "hadoop"]
 
 [dependencies]
 quick-error = "1.1.0"
