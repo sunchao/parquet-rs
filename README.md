@@ -11,14 +11,14 @@ An [Apache Parquet](https://parquet.apache.org/) implementation in Rust (work in
 - Rust nightly
 - Thrift 0.11+ or master (with Rust support)
 
-To install Rust nightly build, just run (assuming you have Rust installed already):
+To install Rust nightly build, run this (assuming you have Rust installed already):
 ```shell
 rustup update nightly
 rustup default nightly
 ```
 
 Project requires Thrift with Rust support, which is in 0.11+/master. If release is not available on
-official website, follow instructions:
+[official website](https://thrift.apache.org), build from source:
 ```shell
 git clone --depth=1 https://github.com/apache/thrift
 # go to thrift project directory and install it
@@ -31,21 +31,23 @@ PKG_CONFIG_PATH=/usr/local/opt/openssl/lib/pkgconfig:"${PKG_CONFIG_PATH}"
 export LD_LIBRARY_PATH CPATH PKG_CONFIG_PATH
 
 ./bootstrap.sh
-# when configuring you might want to keep set of languages to a minimum, e.g. C++/Java/Rust
-./configure
+# when configuring you might want to keep set of languages to a minimum, e.g. C++/Rust
+# and disable the rest with '--with-LANG=no', see './configure --help'
+./configure --enable-tests=no --enable-tutorial=no
 
 make install
 ```
 
 On OS X you might need to pre-install following packages (if not installed already):
 ```shell
-brew install openssl libtool automake pkg-config
+brew install boost libevent openssl libtool automake pkg-config
 ```
 
 ### Build and test
 To build project run:
 ```shell
 cd parquet-rs
+
 make
 
 # clean generated files
