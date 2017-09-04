@@ -17,15 +17,15 @@
 
 #![feature(test)]
 extern crate test;
-extern crate parquet_rs;
+extern crate parquet;
 use test::Bencher;
 
 use std::rc::Rc;
-use parquet_rs::basic::*;
-use parquet_rs::data_type::*;
-use parquet_rs::encodings::encoding::*;
-use parquet_rs::schema::types::{Type as SchemaType, ColumnDescriptor, ColumnPath};
-use parquet_rs::util::memory::MemTracker;
+use parquet::basic::*;
+use parquet::data_type::*;
+use parquet::encodings::encoding::*;
+use parquet::schema::types::{Type as SchemaType, ColumnDescriptor, ColumnPath};
+use parquet::util::memory::MemTracker;
 
 const BATCH_SIZE: usize = 1024;
 
@@ -36,7 +36,7 @@ fn plain_encoding_bool(bench: &mut Bencher) {
 
 #[bench]
 fn plain_encoding_i32(bench: &mut Bencher) {
-  plain_encoding::<Int32Type>(bench, vec![0; BATCH_SIZE], 8, Type::INT64);
+  plain_encoding::<Int32Type>(bench, vec![0; BATCH_SIZE], 4, Type::INT32);
 }
 
 #[bench]
@@ -49,7 +49,7 @@ fn plain_encoding<T: DataType>(bench: &mut Bencher, data: Vec<T::T>, type_length
   let mut encoder = PlainEncoder::<T>::new(
     Rc::new(col_desc(type_length, primitive_ty)), mem_tracker, vec!());
   bench.iter(|| {
-    let _ = encoder.put(&data[..], BATCH_SIZE);
+    let _ = encoder.put(&data[..]);
   })
 }
 
