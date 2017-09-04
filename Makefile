@@ -15,4 +15,5 @@ clippy:
 	cargo clean & cargo clippy
 
 clean:
-	cd src/thrift; rm *.rs
+	# remove all generated files except mod.rs in THRIFT_DIR
+	find ${THRIFT_DIR} -type f -name '*.rs' -not -name 'mod.rs' -print0 | xargs -0 rm --
