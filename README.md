@@ -9,7 +9,7 @@ An [Apache Parquet](https://parquet.apache.org/) implementation in Rust (work in
 ## Development
 ### Requirements
 - Rust nightly
-- Thrift 0.11+ or master (with Rust support)
+- Thrift (with Rust support)
 
 To install Rust nightly build, run this (assuming you have Rust installed already):
 ```shell
@@ -17,23 +17,21 @@ rustup update nightly
 rustup default nightly
 ```
 
-Project requires Thrift with Rust support, which is in 0.11+/master. If release is not available on
-[official website](https://thrift.apache.org), build from source:
+Building project requires Thrift with Rust support, which is in master branch. Build from source:
 ```shell
 git clone --depth=1 https://github.com/apache/thrift
-# go to thrift project directory and install it
 cd thrift
 
-# export env vars for openssl
+# export env vars for openssl (this might not be needed depending on packages installation)
 LD_LIBRARY_PATH=/usr/local/opt/openssl/lib:"${LD_LIBRARY_PATH}"
 CPATH=/usr/local/opt/openssl/include:"${CPATH}"
 PKG_CONFIG_PATH=/usr/local/opt/openssl/lib/pkgconfig:"${PKG_CONFIG_PATH}"
 export LD_LIBRARY_PATH CPATH PKG_CONFIG_PATH
 
 ./bootstrap.sh
-# when configuring you might want to keep set of languages to a minimum, e.g. C++/Rust
-# and disable the rest with '--with-LANG=no', see './configure --help'
-./configure --enable-tests=no --enable-tutorial=no
+
+# no need to include 'with-rs' flag, 'cargo build' will build this dependency
+./configure --enable-libs=no
 
 make install
 ```
@@ -42,6 +40,8 @@ On OS X you might need to pre-install following packages (if not installed alrea
 ```shell
 brew install boost libevent openssl libtool automake pkg-config
 ```
+
+For more information on setup and build refer to [.travis.yml](./.travis.yml) file.
 
 ### Build and test
 To build project run:
