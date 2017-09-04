@@ -23,7 +23,6 @@ use data_type::*;
 use schema::types::ColumnDescPtr;
 use encodings::decoding::{get_decoder, Decoder, PlainDecoder, DictDecoder};
 use encodings::levels::LevelDecoder;
-use util::memory::ByteBufferPtr;
 use errors::{Result, ParquetError};
 use super::page::{Page, PageReader};
 
@@ -313,7 +312,7 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
 }
 
 
-#[cfg]
+#[cfg(test)]
 mod tests {
   use super::*;
   use std::rc::Rc;
@@ -326,7 +325,7 @@ mod tests {
   use encodings::encoding::{get_encoder, Encoder, DictEncoder};
   use encodings::levels::LevelEncoder;
   use schema::types::{Type as SchemaType, ColumnDescriptor, ColumnPath};
-  use util::memory::{MemTracker, MemTrackerPtr};
+  use util::memory::{ByteBufferPtr, MemTracker, MemTrackerPtr};
   use util::test_common::random_numbers_range;
 
   const NUM_LEVELS: usize = 128;
