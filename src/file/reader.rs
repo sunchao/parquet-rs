@@ -308,7 +308,6 @@ impl PageReader for SerializedPageReader {
           assert!(page_header.dictionary_page_header.is_some());
           let dict_header = page_header.dictionary_page_header.as_ref().unwrap();
           let is_sorted = dict_header.is_sorted.unwrap_or(false);
-          self.seen_num_values += dict_header.num_values as i64;
           Page::DictionaryPage {
             buf: ByteBufferPtr::new(buffer), num_values: dict_header.num_values as u32,
             encoding: Encoding::from(dict_header.encoding), is_sorted: is_sorted
@@ -396,7 +395,7 @@ mod tests {
     let mut page_reader_0: Box<PageReader> = page_reader_0_result.unwrap();
     let mut page_count = 0;
     while let Ok(Some(page)) = page_reader_0.get_next_page() {
-      let is_dict_type = match page {
+      let is_expected_page = match page {
         Page::DictionaryPage{ buf, num_values, encoding, is_sorted } => {
           assert_eq!(buf.len(), 32);
           assert_eq!(num_values, 8);
@@ -404,12 +403,20 @@ mod tests {
           assert_eq!(is_sorted, false);
           true
         },
+        Page::DataPage { buf, num_values, encoding, def_level_encoding, rep_level_encoding } => {
+          assert_eq!(buf.len(), 11);
+          assert_eq!(num_values, 8);
+          assert_eq!(encoding, Encoding::PLAIN_DICTIONARY);
+          assert_eq!(def_level_encoding, Encoding::RLE);
+          assert_eq!(rep_level_encoding, Encoding::BIT_PACKED);
+          true
+        },
         _ => false
       };
-      assert!(is_dict_type);
+      assert!(is_expected_page);
       page_count += 1;
     }
-    assert_eq!(page_count, 1);
+    assert_eq!(page_count, 2);
   }
 
   fn get_test_file<'a>(file_name: &str) -> fs::File {

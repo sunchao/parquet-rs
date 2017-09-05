@@ -193,7 +193,7 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
               continue;
             },
             // 2. data page v1
-            Page::DataPage { buf, num_values, encoding, def_level_encoding, rep_level_encoding } => {
+            Page::DataPage { buf, num_values, mut encoding, def_level_encoding, rep_level_encoding } => {
               self.num_buffered_values = num_values;
               self.num_decoded_values = 0;
 
@@ -214,7 +214,7 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
               }
 
               if encoding == Encoding::PLAIN_DICTIONARY {
-                encoding == Encoding::RLE_DICTIONARY;
+                encoding = Encoding::RLE_DICTIONARY;
               }
 
               let decoder =
