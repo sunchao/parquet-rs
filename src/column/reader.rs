@@ -143,6 +143,7 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
       let next_levels_read = levels_read + ::std::cmp::min(
         batch_size, (self.num_buffered_values - self.num_decoded_values) as usize);
 
+      // if the field is required and non-repeated, there are no definition levels
       if self.descr.max_def_level() > 0 && def_levels.as_ref().is_some() {
         if let Some(ref mut levels) = def_levels {
           assert!(levels.len() >= next_levels_read,
@@ -154,6 +155,9 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
             }
           }
         }
+      } else {
+        // required field, read all values
+        values_to_read = batch_size;
       }
 
       if self.descr.max_rep_level() > 0 && rep_levels.is_some() {
@@ -367,6 +371,18 @@ mod tests {
   }
 
   #[test]
+  fn test_read_plain_int32_required_non_repeated() {
+    // test case when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
+    let mut tester = ColumnReaderTester::<Int32Type>::new();
+    let primitive_type = SchemaType::new_primitive_type(
+      "a", Repetition::REQUIRED, PhysicalType::INT32, LogicalType::NONE,
+      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let descr = ColumnDescriptor::new(
+      Rc::new(primitive_type), None, 0, 0, ColumnPath::new(Vec::new()));
+    tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, ::std::i32::MIN, ::std::i32::MAX);
+  }
+
+  #[test]
   fn test_read_plain_int64() {
     let mut tester = ColumnReaderTester::<Int64Type>::new();
     let primitive_type = SchemaType::new_primitive_type(
@@ -394,6 +410,17 @@ mod tests {
       -1, 0, 0, None).expect("new_primitive_type() should be OK");
     let descr = ColumnDescriptor::new(Rc::new(primitive_type), None, 1, 1, ColumnPath::new(Vec::new()));
     tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 512, ::std::i64::MIN, ::std::i64::MAX);
+  }
+
+  #[test]
+  fn test_read_plain_int64_required_non_repeated() {
+    // test case when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
+    let mut tester = ColumnReaderTester::<Int64Type>::new();
+    let primitive_type = SchemaType::new_primitive_type(
+      "a", Repetition::REQUIRED, PhysicalType::INT64, LogicalType::NONE,
+      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let descr = ColumnDescriptor::new(Rc::new(primitive_type), None, 0, 0, ColumnPath::new(Vec::new()));
+    tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, ::std::i64::MIN, ::std::i64::MAX);
   }
 
   #[test]
@@ -584,12 +611,14 @@ mod tests {
   }
 
   impl DataPageBuilderImpl {
-    fn new(desc: ColumnDescPtr) -> Self {
+    // Create new DataPageBuilder
+    // when number of values is not explicitly provided, set it to 0
+    fn new(desc: ColumnDescPtr, num_values: u32) -> Self {
       DataPageBuilderImpl {
         desc: desc,
         encoding: None,
         mem_tracker: MemTracker::new_ptr(None).expect("new_ptr() should be OK"),
-        num_values: 0,
+        num_values: num_values,
         buffer: vec!()
       }
     }
@@ -681,11 +710,11 @@ mod tests {
 
       // Generate the current page
 
-      let mut page_builder = DataPageBuilderImpl::new(desc.clone());
-      if max_def_level > 0 {
+      let mut page_builder = DataPageBuilderImpl::new(desc.clone(), levels_per_page as u32);
+      if max_rep_level > 0 {
         page_builder.add_rep_levels(max_rep_level, &rep_levels[level_range.clone()]);
       }
-      if max_rep_level > 0 {
+      if max_def_level > 0 {
         page_builder.add_def_levels(max_def_level, &def_levels[level_range]);
       }
 
