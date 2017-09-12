@@ -17,3 +17,4 @@
 
 pub mod types;
 pub mod printer;
+pub mod parser;

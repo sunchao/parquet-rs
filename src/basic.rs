@@ -17,6 +17,9 @@
 
 use std::fmt;
 use std::convert;
+use std::result;
+use std::str;
+use errors::ParquetError;
 use parquet_thrift::parquet;
 
 
@@ -238,6 +241,66 @@ impl convert::From<parquet::PageType> for PageType {
   }
 }
 
+impl str::FromStr for Repetition {
+  type Err = ParquetError;
+  fn from_str(s: &str) -> result::Result<Self, Self::Err> {
+    match s {
+      "REQUIRED" => Ok(Repetition::REQUIRED),
+      "OPTIONAL" => Ok(Repetition::OPTIONAL),
+      "REPEATED" => Ok(Repetition::REPEATED),
+      other => Err(general_err!("Invalid repetition {}", other)),
+    }
+  }
+}
+
+impl str::FromStr for Type {
+  type Err = ParquetError;
+  fn from_str(s: &str) -> result::Result<Self, Self::Err> {
+    match s {
+      "BOOLEAN" => Ok(Type::BOOLEAN),
+      "INT32" => Ok(Type::INT32),
+      "INT64" => Ok(Type::INT64),
+      "INT96" => Ok(Type::INT96),
+      "FLOAT" => Ok(Type::FLOAT),
+      "DOUBLE" => Ok(Type::DOUBLE),
+      "BYTE_ARRAY" | "BINARY" => Ok(Type::BYTE_ARRAY),
+      "FIXED_LEN_BYTE_ARRAY" => Ok(Type::FIXED_LEN_BYTE_ARRAY),
+      other => Err(general_err!("Invalid type {}", other)),
+    }
+  }
+}
+
+impl str::FromStr for LogicalType {
+  type Err = ParquetError;
+  fn from_str(s: &str) -> result::Result<Self, Self::Err> {
+    match s {
+      "NONE" => Ok(LogicalType::NONE),
+      "UTF8" => Ok(LogicalType::UTF8),
+      "MAP" => Ok(LogicalType::MAP),
+      "MAP_KEY_VALUE" => Ok(LogicalType::MAP_KEY_VALUE),
+      "LIST" => Ok(LogicalType::LIST),
+      "ENUM" => Ok(LogicalType::ENUM),
+      "DECIMAL" => Ok(LogicalType::DECIMAL),
+      "DATE" => Ok(LogicalType::DATE),
+      "TIME_MILLIS" => Ok(LogicalType::TIME_MILLIS),
+      "TIME_MICROS" => Ok(LogicalType::TIME_MICROS),
+      "TIMESTAMP_MILLIS" => Ok(LogicalType::TIMESTAMP_MILLIS),
+      "TIMESTAMP_MICROS" => Ok(LogicalType::TIMESTAMP_MICROS),
+      "UINT_8" => Ok(LogicalType::UINT_8),
+      "UINT_16" => Ok(LogicalType::UINT_16),
+      "UINT_32" => Ok(LogicalType::UINT_32),
+      "UINT_64" => Ok(LogicalType::UINT_64),
+      "INT_8" => Ok(LogicalType::INT_8),
+      "INT_16" => Ok(LogicalType::INT_16),
+      "INT_32" => Ok(LogicalType::INT_32),
+      "INT_64" => Ok(LogicalType::INT_64),
+      "JSON" => Ok(LogicalType::JSON),
+      "BSON" => Ok(LogicalType::BSON),
+      "INTERVAL" => Ok(LogicalType::INTERVAL),
+      other => Err(general_err!("Invalid logical type {}", other)),
+    }
+  }
+}
 
 #[cfg(test)]
 mod tests {
@@ -265,6 +328,20 @@ mod tests {
     assert_eq!(Type::from(parquet::Type::DOUBLE) , Type::DOUBLE);
     assert_eq!(Type::from(parquet::Type::BYTE_ARRAY) , Type::BYTE_ARRAY);
     assert_eq!(Type::from(parquet::Type::FIXED_LEN_BYTE_ARRAY) , Type::FIXED_LEN_BYTE_ARRAY);
+  }
+
+  #[test]
+  fn test_from_string_into_type() {
+    assert_eq!(Type::BOOLEAN.to_string().parse::<Type>().unwrap(), Type::BOOLEAN);
+    assert_eq!(Type::INT32.to_string().parse::<Type>().unwrap(), Type::INT32);
+    assert_eq!(Type::INT64.to_string().parse::<Type>().unwrap(), Type::INT64);
+    assert_eq!(Type::INT96.to_string().parse::<Type>().unwrap(), Type::INT96);
+    assert_eq!(Type::FLOAT.to_string().parse::<Type>().unwrap(), Type::FLOAT);
+    assert_eq!(Type::DOUBLE.to_string().parse::<Type>().unwrap(), Type::DOUBLE);
+    assert_eq!(Type::BYTE_ARRAY.to_string().parse::<Type>().unwrap(), Type::BYTE_ARRAY);
+    assert_eq!("BINARY".parse::<Type>().unwrap(), Type::BYTE_ARRAY);
+    assert_eq!(Type::FIXED_LEN_BYTE_ARRAY.to_string().parse::<Type>().unwrap(),
+               Type::FIXED_LEN_BYTE_ARRAY);
   }
 
   #[test]
@@ -345,6 +422,56 @@ mod tests {
   }
 
   #[test]
+  fn test_from_string_into_logical_type() {
+    assert_eq!(LogicalType::NONE.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::NONE);
+    assert_eq!(LogicalType::UTF8.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::UTF8);
+    assert_eq!(LogicalType::MAP.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::MAP);
+    assert_eq!(LogicalType::MAP_KEY_VALUE.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::MAP_KEY_VALUE);
+    assert_eq!(LogicalType::LIST.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::LIST);
+    assert_eq!(LogicalType::ENUM.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::ENUM);
+    assert_eq!(LogicalType::DECIMAL.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::DECIMAL);
+    assert_eq!(LogicalType::DATE.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::DATE);
+    assert_eq!(LogicalType::TIME_MILLIS.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::TIME_MILLIS);
+    assert_eq!(LogicalType::TIME_MICROS.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::TIME_MICROS);
+    assert_eq!(LogicalType::TIMESTAMP_MILLIS.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::TIMESTAMP_MILLIS);
+    assert_eq!(LogicalType::TIMESTAMP_MICROS.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::TIMESTAMP_MICROS);
+    assert_eq!(LogicalType::UINT_8.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::UINT_8);
+    assert_eq!(LogicalType::UINT_16.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::UINT_16);
+    assert_eq!(LogicalType::UINT_32.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::UINT_32);
+    assert_eq!(LogicalType::UINT_64.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::UINT_64);
+    assert_eq!(LogicalType::INT_8.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::INT_8);
+    assert_eq!(LogicalType::INT_16.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::INT_16);
+    assert_eq!(LogicalType::INT_32.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::INT_32);
+    assert_eq!(LogicalType::INT_64.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::INT_64);
+    assert_eq!(LogicalType::JSON.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::JSON);
+    assert_eq!(LogicalType::BSON.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::BSON);
+    assert_eq!(LogicalType::INTERVAL.to_string().parse::<LogicalType>().unwrap(),
+               LogicalType::INTERVAL);
+  }
+
+  #[test]
   fn test_display_repetition() {
     assert_eq!(Repetition::REQUIRED.to_string(), "REQUIRED");
     assert_eq!(Repetition::OPTIONAL.to_string(), "OPTIONAL");
@@ -358,6 +485,16 @@ mod tests {
     assert_eq!(Repetition::from(parquet::FieldRepetitionType::OPTIONAL),
                Repetition::OPTIONAL);
     assert_eq!(Repetition::from(parquet::FieldRepetitionType::REPEATED),
+               Repetition::REPEATED);
+  }
+
+  #[test]
+  fn test_from_string_into_repetition() {
+    assert_eq!(Repetition::REQUIRED.to_string().parse::<Repetition>().unwrap(),
+               Repetition::REQUIRED);
+    assert_eq!(Repetition::OPTIONAL.to_string().parse::<Repetition>().unwrap(),
+               Repetition::OPTIONAL);
+    assert_eq!(Repetition::REPEATED.to_string().parse::<Repetition>().unwrap(),
                Repetition::REPEATED);
   }
 
