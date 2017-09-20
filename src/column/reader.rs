@@ -127,7 +127,7 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
   pub fn read_batch(&mut self, batch_size: usize,
                     mut def_levels: Option<&mut [i16]>,
                     mut rep_levels: Option<&mut [i16]>,
-                    mut values: &mut [T::T]) -> Result<(usize, usize)> {
+                    values: &mut [T::T]) -> Result<(usize, usize)> {
     let mut values_read = 0;
     let mut levels_read = 0;
 
@@ -270,13 +270,13 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
 
   #[inline]
   fn read_rep_levels(&mut self, buffer: &mut [i16]) -> Result<usize> {
-    let mut level_decoder = self.rep_level_decoder.as_mut().expect("rep_level_decoder be set");
+    let level_decoder = self.rep_level_decoder.as_mut().expect("rep_level_decoder be set");
     level_decoder.get(buffer)
   }
 
   #[inline]
   fn read_def_levels(&mut self, buffer: &mut [i16]) -> Result<usize> {
-    let mut level_decoder = self.def_level_decoder.as_mut().expect("def_level_decoder be set");
+    let level_decoder = self.def_level_decoder.as_mut().expect("def_level_decoder be set");
     level_decoder.get(buffer)
   }
 

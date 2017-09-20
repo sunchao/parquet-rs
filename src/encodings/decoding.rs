@@ -184,7 +184,7 @@ impl Decoder<BoolType> for PlainDecoder<BoolType> {
   fn get(&mut self, buffer: &mut [bool]) -> Result<usize> {
     assert!(self.bit_reader.is_some());
 
-    let mut bit_reader = self.bit_reader.as_mut().unwrap();
+    let bit_reader = self.bit_reader.as_mut().unwrap();
     let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
       buffer[i] = bit_reader.get_value::<bool>(1)
@@ -285,7 +285,7 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
     assert!(self.rle_decoder.is_some());
     assert!(self.has_dictionary, "Must call set_dict() first!");
 
-    let mut rle = self.rle_decoder.as_mut().unwrap();
+    let rle = self.rle_decoder.as_mut().unwrap();
     let num_values = cmp::min(buffer.len(), self.num_values);
     rle.get_batch_with_dict(&self.dictionary[..], buffer, num_values)
   }
@@ -345,7 +345,7 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
   #[inline]
   fn init_block(&mut self) -> Result<()> {
     assert!(self.bit_reader.is_some());
-    let mut bit_reader = self.bit_reader.as_mut().unwrap();
+    let bit_reader = self.bit_reader.as_mut().unwrap();
 
     self.min_delta = bit_reader.get_zigzag_vlq_int()
       .ok_or(eof_err!("Not enough data to decode 'min_delta'"))?;

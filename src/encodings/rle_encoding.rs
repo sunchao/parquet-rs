@@ -342,7 +342,7 @@ impl RleDecoder {
         self.rle_left -= 1;
         rle_value
       } else { // self.bit_packed_left > 0
-        let mut bit_reader = self.bit_reader.as_mut().expect("bit_reader should be Some");
+        let bit_reader = self.bit_reader.as_mut().expect("bit_reader should be Some");
         let bit_packed_value = bit_reader.get_value(self.bit_width as usize)
           .ok_or(eof_err!("Not enough data for 'bit_packed_value'"))?;
         self.bit_packed_left -= 1;
