@@ -117,8 +117,10 @@ impl<'a> Parser<'a> {
     match self.tokenizer.next() {
       Some("message") => {
         let name = self.tokenizer.next().ok_or(general_err!("Expected name, found None"))?;
-        let fields = self.parse_child_types()?;
-        Type::new_group_type(name, None, LogicalType::NONE, fields, None)
+        let mut fields = self.parse_child_types()?;
+        Type::group_type_builder(name)
+          .with_fields(&mut fields)
+          .build()
       },
       _ => {
         Err(general_err!("Message type does not start with 'message'"))
@@ -186,8 +188,17 @@ impl<'a> Parser<'a> {
       None
     };
 
-    let fields = self.parse_child_types()?;
-    Type::new_group_type(name, repetition, logical_type, fields, id)
+    let mut fields = self.parse_child_types()?;
+    let mut builder = Type::group_type_builder(name)
+      .with_logical_type(logical_type)
+      .with_fields(&mut fields);
+    if let Some(rep) = repetition {
+      builder = builder.with_repetition(rep);
+    }
+    if let Some(id) = id {
+      builder = builder.with_id(id);
+    }
+    builder.build()
   }
 
   fn add_primitive_type(&mut self,
@@ -254,9 +265,16 @@ impl<'a> Parser<'a> {
     };
     assert_token(self.tokenizer.next(), ";")?;
 
-    let primitive_type = Type::new_primitive_type(name, repetition, physical_type, logical_type,
-      length, precision, scale, id)?;
-    Ok(primitive_type)
+    let mut builder = Type::primitive_type_builder(name, physical_type)
+      .with_repetition(repetition)
+      .with_logical_type(logical_type)
+      .with_length(length)
+      .with_precision(precision)
+      .with_scale(scale);
+    if let Some(id) = id {
+      builder = builder.with_id(id);
+    }
+    Ok(builder.build()?)
   }
 }
 
@@ -448,12 +466,17 @@ mod tests {
     let mut iter = Tokenizer::from_str(schema);
     let message = Parser { tokenizer: &mut iter }.parse_message_type().unwrap();
 
-    let expected = Type::new_group_type(
-      "root", None, LogicalType::NONE, vec![
-        Rc::new(Type::new_primitive_type("f1", Repetition::OPTIONAL,
-          PhysicalType::FIXED_LEN_BYTE_ARRAY, LogicalType::DECIMAL, 5, 9, 3, None).unwrap())
-      ], None
-    ).unwrap();
+    let expected = Type::group_type_builder("root")
+      .with_fields(&mut vec![
+        Rc::new(
+          Type::primitive_type_builder("f1", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+            .with_logical_type(LogicalType::DECIMAL)
+            .with_length(5)
+            .with_precision(9)
+            .with_scale(3)
+            .build().unwrap())
+      ])
+      .build().unwrap();
 
     assert_eq!(message, expected);
   }
@@ -479,27 +502,47 @@ mod tests {
     let mut iter = Tokenizer::from_str(schema);
     let message = Parser { tokenizer: &mut iter }.parse_message_type().unwrap();
 
-    let expected = Type::new_group_type(
-      "root", None, LogicalType::NONE, vec![
-        Rc::new(Type::new_group_type("a0", Some(Repetition::REQUIRED), LogicalType::NONE, vec![
-
-          Rc::new(Type::new_group_type("a1", Some(Repetition::OPTIONAL), LogicalType::LIST, vec![
-            Rc::new(Type::new_primitive_type("a2", Repetition::REPEATED,
-              PhysicalType::BYTE_ARRAY, LogicalType::UTF8, 0, 0, 0, None).unwrap())
-          ], None).unwrap()),
-
-          Rc::new(Type::new_group_type("b1", Some(Repetition::OPTIONAL), LogicalType::LIST, vec![
-            Rc::new(Type::new_group_type("b2", Some(Repetition::REPEATED), LogicalType::NONE, vec![
-              Rc::new(Type::new_primitive_type("b3", Repetition::OPTIONAL,
-                PhysicalType::INT32, LogicalType::NONE, 0, 0, 0, None).unwrap()),
-              Rc::new(Type::new_primitive_type("b4", Repetition::OPTIONAL,
-                PhysicalType::DOUBLE, LogicalType::NONE, 0, 0, 0, None).unwrap())
-            ], None).unwrap()),
-          ], None).unwrap())
-
-        ], None).unwrap()),
-      ], None
-    ).unwrap();
+    let expected = Type::group_type_builder("root")
+      .with_fields(&mut vec![
+        Rc::new(
+          Type::group_type_builder("a0")
+            .with_repetition(Repetition::REQUIRED)
+            .with_fields(&mut vec![
+              Rc::new(
+                Type::group_type_builder("a1")
+                  .with_repetition(Repetition::OPTIONAL)
+                  .with_logical_type(LogicalType::LIST)
+                  .with_fields(&mut vec![
+                    Rc::new(
+                      Type::primitive_type_builder("a2", PhysicalType::BYTE_ARRAY)
+                        .with_repetition(Repetition::REPEATED)
+                        .with_logical_type(LogicalType::UTF8)
+                        .build().unwrap())
+                  ])
+                  .build().unwrap()),
+              Rc::new(
+                Type::group_type_builder("b1")
+                  .with_repetition(Repetition::OPTIONAL)
+                  .with_logical_type(LogicalType::LIST)
+                  .with_fields(&mut vec![
+                    Rc::new(
+                      Type::group_type_builder("b2")
+                        .with_repetition(Repetition::REPEATED)
+                        .with_fields(&mut vec![
+                          Rc::new(
+                            Type::primitive_type_builder("b3", PhysicalType::INT32)
+                              .build().unwrap()),
+                          Rc::new(
+                            Type::primitive_type_builder("b4", PhysicalType::DOUBLE)
+                              .build().unwrap())
+                        ])
+                        .build().unwrap()),
+                  ])
+                  .build().unwrap())
+            ])
+            .build().unwrap()),
+      ])
+      .build().unwrap();
 
     assert_eq!(message, expected);
   }
@@ -519,21 +562,38 @@ mod tests {
     let mut iter = Tokenizer::from_str(schema);
     let message = Parser { tokenizer: &mut iter }.parse_message_type().unwrap();
 
-    let expected = Type::new_group_type("root", None, LogicalType::NONE, vec![
-      Rc::new(Type::new_primitive_type("_1", Repetition::REQUIRED,
-        PhysicalType::INT32, LogicalType::INT_8, 0, 0, 0, None).unwrap()),
-      Rc::new(Type::new_primitive_type("_2", Repetition::REQUIRED,
-        PhysicalType::INT32, LogicalType::INT_16, 0, 0, 0, None).unwrap()),
-      Rc::new(Type::new_primitive_type("_3", Repetition::REQUIRED,
-        PhysicalType::FLOAT, LogicalType::NONE, 0, 0, 0, None).unwrap()),
-      Rc::new(Type::new_primitive_type("_4", Repetition::REQUIRED,
-        PhysicalType::DOUBLE, LogicalType::NONE, 0, 0, 0, None).unwrap()),
-      Rc::new(Type::new_primitive_type("_5", Repetition::OPTIONAL,
-        PhysicalType::INT32, LogicalType::DATE, 0, 0, 0, None).unwrap()),
-      Rc::new(Type::new_primitive_type("_6", Repetition::OPTIONAL,
-        PhysicalType::BYTE_ARRAY, LogicalType::UTF8, 0, 0, 0, None).unwrap())
-    ], None).unwrap();
+    let mut fields = vec![
+      Rc::new(
+        Type::primitive_type_builder("_1", PhysicalType::INT32)
+          .with_repetition(Repetition::REQUIRED)
+          .with_logical_type(LogicalType::INT_8)
+          .build().unwrap()),
+      Rc::new(
+        Type::primitive_type_builder("_2", PhysicalType::INT32)
+          .with_repetition(Repetition::REQUIRED)
+          .with_logical_type(LogicalType::INT_16)
+          .build().unwrap()),
+      Rc::new(
+        Type::primitive_type_builder("_3", PhysicalType::FLOAT)
+          .with_repetition(Repetition::REQUIRED)
+          .build().unwrap()),
+      Rc::new(
+        Type::primitive_type_builder("_4", PhysicalType::DOUBLE)
+          .with_repetition(Repetition::REQUIRED)
+          .build().unwrap()),
+      Rc::new(
+        Type::primitive_type_builder("_5", PhysicalType::INT32)
+          .with_logical_type(LogicalType::DATE)
+          .build().unwrap()),
+      Rc::new(
+        Type::primitive_type_builder("_6", PhysicalType::BYTE_ARRAY)
+          .with_logical_type(LogicalType::UTF8)
+          .build().unwrap())
+    ];
 
+    let expected = Type::group_type_builder("root")
+      .with_fields(&mut fields)
+      .build().unwrap();
     assert_eq!(message, expected);
   }
 }

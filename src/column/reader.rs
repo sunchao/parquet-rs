@@ -340,9 +340,12 @@ mod tests {
   #[test]
   fn test_read_plain_int32() {
     let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT32, LogicalType::INT_32,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = SchemaType::primitive_type_builder("a", PhysicalType::INT32)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::INT_32)
+      .with_length(-1)
+      .build()
+      .expect("new_primitive_type() should be OK");
     let descr = ColumnDescriptor::new(
       Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
     tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, ::std::i32::MIN, ::std::i32::MAX);
@@ -351,9 +354,12 @@ mod tests {
   #[test]
   fn test_read_plain_int32_uneven() {
     let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT32, LogicalType::INT_32,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = SchemaType::primitive_type_builder("a", PhysicalType::INT32)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::INT_32)
+      .with_length(-1)
+      .build()
+      .expect("new_primitive_type() should be OK");
     let descr = ColumnDescriptor::new(
       Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
     tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 17, ::std::i32::MIN, ::std::i32::MAX);
@@ -362,9 +368,7 @@ mod tests {
   #[test]
   fn test_read_plain_int32_multi_page() {
     let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT32, LogicalType::INT_32,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = get_test_int32_type();
     let descr = ColumnDescriptor::new(
       Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
     tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 512, ::std::i32::MIN, ::std::i32::MAX);
@@ -374,9 +378,7 @@ mod tests {
   fn test_read_plain_int32_required_non_repeated() {
     // test case when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
     let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT32, LogicalType::NONE,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = get_test_int32_type();
     let descr = ColumnDescriptor::new(
       Rc::new(primitive_type), None, 0, 0, ColumnPath::new(Vec::new()));
     tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, ::std::i32::MIN, ::std::i32::MAX);
@@ -385,9 +387,7 @@ mod tests {
   #[test]
   fn test_read_plain_int64() {
     let mut tester = ColumnReaderTester::<Int64Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT64, LogicalType::INT_64,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = get_test_int64_type();
     let descr = ColumnDescriptor::new(Rc::new(primitive_type), None, 1, 1, ColumnPath::new(Vec::new()));
     tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, ::std::i64::MIN, ::std::i64::MAX);
   }
@@ -395,9 +395,7 @@ mod tests {
   #[test]
   fn test_read_plain_int64_uneven() {
     let mut tester = ColumnReaderTester::<Int64Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT64, LogicalType::INT_64,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = get_test_int64_type();
     let descr = ColumnDescriptor::new(Rc::new(primitive_type), None, 1, 1, ColumnPath::new(Vec::new()));
     tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 17, ::std::i64::MIN, ::std::i64::MAX);
   }
@@ -405,9 +403,7 @@ mod tests {
   #[test]
   fn test_read_plain_int64_multi_page() {
     let mut tester = ColumnReaderTester::<Int64Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT64, LogicalType::INT_64,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = get_test_int64_type();
     let descr = ColumnDescriptor::new(Rc::new(primitive_type), None, 1, 1, ColumnPath::new(Vec::new()));
     tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 512, ::std::i64::MIN, ::std::i64::MAX);
   }
@@ -416,9 +412,7 @@ mod tests {
   fn test_read_plain_int64_required_non_repeated() {
     // test case when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
     let mut tester = ColumnReaderTester::<Int64Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT64, LogicalType::NONE,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = get_test_int64_type();
     let descr = ColumnDescriptor::new(Rc::new(primitive_type), None, 0, 0, ColumnPath::new(Vec::new()));
     tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, ::std::i64::MIN, ::std::i64::MAX);
   }
@@ -426,9 +420,7 @@ mod tests {
   #[test]
   fn test_read_dict_int32_small() {
     let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT32, LogicalType::INT_32,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = get_test_int32_type();
     let descr = ColumnDescriptor::new(
       Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
     tester.test_dict(Rc::new(descr), 2, 2, 16, 0, 3);
@@ -437,9 +429,7 @@ mod tests {
   #[test]
   fn test_read_dict_int32() {
     let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT32, LogicalType::INT_32,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = get_test_int32_type();
     let descr = ColumnDescriptor::new(
       Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
     tester.test_dict(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, 0, 3);
@@ -448,9 +438,7 @@ mod tests {
   #[test]
   fn test_read_dict_int32_uneven() {
     let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT32, LogicalType::INT_32,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = get_test_int32_type();
     let descr = ColumnDescriptor::new(
       Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
     tester.test_dict(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 17, 0, 3);
@@ -459,9 +447,7 @@ mod tests {
   #[test]
   fn test_read_dict_int32_multi_page() {
     let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT32, LogicalType::INT_32,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = get_test_int32_type();
     let descr = ColumnDescriptor::new(
       Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
     tester.test_dict(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 512, 0, 3);
@@ -470,14 +456,29 @@ mod tests {
   #[test]
   fn test_read_dict_int64() {
     let mut tester = ColumnReaderTester::<Int64Type>::new();
-    let primitive_type = SchemaType::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT64, LogicalType::INT_64,
-      -1, 0, 0, None).expect("new_primitive_type() should be OK");
+    let primitive_type = get_test_int64_type();
     let descr = ColumnDescriptor::new(
       Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
     tester.test_dict(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, 0, 3);
   }
 
+  fn get_test_int32_type() -> SchemaType {
+    SchemaType::primitive_type_builder("a", PhysicalType::INT32)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::INT_32)
+      .with_length(-1)
+      .build()
+      .expect("build() should be OK")
+  }
+
+  fn get_test_int64_type() -> SchemaType {
+    SchemaType::primitive_type_builder("a", PhysicalType::INT64)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::INT_64)
+      .with_length(-1)
+      .build()
+      .expect("build() should be OK")
+  }
 
   struct ColumnReaderTester<T: DataType> where T::T: PartialOrd + SampleRange + Copy, T: 'static {
     rep_levels: Vec<i16>,

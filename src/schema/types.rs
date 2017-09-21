@@ -45,94 +45,12 @@ pub enum Type {
 }
 
 impl Type {
-  // Create a new `PrimitiveType` instance from the input parameters
-  // This also checks various illegal conditions and returns `Err` in case
-  // that happens.
-  pub fn new_primitive_type(
-    name: &str, repetition: Repetition,
-    physical_type: PhysicalType, logical_type: LogicalType, length: i32,
-    precision: i32, scale: i32, id: Option<i32>) -> Result<Type> {
-
-    let basic_info = BasicTypeInfo {
-      name: String::from(name), repetition: Some(repetition),
-      logical_type: logical_type, id: id };
-
-    match logical_type {
-      LogicalType::NONE => {
-      },
-      LogicalType::UTF8 | LogicalType::BSON | LogicalType::JSON => {
-        if physical_type != PhysicalType::BYTE_ARRAY {
-          return Err(general_err!("{} can only annotate BYTE_ARRAY fields", logical_type))
-        }
-      },
-      LogicalType::DECIMAL => {
-        match physical_type {
-          PhysicalType::INT32 | PhysicalType::INT64 | PhysicalType::BYTE_ARRAY |
-          PhysicalType::FIXED_LEN_BYTE_ARRAY => (),
-          _ => {
-            return Err(general_err!("DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED"))
-          }
-        };
-        if precision < 0 {
-          return Err(general_err!("Invalid DECIMAL precision: {}", precision))
-        }
-        if scale < 0 {
-          return Err(general_err!("Invalid DECIMAL scale: {}", scale))
-        }
-        if scale > precision {
-          return Err(general_err!(
-            "Invalid DECIMAL: scale ({}) cannot be greater than precision ({})",
-            scale, precision))
-        }
-      }
-      LogicalType::DATE | LogicalType::TIME_MILLIS | LogicalType::UINT_8 |
-      LogicalType::UINT_16 | LogicalType::UINT_32 |
-      LogicalType::INT_8 | LogicalType::INT_16 | LogicalType::INT_32 => {
-        if physical_type != PhysicalType::INT32 {
-          return Err(general_err!("{} can only annotate INT32", logical_type))
-        }
-      }
-      LogicalType::TIME_MICROS | LogicalType::TIMESTAMP_MILLIS |
-      LogicalType::TIMESTAMP_MICROS | LogicalType::UINT_64 | LogicalType::INT_64 => {
-        if physical_type != PhysicalType::INT64 {
-          return Err(general_err!("{} can only annotate INT64", logical_type))
-        }
-      }
-      LogicalType::INTERVAL => {
-        if physical_type != PhysicalType::FIXED_LEN_BYTE_ARRAY || length != 12 {
-          return Err(general_err!("INTERVAL can only annotate FIXED(12)"))
-        }
-      }
-      LogicalType::ENUM => {
-        if physical_type != PhysicalType::BYTE_ARRAY {
-          return Err(general_err!("ENUM can only annotate BYTE_ARRAY fields"))
-        }
-      }
-      _ => {
-        return Err(general_err!("{} cannot be applied to a primitive type", logical_type))
-      }
-    };
-    if physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY && length < 0 {
-      return Err(general_err!("Invalid FIXED_LEN_BYTE_ARRAY length: {}", length))
-    }
-    Ok(Type::PrimitiveType{
-      basic_info: basic_info,
-      physical_type: physical_type,
-      type_length: length,
-      scale: scale,
-      precision: precision
-    })
+  pub fn primitive_type_builder(name: &str, physical_type: PhysicalType) -> PrimitiveTypeBuilder {
+    PrimitiveTypeBuilder::new(name, physical_type)
   }
 
-  // Create a new `GroupType` instance from the input parameters.
-  pub fn new_group_type(
-    name: &str, repetition: Option<Repetition>,
-    logical_type: LogicalType, fields: Vec<TypePtr>, id: Option<i32>) -> Result<Type> {
-
-    let basic_info = BasicTypeInfo {
-      name: String::from(name), repetition: repetition,
-      logical_type: logical_type, id: id };
-    Ok(Type::GroupType{ basic_info: basic_info, fields: fields })
+  pub fn group_type_builder(name: &str) -> GroupTypeBuilder {
+    GroupTypeBuilder::new(name)
   }
 
   pub fn get_basic_info(&self) -> &BasicTypeInfo {
@@ -176,6 +94,196 @@ impl Type {
       Type::GroupType{ ref basic_info, .. } => !basic_info.has_repetition(),
       _ => false
     }
+  }
+}
+
+/// A builder for primitive types. All attributes are optional
+/// except the name and physical type.
+/// Note that if not specified explicitly, `Repetition::OPTIONAL` is used.
+pub struct PrimitiveTypeBuilder<'a> {
+  name: &'a str,
+  repetition: Repetition,
+  physical_type: PhysicalType,
+  logical_type: LogicalType,
+  length: i32,
+  precision: i32,
+  scale: i32,
+  id: Option<i32>
+}
+
+impl<'a> PrimitiveTypeBuilder<'a> {
+  fn new(name: &'a str, physical_type: PhysicalType) -> Self {
+    Self {
+      name: name,
+      repetition: Repetition::OPTIONAL,
+      physical_type: physical_type,
+      logical_type: LogicalType::NONE,
+      length: 0,
+      precision: 0,
+      scale: 0,
+      id: None
+    }
+  }
+
+  pub fn with_repetition(mut self, repetition: Repetition) -> Self {
+    self.repetition = repetition;
+    self
+  }
+
+  pub fn with_logical_type(mut self, logical_type: LogicalType) -> Self {
+    self.logical_type = logical_type;
+    self
+  }
+
+  pub fn with_length(mut self, length: i32) -> Self {
+    self.length = length;
+    self
+  }
+
+  pub fn with_precision(mut self, precision: i32) -> Self {
+    self.precision = precision;
+    self
+  }
+
+  pub fn with_scale(mut self, scale: i32) -> Self {
+    self.scale = scale;
+    self
+  }
+
+  pub fn with_id(mut self, id: i32) -> Self {
+    self.id = Some(id);
+    self
+  }
+
+  // Create a new `PrimitiveType` instance from the gathered attributes.
+  // This also checks various illegal conditions and returns `Err` if that
+  // that happen.
+  pub fn build(self) -> Result<Type> {
+    let basic_info = BasicTypeInfo {
+      name: String::from(self.name),
+      repetition: Some(self.repetition),
+      logical_type: self.logical_type,
+      id: self.id
+    };
+
+    match self.logical_type {
+      LogicalType::NONE => {
+      },
+      LogicalType::UTF8 | LogicalType::BSON | LogicalType::JSON => {
+        if self.physical_type != PhysicalType::BYTE_ARRAY {
+          return Err(general_err!("{} can only annotate BYTE_ARRAY fields", self.logical_type))
+        }
+      },
+      LogicalType::DECIMAL => {
+        match self.physical_type {
+          PhysicalType::INT32 | PhysicalType::INT64 | PhysicalType::BYTE_ARRAY |
+          PhysicalType::FIXED_LEN_BYTE_ARRAY => (),
+          _ => {
+            return Err(general_err!("DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED"))
+          }
+        };
+        if self.precision < 0 {
+          return Err(general_err!("Invalid DECIMAL precision: {}", self.precision))
+        }
+        if self.scale < 0 {
+          return Err(general_err!("Invalid DECIMAL scale: {}", self.scale))
+        }
+        if self.scale > self.precision {
+          return Err(general_err!(
+            "Invalid DECIMAL: scale ({}) cannot be greater than precision ({})",
+            self.scale, self.precision))
+        }
+      }
+      LogicalType::DATE | LogicalType::TIME_MILLIS | LogicalType::UINT_8 |
+      LogicalType::UINT_16 | LogicalType::UINT_32 |
+      LogicalType::INT_8 | LogicalType::INT_16 | LogicalType::INT_32 => {
+        if self.physical_type != PhysicalType::INT32 {
+          return Err(general_err!("{} can only annotate INT32", self.logical_type))
+        }
+      }
+      LogicalType::TIME_MICROS | LogicalType::TIMESTAMP_MILLIS |
+      LogicalType::TIMESTAMP_MICROS | LogicalType::UINT_64 | LogicalType::INT_64 => {
+        if self.physical_type != PhysicalType::INT64 {
+          return Err(general_err!("{} can only annotate INT64", self.logical_type))
+        }
+      }
+      LogicalType::INTERVAL => {
+        if self.physical_type != PhysicalType::FIXED_LEN_BYTE_ARRAY || self.length != 12 {
+          return Err(general_err!("INTERVAL can only annotate FIXED(12)"))
+        }
+      }
+      LogicalType::ENUM => {
+        if self.physical_type != PhysicalType::BYTE_ARRAY {
+          return Err(general_err!("ENUM can only annotate BYTE_ARRAY fields"))
+        }
+      }
+      _ => {
+        return Err(general_err!("{} cannot be applied to a primitive type", self.logical_type))
+      }
+    };
+    if self.physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY && self.length < 0 {
+      return Err(general_err!("Invalid FIXED_LEN_BYTE_ARRAY length: {}", self.length))
+    }
+    Ok(Type::PrimitiveType {
+      basic_info: basic_info,
+      physical_type: self.physical_type,
+      type_length: self.length,
+      scale: self.scale,
+      precision: self.precision
+    })
+  }
+}
+
+/// A builder for group types. All attributes are optional except the name.
+/// Note that if not specified explicitly, `None` is used as the repetition
+/// of the group, which means it is a root (message) type.
+pub struct GroupTypeBuilder<'a> {
+  name: &'a str,
+  repetition: Option<Repetition>,
+  logical_type: LogicalType,
+  fields: Vec<TypePtr>,
+  id: Option<i32>
+}
+
+impl<'a> GroupTypeBuilder<'a> {
+  pub fn new(name: &'a str) -> Self {
+    Self {
+      name: name,
+      repetition: None,
+      logical_type: LogicalType::NONE,
+      fields: Vec::new(),
+      id: None
+    }
+  }
+
+  pub fn with_repetition(mut self, repetition: Repetition) -> Self {
+    self.repetition = Some(repetition);
+    self
+  }
+
+  pub fn with_logical_type(mut self, logical_type: LogicalType) -> Self {
+    self.logical_type = logical_type;
+    self
+  }
+
+  pub fn with_fields(mut self, fields: &mut Vec<TypePtr>) -> Self {
+    self.fields.append(fields);
+    self
+  }
+
+  pub fn with_id(mut self, id: i32) -> Self {
+    self.id = Some(id);
+    self
+  }
+
+  // Create a new `GroupType` instance from the gathered attributes.
+  pub fn build(self) -> Result<Type> {
+    let basic_info = BasicTypeInfo {
+      name: String::from(self.name), repetition: self.repetition,
+      logical_type: self.logical_type, id: self.id };
+    Ok(Type::GroupType {
+      basic_info: basic_info, fields: self.fields
+    })
   }
 }
 
@@ -488,9 +596,16 @@ fn from_thrift_helper(elements: &mut [SchemaElement], index: usize) -> Result<(u
       let scale = elements[index].scale.unwrap_or(-1);
       let precision = elements[index].precision.unwrap_or(-1);
       let name = &elements[index].name;
-      let result = Type::new_primitive_type(
-        name, repetition, physical_type, logical_type, length, precision, scale, field_id)?;
-      Ok((index + 1, Rc::new(result)))
+      let mut builder = Type::primitive_type_builder(name, physical_type)
+        .with_repetition(repetition)
+        .with_logical_type(logical_type)
+        .with_length(length)
+        .with_precision(precision)
+        .with_scale(scale);
+      if let Some(id) = field_id {
+        builder = builder.with_id(id);
+      }
+      Ok((index + 1, Rc::new(builder.build()?)))
     },
     Some(n) => {
       let repetition = elements[index].repetition_type.map(|r| Repetition::from(r));
@@ -502,9 +617,16 @@ fn from_thrift_helper(elements: &mut [SchemaElement], index: usize) -> Result<(u
         fields.push(child_result.1);
       }
 
-      let group_tp = Type::new_group_type(
-        &elements[index].name, repetition, logical_type, fields, field_id)?;
-      Ok((next_index, Rc::new(group_tp)))
+      let mut builder = Type::group_type_builder(&elements[index].name)
+        .with_logical_type(logical_type)
+        .with_fields(&mut fields);
+      if let Some(rep) = repetition {
+        builder = builder.with_repetition(rep);
+      }
+      if let Some(id) = field_id {
+        builder = builder.with_id(id);
+      }
+      Ok((next_index, Rc::new(builder.build().unwrap())))
     }
   }
 }
@@ -516,9 +638,10 @@ mod tests {
 
   #[test]
   fn test_primitive_type() {
-    let mut result = Type::new_primitive_type(
-      "foo", Repetition::OPTIONAL, PhysicalType::INT32,
-      LogicalType::INT_32, 0, 0, 0, Some(0));
+    let mut result = Type::primitive_type_builder("foo", PhysicalType::INT32)
+      .with_logical_type(LogicalType::INT_32)
+      .with_id(0)
+      .build();
     assert!(result.is_ok());
 
     if let Ok(tp) = result {
@@ -537,90 +660,110 @@ mod tests {
     }
 
     // Test illegal inputs
-    result = Type::new_primitive_type(
-      "foo", Repetition::REPEATED, PhysicalType::INT64,
-      LogicalType::BSON, 0, 0, 0, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::INT64)
+      .with_repetition(Repetition::REPEATED)
+      .with_logical_type(LogicalType::BSON)
+      .build();
     assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "BSON can only annotate BYTE_ARRAY fields");
     }
 
-    result = Type::new_primitive_type(
-      "foo", Repetition::REQUIRED, PhysicalType::INT96,
-      LogicalType::DECIMAL, 0, -1, -1, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::INT96)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::DECIMAL)
+      .with_precision(-1)
+      .with_scale(-1)
+      .build();
     assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED");
     }
 
-    result = Type::new_primitive_type(
-      "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
-      LogicalType::DECIMAL, 0, -1, -1, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::DECIMAL)
+      .with_precision(-1)
+      .with_scale(-1)
+      .build();
     if let Err(e) = result {
       assert_eq!(e.description(), "Invalid DECIMAL precision: -1");
     }
 
-    result = Type::new_primitive_type(
-      "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
-      LogicalType::DECIMAL, 0, 0, -1, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::DECIMAL)
+      .with_scale(-1)
+      .build();
     if let Err(e) = result {
       assert_eq!(e.description(), "Invalid DECIMAL scale: -1");
     }
 
-    result = Type::new_primitive_type(
-      "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
-      LogicalType::DECIMAL, 0, 1, 2, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::DECIMAL)
+      .with_precision(1)
+      .with_scale(2)
+      .build();
     if let Err(e) = result {
       assert_eq!(
         e.description(),
         "Invalid DECIMAL: scale (2) cannot be greater than precision (1)");
     }
 
-    result = Type::new_primitive_type(
-      "foo", Repetition::REQUIRED, PhysicalType::INT64,
-      LogicalType::UINT_8, 0, 0, 0, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::INT64)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::UINT_8)
+      .build();
     if let Err(e) = result {
       assert_eq!(e.description(), "UINT_8 can only annotate INT32");
     }
 
-    result = Type::new_primitive_type(
-      "foo", Repetition::REQUIRED, PhysicalType::INT32,
-      LogicalType::TIME_MICROS, 0, 0, 0, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::INT32)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::TIME_MICROS)
+      .build();
     if let Err(e) = result {
       assert_eq!(e.description(), "TIME_MICROS can only annotate INT64");
     }
 
-    result = Type::new_primitive_type(
-      "foo", Repetition::REQUIRED, PhysicalType::BYTE_ARRAY,
-      LogicalType::INTERVAL, 0, 0, 0, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::INTERVAL)
+      .build();
     if let Err(e) = result {
       assert_eq!(e.description(), "INTERVAL can only annotate FIXED(12)");
     }
 
-    result = Type::new_primitive_type(
-      "foo", Repetition::REQUIRED, PhysicalType::FIXED_LEN_BYTE_ARRAY,
-      LogicalType::INTERVAL, 0, 0, 0, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::INTERVAL)
+      .build();
     if let Err(e) = result {
       assert_eq!(e.description(), "INTERVAL can only annotate FIXED(12)");
     }
 
-    result = Type::new_primitive_type(
-      "foo", Repetition::REQUIRED, PhysicalType::INT32,
-      LogicalType::ENUM, 0, 0, 0, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::INT32)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::ENUM)
+      .build();
     if let Err(e) = result {
       assert_eq!(e.description(), "ENUM can only annotate BYTE_ARRAY fields");
     }
 
-    result = Type::new_primitive_type(
-      "foo", Repetition::REQUIRED, PhysicalType::INT32,
-      LogicalType::MAP, 0, 0, 0, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::INT32)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::MAP)
+      .build();
     if let Err(e) = result {
       assert_eq!(e.description(), "MAP cannot be applied to a primitive type");
     }
 
-    result = Type::new_primitive_type(
-      "foo", Repetition::REQUIRED, PhysicalType::FIXED_LEN_BYTE_ARRAY,
-      LogicalType::DECIMAL, -1, 0, 0, None);
+    result = Type::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::DECIMAL)
+      .with_length(-1)
+      .build();
     if let Err(e) = result {
       assert_eq!(e.description(), "Invalid FIXED_LEN_BYTE_ARRAY length: -1");
     }
@@ -628,21 +771,26 @@ mod tests {
 
   #[test]
   fn test_group_type() {
-    let f1 = Type::new_primitive_type(
-      "f1", Repetition::OPTIONAL, PhysicalType::INT32,
-      LogicalType::INT_32, 0, 0, 0, Some(0));
+    let f1 = Type::primitive_type_builder("f1", PhysicalType::INT32)
+      .with_logical_type(LogicalType::INT_32)
+      .with_id(0)
+      .build();
     assert!(f1.is_ok());
-    let f2 = Type::new_primitive_type(
-      "f2", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
-      LogicalType::UTF8, 0, 0, 0, Some(1));
+    let f2 = Type::primitive_type_builder("f2", PhysicalType::BYTE_ARRAY)
+      .with_logical_type(LogicalType::UTF8)
+      .with_id(1)
+      .build();
     assert!(f2.is_ok());
 
     let mut fields = vec!();
     fields.push(Rc::new(f1.unwrap()));
     fields.push(Rc::new(f2.unwrap()));
 
-    let result = Type::new_group_type(
-      "foo", Some(Repetition::REPEATED), LogicalType::NONE, fields, Some(1));
+    let result = Type::group_type_builder("foo")
+      .with_repetition(Repetition::REPEATED)
+      .with_fields(&mut fields)
+      .with_id(1)
+      .build();
     assert!(result.is_ok());
 
     let tp = result.unwrap();
@@ -662,12 +810,13 @@ mod tests {
   }
 
   fn test_column_descriptor_helper() -> Result<()> {
-    let tp = Type::new_primitive_type(
-      "name", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
-      LogicalType::UTF8, 0, 0, 0, None)?;
+    let tp = Type::primitive_type_builder("name", PhysicalType::BYTE_ARRAY)
+      .with_logical_type(LogicalType::UTF8)
+      .build()?;
 
-    let root_tp = Type::new_group_type(
-      "root", None, LogicalType::LIST, vec!(), None)?;
+    let root_tp = Type::group_type_builder("root")
+      .with_logical_type(LogicalType::LIST)
+      .build().unwrap();
     let root_tp_rc = Rc::new(root_tp);
 
     let descr = ColumnDescriptor::new(
@@ -697,37 +846,47 @@ mod tests {
   fn test_schema_descriptor_helper() -> Result<()> {
     let mut fields = vec!();
 
-    let inta = Type::new_primitive_type(
-      "a", Repetition::REQUIRED, PhysicalType::INT32,
-      LogicalType::INT_32, 0, 0, 0, None)?;
+    let inta = Type::primitive_type_builder("a", PhysicalType::INT32)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::INT_32)
+      .build()?;
     fields.push(Rc::new(inta));
-    fields.push(Rc::new(Type::new_primitive_type(
-      "b", Repetition::OPTIONAL, PhysicalType::INT64,
-      LogicalType::INT_64, 0, 0, 0, None)?));
-    fields.push(Rc::new(Type::new_primitive_type(
-      "c", Repetition::REPEATED, PhysicalType::BYTE_ARRAY,
-      LogicalType::UTF8, 0, 0, 0, None)?));
+    let intb = Type::primitive_type_builder("b", PhysicalType::INT64)
+      .with_logical_type(LogicalType::INT_64)
+      .build()?;
+    fields.push(Rc::new(intb));
+    let intc = Type::primitive_type_builder("c", PhysicalType::BYTE_ARRAY)
+      .with_repetition(Repetition::REPEATED)
+      .with_logical_type(LogicalType::UTF8)
+      .build()?;
+    fields.push(Rc::new(intc));
 
     // 3-level list encoding
-    let item1 = Type::new_primitive_type(
-      "item1", Repetition::REQUIRED, PhysicalType::INT64,
-      LogicalType::INT_64, 0, 0, 0, None)?;
-    let item2 = Type::new_primitive_type(
-      "item2", Repetition::OPTIONAL, PhysicalType::BOOLEAN,
-      LogicalType::NONE, 0, 0, 0, None)?;
-    let item3 = Type::new_primitive_type(
-      "item3", Repetition::REPEATED, PhysicalType::INT32,
-      LogicalType::INT_32, 0, 0, 0, None)?;
-    let list = Type::new_group_type(
-      "records", Some(Repetition::REPEATED), LogicalType::LIST,
-      vec!(Rc::new(item1), Rc::new(item2), Rc::new(item3)), None)?;
-    let bag = Type::new_group_type(
-      "bag", Some(Repetition::OPTIONAL), LogicalType::NONE,
-      vec!(Rc::new(list)), None)?;
+    let item1 = Type::primitive_type_builder("item1", PhysicalType::INT64)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::INT_64)
+      .build()?;
+    let item2 = Type::primitive_type_builder("item2", PhysicalType::BOOLEAN)
+      .build()?;
+    let item3 = Type::primitive_type_builder("item3", PhysicalType::INT32)
+      .with_repetition(Repetition::REPEATED)
+      .with_logical_type(LogicalType::INT_32)
+      .build()?;
+    let list = Type::group_type_builder("records")
+      .with_repetition(Repetition::REPEATED)
+      .with_logical_type(LogicalType::LIST)
+      .with_fields(&mut vec!(Rc::new(item1), Rc::new(item2), Rc::new(item3)))
+      .build()?;
+    let bag = Type::group_type_builder("bag")
+      .with_repetition(Repetition::OPTIONAL)
+      .with_fields(&mut vec!(Rc::new(list)))
+      .build()?;
     fields.push(Rc::new(bag));
 
-    let schema = Type::new_group_type(
-      "schema", Some(Repetition::REPEATED), LogicalType::NONE, fields, None)?;
+    let schema = Type::group_type_builder("schema")
+      .with_repetition(Repetition::REPEATED)
+      .with_fields(&mut fields)
+      .build()?;
     let descr = SchemaDescriptor::new(Rc::new(schema));
 
     let nleaves = 6;

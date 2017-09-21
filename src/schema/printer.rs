@@ -180,9 +180,10 @@ mod tests {
     let mut s = String::new();
     {
       let mut p = Printer::new(&mut s);
-      let foo = Type::new_primitive_type(
-        "foo", Repetition::REQUIRED, PhysicalType::INT32,
-        LogicalType::INT_32, 0, 0, 0, None).unwrap();
+      let foo = Type::primitive_type_builder("foo", PhysicalType::INT32)
+        .with_repetition(Repetition::REQUIRED)
+        .with_logical_type(LogicalType::INT_32)
+        .build().unwrap();
       p.print(&foo);
     }
     assert_eq!(&mut s, "REQUIRED INT32 foo;");
@@ -193,25 +194,36 @@ mod tests {
     let mut s = String::new();
     {
       let mut p = Printer::new(&mut s);
-      let f1 = Type::new_primitive_type(
-        "f1", Repetition::REQUIRED, PhysicalType::INT32,
-        LogicalType::INT_32, 0, 0, 0, Some(0));
-      let f2 = Type::new_primitive_type(
-        "f2", Repetition::OPTIONAL, PhysicalType::BYTE_ARRAY,
-        LogicalType::UTF8, 0, 0, 0, Some(1));
-      let f3 = Type::new_primitive_type(
-        "f3", Repetition::REPEATED, PhysicalType::FIXED_LEN_BYTE_ARRAY,
-        LogicalType::INTERVAL, 12, 0, 0, Some(2));
+      let f1 = Type::primitive_type_builder("f1", PhysicalType::INT32)
+        .with_repetition(Repetition::REQUIRED)
+        .with_logical_type(LogicalType::INT_32)
+        .with_id(0)
+        .build();
+      let f2 = Type::primitive_type_builder("f2", PhysicalType::BYTE_ARRAY)
+        .with_logical_type(LogicalType::UTF8)
+        .with_id(1)
+        .build();
+      let f3 = Type::primitive_type_builder("f3", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+        .with_repetition(Repetition::REPEATED)
+        .with_logical_type(LogicalType::INTERVAL)
+        .with_length(12)
+        .with_id(2)
+        .build();
       let mut struct_fields = Vec::new();
       struct_fields.push(Rc::new(f1.unwrap()));
       struct_fields.push(Rc::new(f2.unwrap()));
-      let foo = Type::new_group_type(
-        "foo", Some(Repetition::OPTIONAL), LogicalType::NONE, struct_fields, Some(1)).unwrap();
+      let foo = Type::group_type_builder("foo")
+        .with_repetition(Repetition::OPTIONAL)
+        .with_fields(&mut struct_fields)
+        .with_id(1)
+        .build().unwrap();
       let mut fields = Vec::new();
       fields.push(Rc::new(foo));
       fields.push(Rc::new(f3.unwrap()));
-      let message = Type::new_group_type(
-        "schema", None, LogicalType::NONE, fields, Some(2)).unwrap();
+      let message = Type::group_type_builder("schema")
+        .with_fields(&mut fields)
+        .with_id(2)
+        .build().unwrap();
       p.print(&message);
     }
     let expected =

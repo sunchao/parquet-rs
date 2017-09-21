@@ -473,8 +473,10 @@ mod tests {
   }
 
   fn create_test_col_desc(type_len: i32, t: Type) -> ColumnDescriptor {
-    let ty = SchemaType::new_primitive_type(
-      "t", Repetition::OPTIONAL, t, LogicalType::NONE, type_len, 0, 0, None).unwrap();
+    let ty = SchemaType::primitive_type_builder("t", t)
+      .with_length(type_len)
+      .build()
+      .unwrap();
     ColumnDescriptor::new(Rc::new(ty), None, 0, 0, ColumnPath::new(vec!()))
   }
 
