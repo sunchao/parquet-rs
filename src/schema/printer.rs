@@ -18,7 +18,7 @@
 use std::fmt;
 use std::io;
 
-use basic::LogicalType;
+use basic::{LogicalType, Type as PhysicalType};
 use schema::types::Type;
 use file::metadata::{ParquetMetaData, FileMetaData, RowGroupMetaData, ColumnChunkMetaData};
 
@@ -140,8 +140,31 @@ impl<'a> Printer<'a> {
   pub fn print(&mut self, tp: &Type) {
     self.print_indent();
     match tp {
-      &Type::PrimitiveType{ ref basic_info, physical_type, .. } => {
-        write!(self.output, "{} {} {};", basic_info.repetition(), physical_type, basic_info.name());
+      &Type::PrimitiveType{ ref basic_info, physical_type, type_length, scale, precision } => {
+        let phys_type_str = match physical_type {
+          PhysicalType::FIXED_LEN_BYTE_ARRAY => {
+            // we need to include length for fixed byte array
+            format!("{} ({})", physical_type, type_length)
+          },
+          _ => format!("{}", physical_type),
+        };
+        // also print logical type if it is available
+        let logical_type_str = match basic_info.logical_type() {
+          LogicalType::NONE => format!(""),
+          decimal @ LogicalType::DECIMAL => {
+            // for decimal type we should print precision and scale if they are > 0, e.g.
+            // DECIMAL(9, 2) - DECIMAL(9) - DECIMAL
+            let precision_scale = match (precision, scale) {
+              (p, s) if p > 0 && s > 0 => format!(" ({}, {})", p, s),
+              (p, 0) if p > 0 => format!(" ({})", p),
+              _ => format!("")
+            };
+            format!(" ({}{})", decimal, precision_scale)
+          },
+          other_logical_type => format!(" ({})", other_logical_type),
+        };
+        write!(self.output, "{} {} {}{};", basic_info.repetition(), phys_type_str, basic_info.name(),
+          logical_type_str);
       },
       &Type::GroupType{ ref basic_info, ref fields } => {
         if basic_info.has_repetition() {
@@ -173,7 +196,18 @@ mod tests {
   use super::*;
   use std::rc::Rc;
   use schema::types::Type;
+  use schema::parser::parse_message_type;
   use basic::{Type as PhysicalType, Repetition};
+
+  fn assert_print_parse_message(message: Type) {
+    let mut s = String::new();
+    {
+      let mut p = Printer::new(&mut s);
+      p.print(&message);
+    }
+    let parsed = parse_message_type(&s).unwrap();
+    assert_eq!(message, parsed);
+  }
 
   #[test]
   fn test_print_primitive_type() {
@@ -186,7 +220,20 @@ mod tests {
         .build().unwrap();
       p.print(&foo);
     }
-    assert_eq!(&mut s, "REQUIRED INT32 foo;");
+    assert_eq!(&mut s, "REQUIRED INT32 foo (INT_32);");
+  }
+
+  #[test]
+  fn test_print_primitive_type_without_logical() {
+    let mut s = String::new();
+    {
+      let mut p = Printer::new(&mut s);
+      let foo = Type::primitive_type_builder("foo", PhysicalType::DOUBLE)
+        .with_repetition(Repetition::REQUIRED)
+        .build().unwrap();
+      p.print(&foo);
+    }
+    assert_eq!(&mut s, "REQUIRED DOUBLE foo;");
   }
 
   #[test]
@@ -229,11 +276,113 @@ mod tests {
     let expected =
 "message schema {
   OPTIONAL group foo {
-    REQUIRED INT32 f1;
-    OPTIONAL BYTE_ARRAY f2;
+    REQUIRED INT32 f1 (INT_32);
+    OPTIONAL BYTE_ARRAY f2 (UTF8);
   }
-  REPEATED FIXED_LEN_BYTE_ARRAY f3;
+  REPEATED FIXED_LEN_BYTE_ARRAY (12) f3 (INTERVAL);
 }";
     assert_eq!(&mut s, expected);
+  }
+
+  #[test]
+  fn test_print_and_parse_primitive() {
+    let a2 = Type::primitive_type_builder("a2", PhysicalType::BYTE_ARRAY)
+      .with_repetition(Repetition::REPEATED)
+      .with_logical_type(LogicalType::UTF8)
+      .build().unwrap();
+
+    let a1 = Type::group_type_builder("a1")
+      .with_repetition(Repetition::OPTIONAL)
+      .with_logical_type(LogicalType::LIST)
+      .with_fields(&mut vec![Rc::new(a2)])
+      .build().unwrap();
+
+    let b3 = Type::primitive_type_builder("b3", PhysicalType::INT32)
+      .with_repetition(Repetition::OPTIONAL)
+      .build().unwrap();
+
+    let b4 = Type::primitive_type_builder("b4", PhysicalType::DOUBLE)
+      .with_repetition(Repetition::OPTIONAL)
+      .build().unwrap();
+
+    let b2 = Type::group_type_builder("b2")
+      .with_repetition(Repetition::REPEATED)
+      .with_logical_type(LogicalType::NONE)
+      .with_fields(&mut vec![Rc::new(b3), Rc::new(b4)])
+      .build().unwrap();
+
+    let b1 = Type::group_type_builder("b1")
+      .with_repetition(Repetition::OPTIONAL)
+      .with_logical_type(LogicalType::LIST)
+      .with_fields(&mut vec![Rc::new(b2)])
+      .build().unwrap();
+
+    let a0 = Type::group_type_builder("a0")
+      .with_repetition(Repetition::REQUIRED)
+      .with_fields(&mut vec![Rc::new(a1), Rc::new(b1)])
+      .build().unwrap();
+
+    let message = Type::group_type_builder("root")
+      .with_fields(&mut vec![Rc::new(a0)])
+      .build().unwrap();
+
+    assert_print_parse_message(message);
+  }
+
+  #[test]
+  fn test_print_and_parse_nested() {
+    let f1 = Type::primitive_type_builder("f1", PhysicalType::INT32)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::INT_32)
+      .build().unwrap();
+
+    let f2 = Type::primitive_type_builder("f2", PhysicalType::BYTE_ARRAY)
+      .with_repetition(Repetition::OPTIONAL)
+      .with_logical_type(LogicalType::UTF8)
+      .build().unwrap();
+
+    let foo = Type::group_type_builder("foo")
+      .with_repetition(Repetition::OPTIONAL)
+      .with_fields(&mut vec![Rc::new(f1), Rc::new(f2)])
+      .build().unwrap();
+
+    let f3 = Type::primitive_type_builder("f3", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+      .with_repetition(Repetition::REPEATED)
+      .with_logical_type(LogicalType::INTERVAL)
+      .with_length(12)
+      .build().unwrap();
+
+    let message = Type::group_type_builder("schema")
+      .with_fields(&mut vec![Rc::new(foo), Rc::new(f3)])
+      .build().unwrap();
+
+    assert_print_parse_message(message);
+  }
+
+  #[test]
+  fn test_print_and_parse_decimal() {
+    let f1 = Type::primitive_type_builder("f1", PhysicalType::INT32)
+      .with_repetition(Repetition::OPTIONAL)
+      .with_logical_type(LogicalType::DECIMAL)
+      .with_precision(9)
+      .with_scale(2)
+      .build().unwrap();
+
+    let f2 = Type::primitive_type_builder("f2", PhysicalType::INT32)
+      .with_repetition(Repetition::OPTIONAL)
+      .with_logical_type(LogicalType::DECIMAL)
+      .with_precision(9)
+      .build().unwrap();
+
+    let f3 = Type::primitive_type_builder("f3", PhysicalType::INT32)
+      .with_repetition(Repetition::OPTIONAL)
+      .with_logical_type(LogicalType::DECIMAL)
+      .build().unwrap();
+
+    let message = Type::group_type_builder("schema")
+      .with_fields(&mut vec![Rc::new(f1), Rc::new(f2), Rc::new(f3)])
+      .build().unwrap();
+
+    assert_print_parse_message(message);
   }
 }
