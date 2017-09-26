@@ -30,7 +30,7 @@ pub enum Page {
     def_level_encoding: Encoding, rep_level_encoding: Encoding
   },
   DataPageV2 {
-    buf: ByteBufferPtr, num_values: u32,  encoding: Encoding,
+    buf: ByteBufferPtr, num_values: u32, encoding: Encoding,
     num_nulls: u32, num_rows: u32,
     def_levels_byte_len: u32, rep_levels_byte_len: u32,
     is_compressed: bool

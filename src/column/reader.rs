@@ -21,6 +21,7 @@ use std::collections::HashMap;
 use basic::*;
 use data_type::*;
 use schema::types::ColumnDescPtr;
+use util::memory::ByteBufferPtr;
 use encodings::decoding::{get_decoder, Decoder, PlainDecoder, DictDecoder};
 use encodings::levels::LevelDecoder;
 use errors::{Result, ParquetError};
@@ -197,7 +198,7 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
               continue;
             },
             // 2. data page v1
-            Page::DataPage { buf, num_values, mut encoding, def_level_encoding, rep_level_encoding } => {
+            Page::DataPage { buf, num_values, encoding, def_level_encoding, rep_level_encoding } => {
               self.num_buffered_values = num_values;
               self.num_decoded_values = 0;
 
@@ -217,43 +218,72 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
                 self.def_level_decoder = Some(def_decoder);
               }
 
-              if encoding == Encoding::PLAIN_DICTIONARY {
-                encoding = Encoding::RLE_DICTIONARY;
-              }
-
-              let decoder =
-                if encoding == Encoding::RLE_DICTIONARY {
-                  self.decoders.get_mut(&encoding).expect("Decoder for dict should have been set")
-                } else {
-                  // Search cache for data page decoder
-                  if !self.decoders.contains_key(&encoding) {
-                    // Initialize decoder for this page
-                    // TODO: support other types of encodings
-                    let data_decoder = match encoding {
-                      Encoding::PLAIN => get_decoder::<T>(self.descr.clone(), encoding)?,
-                      en => return Err(nyi_err!("Unsupported encoding {}", en))
-                    };
-                    self.decoders.insert(encoding, data_decoder);
-                  }
-                  self.decoders.get_mut(&encoding).unwrap()
-                };
-
-              decoder.set_data(buffer_ptr, num_values as usize)?;
-              self.current_encoding = Some(encoding);
-
+              // data page v1 does not have offset, all content of buffer should be passed
+              self.set_current_page_encoding(encoding, &buffer_ptr, 0, num_values as usize)?;
               return Ok(true)
             },
-            // TODO: support other page types (e.g., data page v2)
-            _ => {
-              // Skip this page and continue.
-              continue;
-            }
+            // 3. data page v2
+            Page::DataPageV2 { buf, num_values, encoding, num_nulls: _, num_rows: _,
+                def_levels_byte_len, rep_levels_byte_len, is_compressed: _ } => {
+              self.num_buffered_values = num_values;
+              self.num_decoded_values = 0;
+
+              let mut offset = 0;
+
+              // DataPage v2 only supports RLE encoding for repetition levels
+              if self.descr.max_rep_level() > 0 {
+                let mut rep_decoder = LevelDecoder::new(Encoding::RLE, self.descr.max_rep_level());
+                let bytes_read = rep_decoder.set_data_range(&buf, offset, rep_levels_byte_len as usize);
+                offset += bytes_read;
+                self.rep_level_decoder = Some(rep_decoder);
+              }
+
+              // DataPage v2 only supports RLE encoding for definition levels
+              if self.descr.max_def_level() > 0 {
+                let mut def_decoder = LevelDecoder::new(Encoding::RLE, self.descr.max_def_level());
+                let bytes_read = def_decoder.set_data_range(&buf, offset, def_levels_byte_len as usize);
+                offset += bytes_read;
+                self.def_level_decoder = Some(def_decoder);
+              }
+
+              self.set_current_page_encoding(encoding, &buf, offset, num_values as usize)?;
+              return Ok(true)
+            },
           };
         }
       }
     }
 
     Ok(true)
+  }
+
+  // resolve and update encoding and set decoder for the current page
+  fn set_current_page_encoding(&mut self, mut encoding: Encoding,
+      buffer_ptr: &ByteBufferPtr, offset: usize, len: usize) -> Result<()> {
+    if encoding == Encoding::PLAIN_DICTIONARY {
+      encoding = Encoding::RLE_DICTIONARY;
+    }
+
+    let decoder =
+      if encoding == Encoding::RLE_DICTIONARY {
+        self.decoders.get_mut(&encoding).expect("Decoder for dict should have been set")
+      } else {
+        // Search cache for data page decoder
+        if !self.decoders.contains_key(&encoding) {
+          // Initialize decoder for this page
+          // TODO: support other types of encodings
+          let data_decoder = match encoding {
+            Encoding::PLAIN => get_decoder::<T>(self.descr.clone(), encoding)?,
+            en => return Err(nyi_err!("Unsupported encoding {}", en))
+          };
+          self.decoders.insert(encoding, data_decoder);
+        }
+        self.decoders.get_mut(&encoding).unwrap()
+      };
+
+    decoder.set_data(buffer_ptr.start_from(offset), len as usize)?;
+    self.current_encoding = Some(encoding);
+    Ok(())
   }
 
   #[inline]
@@ -337,130 +367,101 @@ mod tests {
   const MAX_DEF_LEVEL: i16 = 5;
   const MAX_REP_LEVEL: i16 = 5;
 
-  #[test]
-  fn test_read_plain_int32() {
-    let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = SchemaType::primitive_type_builder("a", PhysicalType::INT32)
-      .with_repetition(Repetition::REQUIRED)
-      .with_logical_type(LogicalType::INT_32)
-      .with_length(-1)
-      .build()
-      .expect("new_primitive_type() should be OK");
-    let descr = ColumnDescriptor::new(
-      Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
-    tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, ::std::i32::MIN, ::std::i32::MAX);
+  // Macro to generate test cases
+  macro_rules! test {
+    // branch for generating i32 cases
+    ($test_func:ident, i32, $func:ident, $def_level:expr, $rep_level:expr, $num_pages:expr,
+        $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
+      #[test]
+      fn $test_func() {
+        let primitive_type = get_test_int32_type();
+        let desc = Rc::new(ColumnDescriptor::new(
+          Rc::new(primitive_type), None, $def_level, $rep_level, ColumnPath::new(Vec::new())));
+        let mut tester = ColumnReaderTester::<Int32Type>::new();
+        tester.$func(desc, $num_pages, $num_levels, $batch_size, $min, $max);
+      }
+    };
+    // branch for generating i64 cases
+    ($test_func:ident, i64, $func:ident, $def_level:expr, $rep_level:expr, $num_pages:expr,
+        $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
+      #[test]
+      fn $test_func() {
+        let primitive_type = get_test_int64_type();
+        let desc = Rc::new(ColumnDescriptor::new(
+          Rc::new(primitive_type), None, $def_level, $rep_level, ColumnPath::new(Vec::new())));
+        let mut tester = ColumnReaderTester::<Int64Type>::new();
+        tester.$func(desc, $num_pages, $num_levels, $batch_size, $min, $max);
+      }
+    };
   }
 
-  #[test]
-  fn test_read_plain_int32_uneven() {
-    let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = SchemaType::primitive_type_builder("a", PhysicalType::INT32)
-      .with_repetition(Repetition::REQUIRED)
-      .with_logical_type(LogicalType::INT_32)
-      .with_length(-1)
-      .build()
-      .expect("new_primitive_type() should be OK");
-    let descr = ColumnDescriptor::new(
-      Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
-    tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 17, ::std::i32::MIN, ::std::i32::MAX);
-  }
+  test!(test_read_plain_v1_int32, i32, plain_v1, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 16, ::std::i32::MIN, ::std::i32::MAX);
+  test!(test_read_plain_v2_int32, i32, plain_v2, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 16, ::std::i32::MIN, ::std::i32::MAX);
 
-  #[test]
-  fn test_read_plain_int32_multi_page() {
-    let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = get_test_int32_type();
-    let descr = ColumnDescriptor::new(
-      Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
-    tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 512, ::std::i32::MIN, ::std::i32::MAX);
-  }
+  test!(test_read_plain_v1_int32_uneven, i32, plain_v1, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 17, ::std::i32::MIN, ::std::i32::MAX);
+  test!(test_read_plain_v2_int32_uneven, i32, plain_v2, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 17, ::std::i32::MIN, ::std::i32::MAX);
 
-  #[test]
-  fn test_read_plain_int32_required_non_repeated() {
-    // test case when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
-    let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = get_test_int32_type();
-    let descr = ColumnDescriptor::new(
-      Rc::new(primitive_type), None, 0, 0, ColumnPath::new(Vec::new()));
-    tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, ::std::i32::MIN, ::std::i32::MAX);
-  }
+  test!(test_read_plain_v1_int32_multi_page, i32, plain_v1, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 512, ::std::i32::MIN, ::std::i32::MAX);
+  test!(test_read_plain_v2_int32_multi_page, i32, plain_v2, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 512, ::std::i32::MIN, ::std::i32::MAX);
 
-  #[test]
-  fn test_read_plain_int64() {
-    let mut tester = ColumnReaderTester::<Int64Type>::new();
-    let primitive_type = get_test_int64_type();
-    let descr = ColumnDescriptor::new(Rc::new(primitive_type), None, 1, 1, ColumnPath::new(Vec::new()));
-    tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, ::std::i64::MIN, ::std::i64::MAX);
-  }
+  // test cases when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
+  test!(test_read_plain_v1_int32_required_non_repeated, i32, plain_v1, 0, 0,
+    NUM_PAGES, NUM_LEVELS, 16, ::std::i32::MIN, ::std::i32::MAX);
+  test!(test_read_plain_v2_int32_required_non_repeated, i32, plain_v2, 0, 0,
+    NUM_PAGES, NUM_LEVELS, 16, ::std::i32::MIN, ::std::i32::MAX);
 
-  #[test]
-  fn test_read_plain_int64_uneven() {
-    let mut tester = ColumnReaderTester::<Int64Type>::new();
-    let primitive_type = get_test_int64_type();
-    let descr = ColumnDescriptor::new(Rc::new(primitive_type), None, 1, 1, ColumnPath::new(Vec::new()));
-    tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 17, ::std::i64::MIN, ::std::i64::MAX);
-  }
+  test!(test_read_plain_v1_int64, i64, plain_v1, 1, 1,
+    NUM_PAGES, NUM_LEVELS, 16, ::std::i64::MIN, ::std::i64::MAX);
+  test!(test_read_plain_v2_int64, i64, plain_v2, 1, 1,
+    NUM_PAGES, NUM_LEVELS, 16, ::std::i64::MIN, ::std::i64::MAX);
 
-  #[test]
-  fn test_read_plain_int64_multi_page() {
-    let mut tester = ColumnReaderTester::<Int64Type>::new();
-    let primitive_type = get_test_int64_type();
-    let descr = ColumnDescriptor::new(Rc::new(primitive_type), None, 1, 1, ColumnPath::new(Vec::new()));
-    tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 512, ::std::i64::MIN, ::std::i64::MAX);
-  }
+  test!(test_read_plain_v1_int64_uneven, i64, plain_v1, 1, 1,
+    NUM_PAGES, NUM_LEVELS, 17, ::std::i64::MIN, ::std::i64::MAX);
+  test!(test_read_plain_v2_int64_uneven, i64, plain_v2, 1, 1,
+    NUM_PAGES, NUM_LEVELS, 17, ::std::i64::MIN, ::std::i64::MAX);
 
-  #[test]
-  fn test_read_plain_int64_required_non_repeated() {
-    // test case when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
-    let mut tester = ColumnReaderTester::<Int64Type>::new();
-    let primitive_type = get_test_int64_type();
-    let descr = ColumnDescriptor::new(Rc::new(primitive_type), None, 0, 0, ColumnPath::new(Vec::new()));
-    tester.test_plain(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, ::std::i64::MIN, ::std::i64::MAX);
-  }
+  test!(test_read_plain_v1_int64_multi_page, i64, plain_v1, 1, 1,
+    NUM_PAGES, NUM_LEVELS, 512, ::std::i64::MIN, ::std::i64::MAX);
+  test!(test_read_plain_v2_int64_multi_page, i64, plain_v2, 1, 1,
+    NUM_PAGES, NUM_LEVELS, 512, ::std::i64::MIN, ::std::i64::MAX);
 
-  #[test]
-  fn test_read_dict_int32_small() {
-    let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = get_test_int32_type();
-    let descr = ColumnDescriptor::new(
-      Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
-    tester.test_dict(Rc::new(descr), 2, 2, 16, 0, 3);
-  }
+  // test cases when column descriptor has MAX_DEF_LEVEL = 0 and MAX_REP_LEVEL = 0
+  test!(test_read_plain_v1_int64_required_non_repeated, i64, plain_v1, 0, 0,
+    NUM_PAGES, NUM_LEVELS, 16, ::std::i64::MIN, ::std::i64::MAX);
+  test!(test_read_plain_v2_int64_required_non_repeated, i64, plain_v2, 0, 0,
+    NUM_PAGES, NUM_LEVELS, 16, ::std::i64::MIN, ::std::i64::MAX);
 
-  #[test]
-  fn test_read_dict_int32() {
-    let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = get_test_int32_type();
-    let descr = ColumnDescriptor::new(
-      Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
-    tester.test_dict(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, 0, 3);
-  }
+  test!(test_read_dict_v1_int32_small, i32, dict_v1, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    2, 2, 16, 0, 3);
+  test!(test_read_dict_v2_int32_small, i32, dict_v2, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    2, 2, 16, 0, 3);
 
-  #[test]
-  fn test_read_dict_int32_uneven() {
-    let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = get_test_int32_type();
-    let descr = ColumnDescriptor::new(
-      Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
-    tester.test_dict(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 17, 0, 3);
-  }
+  test!(test_read_dict_v1_int32, i32, dict_v1, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 16, 0, 3);
+  test!(test_read_dict_v2_int32, i32, dict_v2, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 16, 0, 3);
 
-  #[test]
-  fn test_read_dict_int32_multi_page() {
-    let mut tester = ColumnReaderTester::<Int32Type>::new();
-    let primitive_type = get_test_int32_type();
-    let descr = ColumnDescriptor::new(
-      Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
-    tester.test_dict(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 512, 0, 3);
-  }
+  test!(test_read_dict_v1_int32_uneven, i32, dict_v1, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 17, 0, 3);
+  test!(test_read_dict_v2_int32_uneven, i32, dict_v2, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 17, 0, 3);
 
-  #[test]
-  fn test_read_dict_int64() {
-    let mut tester = ColumnReaderTester::<Int64Type>::new();
-    let primitive_type = get_test_int64_type();
-    let descr = ColumnDescriptor::new(
-      Rc::new(primitive_type), None, MAX_DEF_LEVEL, MAX_REP_LEVEL, ColumnPath::new(Vec::new()));
-    tester.test_dict(Rc::new(descr), NUM_PAGES, NUM_LEVELS, 16, 0, 3);
-  }
+  test!(test_read_dict_v1_int32_multi_page, i32, dict_v1, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 512, 0, 3);
+  test!(test_read_dict_v2_int32_multi_page, i32, dict_v2, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 512, 0, 3);
+
+  test!(test_read_dict_v1_int64, i64, dict_v1, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 16, 0, 3);
+  test!(test_read_dict_v2_int64, i64, dict_v2, MAX_DEF_LEVEL, MAX_REP_LEVEL,
+    NUM_PAGES, NUM_LEVELS, 16, 0, 3);
+
 
   fn get_test_int32_type() -> SchemaType {
     SchemaType::primitive_type_builder("a", PhysicalType::INT32)
@@ -491,12 +492,24 @@ mod tests {
       Self { rep_levels: Vec::new(), def_levels: Vec::new(), values: Vec::new() }
     }
 
-    pub fn test_plain(&mut self, desc: ColumnDescPtr, num_pages: usize,
-                      num_levels: usize, batch_size: usize, min: T::T, max: T::T) {
+    // method to generate and test data pages v1
+    fn plain_v1(&mut self, desc: ColumnDescPtr, num_pages: usize,
+                num_levels: usize, batch_size: usize, min: T::T, max: T::T) {
+      self.test_plain(desc, num_pages, num_levels, batch_size, min, max, false);
+    }
+
+    // method to generate and test data pages v2
+    fn plain_v2(&mut self, desc: ColumnDescPtr, num_pages: usize,
+                num_levels: usize, batch_size: usize, min: T::T, max: T::T) {
+      self.test_plain(desc, num_pages, num_levels, batch_size, min, max, true);
+    }
+
+    fn test_plain(&mut self, desc: ColumnDescPtr, num_pages: usize,
+                      num_levels: usize, batch_size: usize, min: T::T, max: T::T, use_v2: bool) {
       let mut pages = VecDeque::new();
       make_pages::<T>(
         desc.clone(), Encoding::PLAIN, num_pages, num_levels, min, max,
-        &mut self.def_levels, &mut self.rep_levels, &mut self.values, &mut pages);
+        &mut self.def_levels, &mut self.rep_levels, &mut self.values, &mut pages, use_v2);
 
       let page_reader = TestPageReader::new(Vec::from(pages));
       let column_reader: ColumnReader = get_column_reader(desc, Box::new(page_reader));
@@ -529,12 +542,22 @@ mod tests {
       assert_eq!(&actual_values[..curr_values_read], &self.values[..]);
     }
 
-    pub fn test_dict(&mut self, desc: ColumnDescPtr, num_pages: usize,
-                      num_levels: usize, batch_size: usize, min: T::T, max: T::T) {
+    fn dict_v1(&mut self, desc: ColumnDescPtr, num_pages: usize,
+               num_levels: usize, batch_size: usize, min: T::T, max: T::T) {
+      self.test_dict(desc, num_pages, num_levels, batch_size, min, max, false);
+    }
+
+    fn dict_v2(&mut self, desc: ColumnDescPtr, num_pages: usize,
+               num_levels: usize, batch_size: usize, min: T::T, max: T::T) {
+      self.test_dict(desc, num_pages, num_levels, batch_size, min, max, true);
+    }
+
+    fn test_dict(&mut self, desc: ColumnDescPtr, num_pages: usize,
+                      num_levels: usize, batch_size: usize, min: T::T, max: T::T, use_v2: bool) {
       let mut pages = VecDeque::new();
       make_pages::<T>(
         desc.clone(), Encoding::RLE_DICTIONARY, num_pages, num_levels, min, max,
-        &mut self.def_levels, &mut self.rep_levels, &mut self.values, &mut pages);
+        &mut self.def_levels, &mut self.rep_levels, &mut self.values, &mut pages, use_v2);
 
       let page_reader = TestPageReader::new(Vec::from(pages));
       let column_reader: ColumnReader = get_column_reader(desc, Box::new(page_reader));
@@ -597,7 +620,7 @@ mod tests {
     fn consume(self) -> Page;
   }
 
-  /// A utility struct for building data pages. Callers must call:
+  /// A utility struct for building data pages (v1 or v2). Callers must call:
   ///   - add_rep_levels()
   ///   - add_def_levels()
   ///   - add_values() for normal data page / add_indices() for dictionary data page
@@ -608,40 +631,57 @@ mod tests {
     encoding: Option<Encoding>,
     mem_tracker: MemTrackerPtr,
     num_values: u32,
-    buffer: Vec<u8>
+    buffer: Vec<u8>,
+    rep_levels_byte_len: u32,
+    def_levels_byte_len: u32,
+    datapage_v2: bool
   }
 
   impl DataPageBuilderImpl {
     // Create new DataPageBuilder
     // when number of values is not explicitly provided, set it to 0
-    fn new(desc: ColumnDescPtr, num_values: u32) -> Self {
+    // 'datapage_v2' flag indicates if data pages V2 should be built
+    fn new(desc: ColumnDescPtr, num_values: u32, datapage_v2: bool) -> Self {
       DataPageBuilderImpl {
         desc: desc,
         encoding: None,
         mem_tracker: MemTracker::new_ptr(None).expect("new_ptr() should be OK"),
         num_values: num_values,
-        buffer: vec!()
+        buffer: vec!(),
+        rep_levels_byte_len: 0,
+        def_levels_byte_len: 0,
+        datapage_v2: datapage_v2
       }
     }
 
-    fn add_levels(&mut self, max_level: i16, levels: &[i16]) {
+    // add levels to the buffer and return number of encoded bytes
+    fn add_levels(&mut self, max_level: i16, levels: &[i16]) -> u32 {
       let max_buffer_size = LevelEncoder::max_buffer_size(Encoding::RLE, max_level, levels.len());
       let mut level_encoder = LevelEncoder::new(Encoding::RLE, max_level, vec![0; max_buffer_size]);
       level_encoder.put(levels).expect("put() should be OK");
       let encoded_levels = level_encoder.consume().expect("consume() should be OK");
-      self.buffer.extend_from_slice(encoded_levels.as_slice());
+      // actual encoded bytes (without length offset)
+      let encoded_bytes = &encoded_levels[mem::size_of::<i32>()..];
+      if self.datapage_v2 {
+        // level encoder always initializes with offset of i32, where it stores length of encoded
+        // data; for data page v2 we explicitly store length, therefore we should skip i32 bytes
+        self.buffer.extend_from_slice(encoded_bytes);
+      } else {
+        self.buffer.extend_from_slice(encoded_levels.as_slice());
+      }
+      encoded_bytes.len() as u32
     }
   }
 
   impl DataPageBuilder for DataPageBuilderImpl {
     fn add_rep_levels(&mut self, max_levels: i16, rep_levels: &[i16]) {
       self.num_values = rep_levels.len() as u32;
-      self.add_levels(max_levels, rep_levels);
+      self.rep_levels_byte_len = self.add_levels(max_levels, rep_levels);
     }
 
     fn add_def_levels(&mut self, max_levels: i16, def_levels: &[i16]) {
       assert!(self.num_values == def_levels.len() as u32, "Must call `add_rep_levels() first!`");
-      self.add_levels(max_levels, def_levels);
+      self.def_levels_byte_len = self.add_levels(max_levels, def_levels);
     }
 
     fn add_values<T: DataType>(&mut self, encoding: Encoding, values: &[T::T]) where T: 'static {
@@ -661,12 +701,25 @@ mod tests {
     }
 
     fn consume(self) -> Page {
-      Page::DataPage {
-        buf: ByteBufferPtr::new(self.buffer),
-        num_values: self.num_values,
-        encoding: self.encoding.unwrap(),
-        def_level_encoding: Encoding::RLE,
-        rep_level_encoding: Encoding::RLE
+      if self.datapage_v2 {
+        Page::DataPageV2 {
+          buf: ByteBufferPtr::new(self.buffer),
+          num_values: self.num_values,
+          encoding: self.encoding.unwrap(),
+          num_nulls: 0, // set to dummy value, we do not really use this when reading data page
+          num_rows: self.num_values, // we also do not use this value when reading data page
+          def_levels_byte_len: self.def_levels_byte_len,
+          rep_levels_byte_len: self.rep_levels_byte_len,
+          is_compressed: false
+        }
+      } else {
+        Page::DataPage {
+          buf: ByteBufferPtr::new(self.buffer),
+          num_values: self.num_values,
+          encoding: self.encoding.unwrap(),
+          def_level_encoding: Encoding::RLE,
+          rep_level_encoding: Encoding::RLE
+        }
       }
     }
 
@@ -681,7 +734,8 @@ mod tests {
                              def_levels: &mut Vec<i16>,
                              rep_levels: &mut Vec<i16>,
                              values: &mut Vec<T::T>,
-                             pages: &mut VecDeque<Page>)
+                             pages: &mut VecDeque<Page>,
+                             use_v2: bool)
       where T::T: PartialOrd + SampleRange + Copy, T: 'static {
     let mut num_values = 0;
     let max_def_level = desc.max_def_level();
@@ -711,7 +765,7 @@ mod tests {
 
       // Generate the current page
 
-      let mut page_builder = DataPageBuilderImpl::new(desc.clone(), levels_per_page as u32);
+      let mut page_builder = DataPageBuilderImpl::new(desc.clone(), levels_per_page as u32, use_v2);
       if max_rep_level > 0 {
         page_builder.add_rep_levels(max_rep_level, &rep_levels[level_range.clone()]);
       }

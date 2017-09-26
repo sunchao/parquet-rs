@@ -285,21 +285,46 @@ impl PageReader for SerializedPageReader {
   fn get_next_page(&mut self) -> Result<Option<Page>> {
     while self.seen_num_values < self.total_num_values {
       let page_header = self.read_page_header()?;
-      let compressed_len = page_header.compressed_page_size as usize;
-      let uncompressed_len = page_header.uncompressed_page_size as usize;
-      let mut buffer = vec![0; compressed_len];
+
+      // when processing data page v2, depending on enabled compression for the page, we should
+      // account for uncompressed data ('offset') of repetition and definition levels.
+      // we always use 0 offset for other pages other than v2, `true` flag means that compression
+      // will be applied if decompressor is defined
+      let mut offset: usize = 0;
+      let mut can_decompress = true;
+
+      if let Some(ref header_v2) = page_header.data_page_header_v2 {
+        offset = (header_v2.definition_levels_byte_length +
+          header_v2.repetition_levels_byte_length) as usize;
+        // when is_compressed flag is missing the page is considered compressed
+        can_decompress = header_v2.is_compressed.unwrap_or(true);
+      }
+
+      let compressed_len = page_header.compressed_page_size as usize - offset;
+      let uncompressed_len = page_header.uncompressed_page_size as usize - offset;
+      // we still need to read all bytes from buffered stream
+      let mut buffer = vec![0; offset + compressed_len];
       self.buf.read_exact(&mut buffer)?;
 
       // TODO: page header could be huge because of statistics. We should
       // set a maximum page header size and abort if that is exceeded.
       if let Some(decompressor) = self.decompressor.as_mut() {
-        let mut decompressed_buffer = vec!();
-        let decompressed_size = decompressor.decompress(&buffer, &mut decompressed_buffer)?;
-        if decompressed_size != uncompressed_len {
-          return Err(general_err!("Actual decompressed size doesn't \
-            match the expected one ({} vs {})", decompressed_size, uncompressed_len));
+        if can_decompress {
+          let mut decompressed_buffer = vec!();
+          let decompressed_size =
+            decompressor.decompress(&buffer[offset..], &mut decompressed_buffer)?;
+          if decompressed_size != uncompressed_len {
+            return Err(general_err!("Actual decompressed size doesn't \
+              match the expected one ({} vs {})", decompressed_size, uncompressed_len));
+          }
+          if offset == 0 {
+            buffer = decompressed_buffer;
+          } else {
+            // prepend saved offsets to the buffer
+            buffer.truncate(offset);
+            buffer.append(&mut decompressed_buffer);
+          }
         }
-        buffer = decompressed_buffer;
       }
 
       // TODO: process statistics
@@ -409,6 +434,65 @@ mod tests {
           assert_eq!(encoding, Encoding::PLAIN_DICTIONARY);
           assert_eq!(def_level_encoding, Encoding::RLE);
           assert_eq!(rep_level_encoding, Encoding::BIT_PACKED);
+          true
+        },
+        _ => false
+      };
+      assert!(is_expected_page);
+      page_count += 1;
+    }
+    assert_eq!(page_count, 2);
+  }
+
+  #[test]
+  fn test_file_reader_datapage_v2() {
+    let test_file = get_test_file("test_datapage_v2.snappy.parquet");
+    let reader_result = SerializedFileReader::new(test_file);
+    assert!(reader_result.is_ok());
+    let reader = reader_result.unwrap();
+
+    // Test contents in Parquet metadata
+    let metadata: &ParquetMetaData = reader.metadata();
+    assert_eq!(metadata.num_row_groups(), 1);
+
+    // Test contents in file metadata
+    let file_metadata: &FileMetaData = metadata.file_metadata();
+    assert!(file_metadata.created_by().is_some());
+    assert_eq!(file_metadata.created_by().as_ref().unwrap(),
+      "parquet-mr version 1.8.1 (build 4aba4dae7bb0d4edbcf7923ae1339f28fd3f7fcf)");
+    assert_eq!(file_metadata.num_rows(), 5);
+    assert_eq!(file_metadata.version(), 1);
+
+    // Test row group reader
+    let row_group_reader_result = reader.get_row_group(0);
+    assert!(row_group_reader_result.is_ok());
+    let row_group_reader: Box<RowGroupReader> = row_group_reader_result.unwrap();
+
+    // Test page readers
+    // TODO: test for every column
+    let page_reader_0_result = row_group_reader.get_column_page_reader(0);
+    assert!(page_reader_0_result.is_ok());
+    let mut page_reader_0: Box<PageReader> = page_reader_0_result.unwrap();
+    let mut page_count = 0;
+    while let Ok(Some(page)) = page_reader_0.get_next_page() {
+      let is_expected_page = match page {
+        Page::DictionaryPage { buf, num_values, encoding, is_sorted } => {
+          assert_eq!(buf.len(), 7);
+          assert_eq!(num_values, 1);
+          assert_eq!(encoding, Encoding::PLAIN);
+          assert_eq!(is_sorted, false);
+          true
+        },
+        Page::DataPageV2 { buf, num_values, encoding, num_nulls, num_rows, def_levels_byte_len,
+            rep_levels_byte_len, is_compressed } => {
+          assert_eq!(buf.len(), 4);
+          assert_eq!(num_values, 5);
+          assert_eq!(encoding, Encoding::RLE_DICTIONARY);
+          assert_eq!(num_nulls, 1);
+          assert_eq!(num_rows, 5);
+          assert_eq!(def_levels_byte_len, 2);
+          assert_eq!(rep_levels_byte_len, 0);
+          assert_eq!(is_compressed, true);
           true
         },
         _ => false

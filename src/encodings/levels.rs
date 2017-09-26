@@ -106,6 +106,14 @@ impl LevelDecoder {
     i32_size + data_size
   }
 
+  // Set byte array explicitly when start position ('start') and length ('len') are known in advance
+  // Returns number of total bytes set for this decoder (len)
+  #[inline]
+  pub fn set_data_range(&mut self, data: &ByteBufferPtr, start: usize, len: usize) -> usize {
+    self.rle_decoder.set_data(data.range(start, len));
+    len
+  }
+
   #[inline]
   pub fn get(&mut self, buffer: &mut [i16]) -> Result<usize> {
     self.rle_decoder.get_batch::<i16>(buffer)
@@ -149,5 +157,27 @@ mod tests {
     let num_decoded = decoder.get(&mut result).expect("get() should be OK");
     assert_eq!(num_decoded, 10);
     assert_eq!(result, data);
+  }
+
+  #[test]
+  fn test_decoder_set_data_range() {
+    // buffer containing both repetition and definition levels
+    let buffer = ByteBufferPtr::new(vec![5, 198, 2, 5, 42, 168, 10, 0, 2, 3, 36, 73]);
+
+    let max_rep_level = 1;
+    let mut decoder = LevelDecoder::new(Encoding::RLE, max_rep_level);
+    assert_eq!(decoder.set_data_range(&buffer, 0, 3), 3);
+    let mut result = vec![0; 10];
+    let num_decoded = decoder.get(&mut result).expect("get() should be OK");
+    assert_eq!(num_decoded, 10);
+    assert_eq!(result, vec![0, 1, 1, 0, 0, 0, 1, 1, 0, 1]);
+
+    let max_def_level = 2;
+    let mut decoder = LevelDecoder::new(Encoding::RLE, max_def_level);
+    assert_eq!(decoder.set_data_range(&buffer, 3, 5), 5);
+    let mut result = vec![0; 10];
+    let num_decoded = decoder.get(&mut result).expect("get() should be OK");
+    assert_eq!(num_decoded, 10);
+    assert_eq!(result, vec![2, 2, 2, 0, 0, 2, 2, 2, 2, 2]);
   }
 }
