@@ -436,10 +436,10 @@ impl Decoder<Int64Type> for DeltaBitPackDecoder<Int64Type> {
       let bit_reader = self.bit_reader.as_mut().unwrap();
 
       // TODO: use SIMD to optimize this?
-      let delta = bit_reader.get_value(self.delta_bit_width as usize)
+      let delta = bit_reader.get_value::<u64>(self.delta_bit_width as usize)
         .ok_or(eof_err!("Not enough data to decode 'delta'"))?;
       self.current_value += self.min_delta;
-      self.current_value += delta;
+      self.current_value += delta as i64;
       buffer[i] = self.current_value;
       self.values_current_mini_block -= 1;
     }
