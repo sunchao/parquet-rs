@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::cmp;
 use std::io::Write;
 use std::marker::PhantomData;
 use std::mem;
@@ -25,7 +26,7 @@ use data_type::*;
 use errors::{Result, ParquetError};
 use schema::types::ColumnDescPtr;
 use util::memory::{ByteBufferPtr, ByteBuffer, Buffer, MemTrackerPtr};
-use util::bit_util::{BitWriter, log2};
+use util::bit_util::{BitWriter, log2, num_required_bits};
 use util::hash_util::{self};
 use encodings::rle_encoding::RleEncoder;
 
@@ -57,6 +58,9 @@ pub fn get_encoder<T: DataType>(desc: ColumnDescPtr,
     Encoding::PLAIN => Box::new(PlainEncoder::new(desc, mem_tracker, vec!())) as Box<Encoder<T>>,
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
       Box::new(DictEncoder::new(desc, mem_tracker))
+    },
+    Encoding::DELTA_BINARY_PACKED => {
+      Box::new(DeltaBitPackEncoder::new())
     },
     e => return Err(nyi_err!("Encoding {} is not supported.", e))
   };
@@ -331,6 +335,288 @@ default impl<T: DataType> Encoder<T> for DictEncoder<T> {
   }
 }
 
+// ----------------------------------------------------------------------
+// DELTA_BINARY_PACKED encoding
+
+const MAX_PAGE_HEADER_WRITER_SIZE: usize = 32;
+const MAX_BIT_WRITER_SIZE: usize = 10 * 1024 * 1024;
+const DEFAULT_BLOCK_SIZE: usize = 128;
+const DEFAULT_NUM_MINI_BLOCKS: usize = 4;
+
+/// Delta-binary-packing:
+///   [page-header] [block 1], [block 2], ... [block N]
+/// Each page header consists of:
+///   [block size] [number of miniblocks in a block] [total value count] [first value]
+/// Each block consists of:
+///   [min delta] [list of bitwidths of miniblocks] [miniblocks]
+///
+/// Current implementation writes values in 'put' method, multiple calls to 'put' add to existing
+/// block or start new block if block size is exceeded. Calling 'flush_buffer' writes out all data
+/// and resets internal state, including page header.
+///
+/// Supports only Int32Type and Int64Type.
+///
+pub struct DeltaBitPackEncoder<T: DataType> {
+  page_header_writer: BitWriter,
+  bit_writer: BitWriter,
+  total_values: usize,
+  first_value: i64,
+  current_value: i64,
+  block_size: usize,
+  mini_block_size: usize,
+  num_mini_blocks: usize,
+  values_in_block: usize,
+  deltas: Vec<i64>,
+  _phantom: PhantomData<T>
+}
+
+impl<T: DataType> DeltaBitPackEncoder<T> {
+  pub fn new() -> Self {
+    let block_size = DEFAULT_BLOCK_SIZE;
+    let num_mini_blocks = DEFAULT_NUM_MINI_BLOCKS;
+    let mini_block_size = block_size / num_mini_blocks;
+    assert!(mini_block_size % 8 == 0);
+    Self::assert_supported_type();
+
+    DeltaBitPackEncoder {
+      page_header_writer: BitWriter::new(MAX_PAGE_HEADER_WRITER_SIZE),
+      bit_writer: BitWriter::new(MAX_BIT_WRITER_SIZE),
+      total_values: 0,
+      first_value: 0,
+      current_value: 0, // current value to keep adding deltas
+      block_size: block_size, // can write fewer values than block size for last block
+      mini_block_size: mini_block_size,
+      num_mini_blocks: num_mini_blocks,
+      values_in_block: 0, // will be at most block_size
+      deltas: vec![0; block_size],
+      _phantom: PhantomData
+    }
+  }
+
+  // write page header for blocks, this method is invoked when we are done encoding values
+  // it is also okay to encode when no values have been provided
+  fn write_page_header(&mut self) {
+    // we ignore the result of each 'put' operation, because MAX_PAGE_HEADER_WRITER_SIZE is chosen
+    // to fit all header values and guarantees that writes will not fail.
+
+    // write the size of each block
+    self.page_header_writer.put_vlq_int(self.block_size as u64);
+    // write the number of mini blocks
+    self.page_header_writer.put_vlq_int(self.num_mini_blocks as u64);
+    // write the number of all values (including non-encoded first value)
+    self.page_header_writer.put_vlq_int(self.total_values as u64);
+    // write first value
+    self.page_header_writer.put_zigzag_vlq_int(self.first_value);
+  }
+
+  // write current delta buffer (<= 'block size' values) into bit writer
+  fn flush_block_values(&mut self) -> Result<()> {
+    if self.values_in_block == 0 {
+      return Ok(())
+    }
+
+    let mut min_delta = i64::max_value();
+    for i in 0..self.values_in_block {
+      min_delta = cmp::min(min_delta, self.deltas[i]);
+    }
+
+    // write min delta
+    self.bit_writer.put_zigzag_vlq_int(min_delta);
+
+    // slice to store bit width for each mini block
+    // apply unsafe allocation to avoid double mutable borrow
+    let mini_block_widths: &mut [u8] = unsafe {
+      let tmp_slice = self.bit_writer.get_next_byte_ptr(self.num_mini_blocks)?;
+      slice::from_raw_parts_mut(tmp_slice.as_ptr() as *mut u8, self.num_mini_blocks)
+    };
+
+    for i in 0..self.num_mini_blocks {
+      // find how many values we need to encode - either block size or whatever values left
+      let n = cmp::min(self.mini_block_size, self.values_in_block);
+      if n == 0 {
+        break;
+      }
+
+      // compute the max delta in current mini block
+      let mut max_delta = i64::min_value();
+      for j in 0..n {
+        max_delta = cmp::max(max_delta, self.deltas[i * self.mini_block_size + j]);
+      }
+
+      // compute bit width to store (max_delta - min_delta)
+      let bit_width = num_required_bits(self.subtract_u64(max_delta, min_delta));
+      mini_block_widths[i] = bit_width as u8;
+
+      // encode values in current mini block using min_delta and bit_width
+      for j in 0..n {
+        let packed_value = self.subtract_u64(self.deltas[i * self.mini_block_size + j], min_delta);
+        self.bit_writer.put_value(packed_value, bit_width);
+      }
+
+      // pad the last block (n < mini_block_size)
+      for _ in n..self.mini_block_size {
+        self.bit_writer.put_value(0, bit_width);
+      }
+
+      self.values_in_block -= n;
+    }
+
+    assert!(self.values_in_block == 0, "Expected 0 values in block, found {}", self.values_in_block);
+
+    Ok(())
+  }
+}
+
+// Implementation is shared between Int32Type and Int64Type,
+// see `DeltaBitPackEncoderConversion` below for specifics.
+default impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
+  fn put(&mut self, values: &[T::T]) -> Result<()> {
+    if values.is_empty() {
+      return Ok(())
+    }
+
+    let mut idx;
+    // define values to encode, initialize state
+    if self.total_values == 0 {
+      self.first_value = self.as_i64(values, 0);
+      self.current_value = self.first_value;
+      idx = 1;
+    } else {
+      idx = 0;
+    }
+    // add all values (including first value)
+    self.total_values += values.len();
+
+    // write block
+    while idx < values.len() {
+      let value = self.as_i64(values, idx);
+      self.deltas[self.values_in_block] = self.subtract(value, self.current_value);
+      self.current_value = value;
+      idx += 1;
+      self.values_in_block += 1;
+      if self.values_in_block == self.block_size {
+        self.flush_block_values()?;
+      }
+    }
+
+    Ok(())
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::DELTA_BINARY_PACKED
+  }
+
+  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+    // write remaining values
+    self.flush_block_values()?;
+    // write page header with total values
+    self.write_page_header();
+
+    self.page_header_writer.flush();
+    self.bit_writer.flush();
+
+    let mut buffer = ByteBuffer::new();
+    {
+      let bit_buffer = self.page_header_writer.buffer();
+      buffer.write(&bit_buffer[0..self.page_header_writer.byte_offset()])?;
+    }
+    {
+      let bit_buffer = self.bit_writer.buffer();
+      buffer.write(&bit_buffer[0..self.bit_writer.byte_offset()])?;
+    }
+    buffer.flush()?;
+
+    // reset state
+    self.page_header_writer.clear();
+    self.bit_writer.clear();
+    self.total_values = 0;
+    self.first_value = 0;
+    self.current_value = 0;
+    self.values_in_block = 0;
+
+    Ok(buffer.consume())
+  }
+}
+
+// Helper trait to define specific conversions and subtractions when computing deltas
+trait DeltaBitPackEncoderConversion<T: DataType> {
+  // method should panic if type is not supported, otherwise no-op
+  #[inline]
+  fn assert_supported_type();
+
+  #[inline]
+  fn as_i64(&self, values: &[T::T], index: usize) -> i64;
+
+  #[inline]
+  fn subtract(&self, left: i64, right: i64) -> i64;
+
+  #[inline]
+  fn subtract_u64(&self, left: i64, right: i64) -> u64;
+}
+
+default impl<T: DataType> DeltaBitPackEncoderConversion<T> for DeltaBitPackEncoder<T> {
+  #[inline]
+  fn assert_supported_type() {
+    panic!("DeltaBitPackDecoder only supports Int32Type and Int64Type");
+  }
+
+  #[inline]
+  fn as_i64(&self, _values: &[T::T], _index: usize) -> i64 { 0 }
+
+  #[inline]
+  fn subtract(&self, _left: i64, _right: i64) -> i64 { 0 }
+
+  #[inline]
+  fn subtract_u64(&self, _left: i64, _right: i64) -> u64 { 0 }
+}
+
+impl DeltaBitPackEncoderConversion<Int32Type> for DeltaBitPackEncoder<Int32Type> {
+  #[inline]
+  fn assert_supported_type() {
+    // no-op: supported type
+  }
+
+  #[inline]
+  fn as_i64(&self, values: &[i32], index: usize) -> i64 {
+    values[index] as i64
+  }
+
+  #[inline]
+  fn subtract(&self, left: i64, right: i64) -> i64 {
+    // it is okay for values to overflow, wrapping_sub wrapping around at the boundary
+    (left as i32).wrapping_sub(right as i32) as i64
+  }
+
+  #[inline]
+  fn subtract_u64(&self, left: i64, right: i64) -> u64 {
+    // conversion of i32 -> u32 -> u64 is to avoid non-zero left most bytes in int representation
+    (left as i32).wrapping_sub(right as i32) as u32 as u64
+  }
+}
+
+impl DeltaBitPackEncoderConversion<Int64Type> for DeltaBitPackEncoder<Int64Type> {
+  #[inline]
+  fn assert_supported_type() {
+    // no-op: supported type
+  }
+
+  #[inline]
+  fn as_i64(&self, values: &[i64], index: usize) -> i64 {
+    values[index]
+  }
+
+  #[inline]
+  fn subtract(&self, left: i64, right: i64) -> i64 {
+    // it is okay for values to overflow, wrapping_sub wrapping around at the boundary
+    left.wrapping_sub(right)
+  }
+
+  #[inline]
+  fn subtract_u64(&self, left: i64, right: i64) -> u64 {
+    left.wrapping_sub(right) as u64
+  }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -353,12 +639,14 @@ mod tests {
   fn test_i32() {
     Int32Type::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
     Int32Type::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
+    Int32Type::test(Encoding::DELTA_BINARY_PACKED, TEST_SET_SIZE, -1);
   }
 
   #[test]
   fn test_i64() {
     Int64Type::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
     Int64Type::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
+    Int64Type::test(Encoding::DELTA_BINARY_PACKED, TEST_SET_SIZE, -1);
   }
 
   #[test]
@@ -490,6 +778,9 @@ mod tests {
       Encoding::PLAIN_DICTIONARY => {
         Box::new(DictEncoder::<T>::new(Rc::new(desc), mem_tracker)) as Box<Encoder<T>>
       },
+      Encoding::DELTA_BINARY_PACKED => {
+        Box::new(DeltaBitPackEncoder::<T>::new())
+      },
       _ => {
         panic!("Not implemented yet.");
       }
@@ -505,6 +796,9 @@ mod tests {
       },
       Encoding::PLAIN_DICTIONARY => {
         Box::new(DictDecoder::<T>::new()) as Box<Decoder<T>>
+      },
+      Encoding::DELTA_BINARY_PACKED => {
+        Box::new(DeltaBitPackDecoder::<T>::new())
       },
       _ => {
         panic!("Not implemented yet.");

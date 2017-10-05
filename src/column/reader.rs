@@ -274,6 +274,7 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
           // TODO: support other types of encodings
           let data_decoder = match encoding {
             Encoding::PLAIN => get_decoder::<T>(self.descr.clone(), encoding)?,
+            Encoding::DELTA_BINARY_PACKED => get_decoder::<T>(self.descr.clone(), encoding)?,
             en => return Err(nyi_err!("Unsupported encoding {}", en))
           };
           self.decoders.insert(encoding, data_decoder);

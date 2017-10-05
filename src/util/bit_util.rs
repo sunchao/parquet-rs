@@ -250,13 +250,13 @@ impl BitWriter {
   }
 
   /// Write the `num_bits` LSB of value `v` to the internal buffer of this writer.
-  /// The `num_bits` must not be greater than 32. This is bit packed.
+  /// The `num_bits` must not be greater than 64. This is bit packed.
   ///
   /// Return false if there's not enough room left. True otherwise.
   #[inline]
   pub fn put_value(&mut self, v: u64, num_bits: usize) -> bool {
-    assert!(num_bits <= 32);
-    assert_eq!(v >> num_bits, 0);
+    assert!(num_bits <= 64);
+    assert_eq!(v.checked_shr(num_bits as u32).unwrap_or(0), 0); // covers case v >> 64
 
     if self.byte_offset * 8 + self.bit_offset + num_bits as usize > self.max_bytes as usize * 8 {
       return false;
@@ -269,7 +269,8 @@ impl BitWriter {
       self.byte_offset += 8;
       self.bit_offset -= 64;
       self.buffered_values = 0;
-      self.buffered_values = v >> (num_bits - self.bit_offset);
+      // perform checked right shift: v >> offset, where offset < 64, otherwise we shift all bits
+      self.buffered_values = v.checked_shr((num_bits - self.bit_offset) as u32).unwrap_or(0);
     }
     assert!(self.bit_offset < 64);
     true
@@ -335,8 +336,8 @@ impl BitWriter {
 
 
 /// Maximum byte length for a VLQ encoded integer
-// TODO: why maximum is 5?
-pub const MAX_VLQ_BYTE_LEN: usize = 5;
+/// MAX_VLQ_BYTE_LEN = 5 for i32, and MAX_VLQ_BYTE_LEN = 10 for i64
+pub const MAX_VLQ_BYTE_LEN: usize = 10;
 
 pub struct BitReader {
   // The byte buffer to read from, passed in by client
@@ -395,7 +396,7 @@ impl BitReader {
   /// Return `None` if there's not enough data available. `Some` otherwise.
   #[inline]
   pub fn get_value<T: Default>(&mut self, num_bits: usize) -> Option<T> {
-    assert!(num_bits <= 32);
+    assert!(num_bits <= 64);
     assert!(num_bits <= size_of::<T>() * 8);
 
     if self.byte_offset * 8 + self.bit_offset + num_bits > self.total_bytes * 8 {
@@ -413,7 +414,8 @@ impl BitReader {
       self.buffered_values = read_num_bytes!(
         u64, bytes_to_read, self.buffer.start_from(self.byte_offset).as_ref());
 
-      v |= trailing_bits(self.buffered_values, self.bit_offset) << (num_bits - self.bit_offset);
+      v |= trailing_bits(self.buffered_values, self.bit_offset)
+        .wrapping_shl((num_bits - self.bit_offset) as u32);
     }
 
     // TODO: better to avoid copying here
@@ -558,20 +560,6 @@ mod tests {
     let mut bit_reader = BitReader::from(buffer);
     assert_eq!(bit_reader.get_vlq_int(), Some(137));
     assert_eq!(bit_reader.get_vlq_int(), Some(105202));
-  }
-
-  #[test]
-  #[should_panic(expected = "Num of bytes exceed MAX_VLQ_BYTE_LEN (5)")]
-  fn test_bit_reader_get_vlq_int_overflow() {
-    // 10001001 10000001 11110010 10110101 00000110
-    let buffer: Vec<u8> = vec!(0x89, 0x81, 0xF2, 0xB5, 0x06);
-    let mut bit_reader = BitReader::from(buffer);
-    assert_eq!(bit_reader.get_vlq_int(), Some(1723629705));
-
-    // 10001001 10000001 11110010 10110101 10000110 00000001
-    let buffer = vec!(0x89, 0x81, 0xF2, 0xB5, 0x86, 0x01);
-    let mut bit_reader = BitReader::from(buffer);
-    let _ = bit_reader.get_vlq_int();
   }
 
   #[test]
