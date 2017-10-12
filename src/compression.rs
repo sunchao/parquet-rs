@@ -100,6 +100,10 @@ impl Codec for GZipCodec {
   }
 }
 
+const BROTLI_DEFAULT_BUFFER_SIZE: usize = 4096;
+const BROTLI_DEFAULT_COMPRESSION_QUALITY: u32 = 9; // supported levels 0-9
+const BROTLI_DEFAULT_LG_WINDOW_SIZE: u32 = 22; // recommended between 20-22
+
 pub struct BrotliCodec {
 }
 
@@ -110,14 +114,21 @@ impl BrotliCodec {
 }
 
 impl Codec for BrotliCodec {
-  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize>{
-    brotli::Decompressor::new(input_buf, 4096).read(output_buf)
+  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
+    brotli::Decompressor::new(input_buf, BROTLI_DEFAULT_BUFFER_SIZE).read_to_end(output_buf)
       .map_err(|e| general_err!("Error when decompressing using Brotli: {}", e))
   }
 
-  fn compress(&mut self, _: &[u8]) -> Result<Vec<u8>> {
-    // TODO: add this once rust-brotli implements the functionality
-    unimplemented!()
+  fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
+    let mut buffer = Vec::new();
+    let mut reader = brotli::CompressorReader::new(
+      input_buf,
+      BROTLI_DEFAULT_BUFFER_SIZE,
+      BROTLI_DEFAULT_COMPRESSION_QUALITY,
+      BROTLI_DEFAULT_LG_WINDOW_SIZE
+    );
+    reader.read_to_end(&mut buffer)?;
+    Ok(buffer)
   }
 }
 
@@ -170,5 +181,10 @@ mod tests {
   #[test]
   fn test_codec_gzip() {
     test_codec(CodecType::GZIP);
+  }
+
+  #[test]
+  fn test_codec_brotli() {
+    test_codec(CodecType::BROTLI);
   }
 }
