@@ -30,7 +30,7 @@ use schema::types::{self, SchemaDescriptor};
 use column::page::{Page, PageReader};
 use column::reader::{ColumnReader, ColumnReaderImpl};
 use compression::{Codec, create_codec};
-use util::memory::{MemoryPool, ByteBufferPtr};
+use util::memory::ByteBufferPtr;
 
 // ----------------------------------------------------------------------
 // APIs for file & row group readers
@@ -94,15 +94,14 @@ const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
 
 pub struct SerializedFileReader {
   buf: BufReader<File>,
-  metadata: ParquetMetaData,
-  mem_pool: MemoryPool
+  metadata: ParquetMetaData
 }
 
 impl SerializedFileReader {
   pub fn new(file: File) -> Result<Self> {
     let mut buf = BufReader::new(file);
     let metadata = Self::parse_metadata(&mut buf)?;
-    Ok(Self { buf: buf, metadata: metadata, mem_pool: MemoryPool::new() })
+    Ok(Self { buf: buf, metadata: metadata })
   }
 
   //
@@ -174,29 +173,26 @@ impl FileReader for SerializedFileReader {
   fn get_row_group<'a>(&'a self, i: usize) -> Result<Box<RowGroupReader + 'a>> {
     let row_group_metadata = self.metadata.row_group(i);
     let f = self.buf.get_ref().try_clone()?;
-    Ok(Box::new(SerializedRowGroupReader::new(f, row_group_metadata, &self.mem_pool)))
+    Ok(Box::new(SerializedRowGroupReader::new(f, row_group_metadata)))
   }
 }
 
 /// A serialized impl for row group reader
 /// Here 'a is the lifetime for the row group metadata, which is owned by the parent
 /// Parquet file reader
-pub struct SerializedRowGroupReader<'a, 'm> {
+pub struct SerializedRowGroupReader<'a> {
   buf: BufReader<File>,
-  metadata: &'a RowGroupMetaData,
-  mem_pool: &'m MemoryPool
+  metadata: &'a RowGroupMetaData
 }
 
-impl<'a, 'm> SerializedRowGroupReader<'a, 'm> {
-  pub fn new(
-    file: File, metadata: &'a RowGroupMetaData, mem_pool: &'m MemoryPool
-  ) -> Self {
+impl<'a, 'm> SerializedRowGroupReader<'a> {
+  pub fn new(file: File, metadata: &'a RowGroupMetaData) -> Self {
     let buf = BufReader::new(file);
-    Self { buf: buf, metadata: metadata, mem_pool: mem_pool }
+    Self { buf: buf, metadata: metadata }
   }
 }
 
-impl<'a, 'm> RowGroupReader<'a> for SerializedRowGroupReader<'a, 'm> {
+impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
   fn metadata(&self) -> &'a RowGroupMetaData {
     self.metadata
   }

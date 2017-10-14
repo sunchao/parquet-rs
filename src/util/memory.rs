@@ -15,17 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::mem;
 use std::cell::{RefCell, Cell};
-use std::cmp;
 use std::fmt::{Display, Result as FmtResult, Formatter, Debug};
 use std::io::{Result as IoResult, Write};
-use std::mem;
 use std::ops::{Index, IndexMut};
 use std::rc::{Rc, Weak};
 
-use arena::TypedArena;
 use errors::Result;
-
 
 // ----------------------------------------------------------------------
 // Memory Tracker classes
@@ -334,64 +331,6 @@ impl<T> Drop for BufferPtr<T> {
 impl AsRef<[u8]> for BufferPtr<u8> {
   fn as_ref(&self) -> &[u8] {
     &self.data[self.start..self.start + self.len]
-  }
-}
-
-
-// ----------------------------------------------------------------------
-// MemoryPool classes
-
-
-/// A central place for managing memory.
-/// NOTE: client can only acquire bytes through this API, but not releasing.
-/// All the memory will be released once the instance of this trait goes out of scope.
-pub struct MemoryPool {
-  arena: TypedArena<Vec<u8>>,
-
-  // NOTE: these need to be in `Cell` since all public APIs of
-  // this struct take `&self`, instead of `&mut self`. Otherwise, we cannot make the
-  // lifetime of outputs to be the same as this memory pool.
-  cur_bytes_allocated: Cell<i64>,
-  max_bytes_allocated: Cell<i64>
-}
-
-impl MemoryPool {
-  pub fn new() -> Self {
-    let arena = TypedArena::new();
-    Self {
-      arena: arena,
-      cur_bytes_allocated: Cell::new(0),
-      max_bytes_allocated: Cell::new(0)
-    }
-  }
-
-  /// Acquire a new byte buffer of at least `size` bytes
-  /// Return a unique reference to the buffer
-  pub fn acquire(&self, size: usize) -> &mut [u8] {
-    let buf = vec![0; size];
-    self.consume(buf)
-  }
-
-  /// Consume `buf` and add it to this memory pool
-  /// After the call, `buf` has the same lifetime as the pool.
-  /// Return a unique reference to the consumed buffer.
-  pub fn consume(&self, data: Vec<u8>) -> &mut [u8] {
-    let bytes_allocated = data.capacity();
-    let result = self.arena.alloc(data);
-    self.cur_bytes_allocated.set(self.cur_bytes_allocated.get() + bytes_allocated as i64);
-    self.max_bytes_allocated.set(
-      cmp::max(self.max_bytes_allocated.get(), self.cur_bytes_allocated.get()));
-    result
-  }
-
-  /// Return the total number of bytes allocated so far
-  fn cur_allocated(&self) -> i64 {
-    self.cur_bytes_allocated.get()
-  }
-
-  /// Return the maximum number of bytes allocated so far
-  fn max_allocated(&self) -> i64 {
-    self.max_bytes_allocated.get()
   }
 }
 
