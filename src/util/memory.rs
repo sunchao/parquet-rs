@@ -16,13 +16,11 @@
 // under the License.
 
 use std::mem;
-use std::cell::{RefCell, Cell};
+use std::cell::Cell;
 use std::fmt::{Display, Result as FmtResult, Formatter, Debug};
 use std::io::{Result as IoResult, Write};
 use std::ops::{Index, IndexMut};
 use std::rc::{Rc, Weak};
-
-use errors::Result;
 
 // ----------------------------------------------------------------------
 // Memory Tracker classes
@@ -32,42 +30,37 @@ pub type WeakMemTrackerPtr = Weak<MemTracker>;
 
 #[derive(Debug)]
 pub struct MemTracker {
-  cur_bytes: Cell<i64>,
-  max_bytes: Cell<i64>,
-  children: RefCell<Vec<MemTrackerPtr>>,
-  parent: Option<WeakMemTrackerPtr>
+  // Memory usage information tracked by this. In the tuple, the first element is the
+  // current memory allocated (in bytes), and the second element is the maximum memory
+  // allocated so far (in bytes).
+  memory_usage: Cell<(i64, i64)>
 }
 
 impl MemTracker {
   #[inline]
-  pub fn new_ptr(mut parent: Option<&mut MemTrackerPtr>) -> Result<MemTrackerPtr> {
-    let mem_tracker = Rc::new(MemTracker {
-      cur_bytes: Cell::new(0), max_bytes: Cell::new(0),
-      children: RefCell::new(vec!()),
-      parent: parent.as_mut().map(|p| Rc::downgrade(p))
-    });
-    if let Some(p) = parent {
-      let mut parent_children = p.children.try_borrow_mut()?;
-      parent_children.push(mem_tracker.clone());
+  pub fn new() -> MemTracker {
+    MemTracker {
+      memory_usage: Cell::new((0, 0))
     }
-    Ok(mem_tracker)
   }
 
-  pub fn cur_bytes(&self) -> i64 {
-    self.cur_bytes.get()
+  /// Returns the current memory consumption, in bytes.
+  pub fn memory_usage(&self) -> i64 {
+    self.memory_usage.get().0
   }
 
-  pub fn max_bytes(&self) -> i64 {
-    self.max_bytes.get()
+  /// Returns the maximum memory consumption so far, in bytes.
+  pub fn max_memory_usage(&self) -> i64 {
+    self.memory_usage.get().1
   }
 
+  /// Adds `num_bytes` to the memory consumption tracked by this memory tracker.
   #[inline]
   pub fn alloc(&self, num_bytes: i64) {
-    let new_cur_bytes = self.cur_bytes.get() + num_bytes;
-    if new_cur_bytes > self.max_bytes.get() {
-      self.max_bytes.set(new_cur_bytes)
-    }
-    self.cur_bytes.set(new_cur_bytes);
+    let (current, mut maximum) = self.memory_usage.get();
+    let new_current = current + num_bytes;
+    if new_current > maximum { maximum = new_current }
+    self.memory_usage.set((new_current, maximum));
   }
 }
 
@@ -341,44 +334,40 @@ mod tests {
 
   #[test]
   fn test_byte_buffer_mem_tracker() {
-    let result = MemTracker::new_ptr(None);
-    assert!(result.is_ok());
-    let mem_tracker = result.unwrap();
+    let mem_tracker = Rc::new(MemTracker::new());
 
     let mut buffer = ByteBuffer::new()
       .with_mem_tracker(mem_tracker.clone());
     buffer.set_data(vec![0; 10]);
-    assert_eq!(mem_tracker.cur_bytes(), buffer.capacity() as i64);
+    assert_eq!(mem_tracker.memory_usage(), buffer.capacity() as i64);
     buffer.set_data(vec![0; 20]);
     let capacity = buffer.capacity() as i64;
-    assert_eq!(mem_tracker.cur_bytes(), capacity);
+    assert_eq!(mem_tracker.memory_usage(), capacity);
 
     let max_capacity =
     {
       let mut buffer2 = ByteBuffer::new()
         .with_mem_tracker(mem_tracker.clone());
       buffer2.reserve(30);
-      assert_eq!(mem_tracker.cur_bytes(), buffer2.capacity() as i64 + capacity);
+      assert_eq!(mem_tracker.memory_usage(), buffer2.capacity() as i64 + capacity);
       buffer2.set_data(vec![0; 100]);
-      assert_eq!(mem_tracker.cur_bytes(), buffer2.capacity() as i64 + capacity);
+      assert_eq!(mem_tracker.memory_usage(), buffer2.capacity() as i64 + capacity);
       buffer2.capacity() as i64 + capacity
     };
 
-    assert_eq!(mem_tracker.cur_bytes(), capacity);
-    assert_eq!(mem_tracker.max_bytes(), max_capacity);
+    assert_eq!(mem_tracker.memory_usage(), capacity);
+    assert_eq!(mem_tracker.max_memory_usage(), max_capacity);
 
     buffer.reserve(40);
-    assert_eq!(mem_tracker.cur_bytes(), buffer.capacity() as i64);
+    assert_eq!(mem_tracker.memory_usage(), buffer.capacity() as i64);
 
     buffer.consume();
-    assert_eq!(mem_tracker.cur_bytes(), buffer.capacity() as i64);
+    assert_eq!(mem_tracker.memory_usage(), buffer.capacity() as i64);
   }
 
   #[test]
   fn test_byte_ptr_mem_tracker() {
-    let result = MemTracker::new_ptr(None);
-    assert!(result.is_ok());
-    let mem_tracker = result.unwrap();
+    let mem_tracker = Rc::new(MemTracker::new());
 
     let mut buffer = ByteBuffer::new()
       .with_mem_tracker(mem_tracker.clone());
@@ -387,20 +376,20 @@ mod tests {
     {
       let buffer_capacity = buffer.capacity() as i64;
       let buf_ptr = buffer.consume();
-      assert_eq!(mem_tracker.cur_bytes(), buffer_capacity);
+      assert_eq!(mem_tracker.memory_usage(), buffer_capacity);
       {
         let buf_ptr1 = buf_ptr.all();
         {
           let _ = buf_ptr.start_from(20);
-          assert_eq!(mem_tracker.cur_bytes(), buffer_capacity);
+          assert_eq!(mem_tracker.memory_usage(), buffer_capacity);
         }
-        assert_eq!(mem_tracker.cur_bytes(), buffer_capacity);
+        assert_eq!(mem_tracker.memory_usage(), buffer_capacity);
         let _ = buf_ptr1.range(30, 20);
-        assert_eq!(mem_tracker.cur_bytes(), buffer_capacity);
+        assert_eq!(mem_tracker.memory_usage(), buffer_capacity);
       }
-      assert_eq!(mem_tracker.cur_bytes(), buffer_capacity);
+      assert_eq!(mem_tracker.memory_usage(), buffer_capacity);
     }
-    assert_eq!(mem_tracker.cur_bytes(), buffer.capacity() as i64);
+    assert_eq!(mem_tracker.memory_usage(), buffer.capacity() as i64);
   }
 
   #[test]

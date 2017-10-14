@@ -751,7 +751,7 @@ mod tests {
       DataPageBuilderImpl {
         desc: desc,
         encoding: None,
-        mem_tracker: MemTracker::new_ptr(None).expect("new_ptr() should be OK"),
+        mem_tracker: Rc::new(MemTracker::new()),
         num_values: num_values,
         buffer: vec!(),
         rep_levels_byte_len: 0,
@@ -857,7 +857,7 @@ mod tests {
     let max_def_level = desc.max_def_level();
     let max_rep_level = desc.max_rep_level();
 
-    let mem_tracker = MemTracker::new_ptr(None).expect("new_ptr() should be OK");
+    let mem_tracker = Rc::new(MemTracker::new());
     let mut dict_encoder = DictEncoder::<T>::new(desc.clone(), mem_tracker);
 
     for i in 0..num_pages {

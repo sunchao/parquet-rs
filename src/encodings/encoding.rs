@@ -786,7 +786,7 @@ mod tests {
     type_len: i32, enc: Encoding
   ) -> Box<Encoder<T>> where T: 'static {
     let desc = create_test_col_desc(type_len, T::get_physical_type());
-    let mem_tracker = MemTracker::new_ptr(None).unwrap();
+    let mem_tracker = Rc::new(MemTracker::new());
     let encoder = match enc {
       Encoding::PLAIN => {
         Box::new(PlainEncoder::<T>::new(Rc::new(desc), mem_tracker, vec!()))
@@ -827,7 +827,7 @@ mod tests {
 
   fn create_test_dict_encoder<T: DataType>(type_len: i32) -> DictEncoder<T> {
     let desc = create_test_col_desc(type_len, T::get_physical_type());
-    let mem_tracker = MemTracker::new_ptr(None).unwrap();
+    let mem_tracker = Rc::new(MemTracker::new());
     DictEncoder::<T>::new(Rc::new(desc), mem_tracker)
   }
 
