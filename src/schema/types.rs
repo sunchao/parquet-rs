@@ -567,7 +567,9 @@ fn build_tree(tp: TypePtr, root_tp: TypePtr, base_tp: TypePtr,
 
   path_so_far.push(String::from(tp.name()));
   match tp.get_basic_info().repetition() {
-    Repetition::OPTIONAL => max_rep_level += 1,
+    Repetition::OPTIONAL => {
+      max_def_level += 1;
+    },
     Repetition::REPEATED => {
       max_def_level += 1;
       max_rep_level += 1;
@@ -580,13 +582,13 @@ fn build_tree(tp: TypePtr, root_tp: TypePtr, base_tp: TypePtr,
       let mut path: Vec<String> = vec!();
       path.extend_from_slice(&path_so_far[..]);
       leaves.push(Rc::new(ColumnDescriptor::new(
-        tp.clone(), Some(root_tp), max_rep_level, max_def_level, ColumnPath::new(path))));
+        tp.clone(), Some(root_tp), max_def_level, max_rep_level, ColumnPath::new(path))));
       leaf_to_base.insert(leaves.len() - 1, base_tp);
     },
     &Type::GroupType{ ref fields, .. } => {
       for f in fields {
         build_tree(f.clone(), root_tp.clone(), base_tp.clone(),
-                   max_def_level, max_rep_level, leaves,
+                   max_rep_level, max_def_level, leaves,
                    leaf_to_base, path_so_far);
         let idx = path_so_far.len() - 1;
         path_so_far.remove(idx);
@@ -673,6 +675,7 @@ fn from_thrift_helper(elements: &mut [SchemaElement], index: usize) -> Result<(u
 mod tests {
   use super::*;
   use std::error::Error;
+  use schema::parser::parse_message_type;
 
   #[test]
   fn test_primitive_type() {
@@ -961,6 +964,38 @@ mod tests {
     assert_eq!(descr.get_column_root(5).name(), "bag");
 
     Ok(())
+  }
+
+  #[test]
+  fn test_schema_build_tree_def_rep_levels() {
+    let message_type = "
+    message spark_schema {
+      REQUIRED INT32 a;
+      OPTIONAL group b {
+        OPTIONAL INT32 _1;
+        OPTIONAL INT32 _2;
+      }
+      OPTIONAL group c (LIST) {
+        REPEATED group list {
+          OPTIONAL INT32 element;
+        }
+      }
+    }
+    ";
+    let schema = parse_message_type(message_type).expect("should parse schema");
+    let descr = SchemaDescriptor::new(Rc::new(schema));
+    // required int32 a
+    assert_eq!(descr.column(0).max_def_level(), 0);
+    assert_eq!(descr.column(0).max_rep_level(), 0);
+    // optional int32 b._1
+    assert_eq!(descr.column(1).max_def_level(), 2);
+    assert_eq!(descr.column(1).max_rep_level(), 0);
+    // optional int32 b._2
+    assert_eq!(descr.column(2).max_def_level(), 2);
+    assert_eq!(descr.column(2).max_rep_level(), 0);
+    // repeated optional int32 c.list.element
+    assert_eq!(descr.column(3).max_def_level(), 3);
+    assert_eq!(descr.column(3).max_rep_level(), 1);
   }
 
   #[test]
