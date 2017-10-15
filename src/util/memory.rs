@@ -15,12 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::mem;
-use std::cell::Cell;
-use std::fmt::{Display, Result as FmtResult, Formatter, Debug};
-use std::io::{Result as IoResult, Write};
-use std::ops::{Index, IndexMut};
+use std::{cmp, fmt, mem, ptr, slice};
+use std::cell::{Cell, RefCell};
+use std::io::{Result as IoResult, Error as IoError, ErrorKind, Write};
+use std::ops::{Index, IndexMut, Range, RangeFrom, RangeTo, RangeFull};
 use std::rc::{Rc, Weak};
+
+use super::bit_util;
 
 // ----------------------------------------------------------------------
 // Memory Tracker classes
@@ -68,393 +69,499 @@ impl MemTracker {
 // ----------------------------------------------------------------------
 // Buffer classes
 
-pub type ByteBuffer = Buffer<u8>;
-pub type ByteBufferPtr = BufferPtr<u8>;
-
-/// A resize-able buffer class with generic member, with optional memory tracker.
-///
-/// Note that a buffer has two attributes:
-/// `capacity` and `size`: the former is the total number of space reserved for
-/// the buffer, while the latter is the actual number of elements.
-/// Invariant: `capacity` >= `size`.
-/// The total allocated bytes for a buffer equals to `capacity * sizeof<T>()`.
-///
-pub struct Buffer<T: Clone> {
-  data: Vec<T>,
-  mem_tracker: Option<MemTrackerPtr>,
-  type_length: usize
-}
-
-impl<T: Clone> Buffer<T> {
-  pub fn new() -> Self {
-    Buffer { data: vec!(), mem_tracker: None, type_length: ::std::mem::size_of::<T>() }
-  }
-
-  #[inline]
-  pub fn with_mem_tracker(mut self, mc: MemTrackerPtr) -> Self {
-    mc.alloc((self.data.capacity() * self.type_length) as i64);
-    self.mem_tracker = Some(mc);
-    self
-  }
-
-  #[inline]
-  pub fn data(&self) -> &[T] {
-    self.data.as_slice()
-  }
-
-  #[inline]
-  pub fn set_data(&mut self, new_data: Vec<T>) {
-    if let Some(ref mc) = self.mem_tracker {
-      let capacity_diff = new_data.capacity() as i64 - self.data.capacity() as i64;
-      mc.alloc(capacity_diff * self.type_length as i64);
-    }
-    self.data = new_data;
-  }
-
-  #[inline]
-  pub fn resize(&mut self, new_size: usize, init_value: T) {
-    let old_capacity = self.data.capacity();
-    self.data.resize(new_size, init_value);
-    if let Some(ref mc) = self.mem_tracker {
-      let capacity_diff = self.data.capacity() as i64 - old_capacity as i64;
-      mc.alloc(capacity_diff * self.type_length as i64);
-    }
-  }
-
-  #[inline]
-  pub fn clear(&mut self) {
-    self.data.clear()
-  }
-
-  #[inline]
-  pub fn reserve(&mut self, additional_capacity: usize) {
-    let old_capacity = self.data.capacity();
-    self.data.reserve(additional_capacity);
-    if self.data.capacity() > old_capacity {
-      if let Some(ref mc) = self.mem_tracker {
-        let capacity_diff = self.data.capacity() as i64 - old_capacity as i64;
-        mc.alloc(capacity_diff * self.type_length as i64);
-      }
-    }
-  }
-
-  #[inline]
-  pub fn consume(&mut self) -> BufferPtr<T> {
-    let old_data = mem::replace(&mut self.data, vec!());
-    let mut result = BufferPtr::new(old_data);
-    if let Some(ref mc) = self.mem_tracker {
-      result = result.with_mem_tracker(mc.clone());
-    }
-    result
-  }
-
-  #[inline]
-  pub fn push(&mut self, value: T) {
-    self.data.push(value)
-  }
-
-  #[inline]
-  pub fn capacity(&self) -> usize {
-    self.data.capacity()
-  }
-
-  #[inline]
-  pub fn size(&self) -> usize {
-    self.data.len()
-  }
-
-  #[inline]
-  pub fn is_mem_tracked(&self) -> bool {
-    self.mem_tracker.is_some()
-  }
-
-  #[inline]
-  pub fn mem_tracker(&self) -> &MemTrackerPtr {
-   self.mem_tracker.as_ref().unwrap()
-  }
-}
-
-impl<T: Sized + Clone> Index<usize> for Buffer<T> {
-  type Output = T;
-  fn index(&self, index: usize) -> &T {
-    &self.data[index]
-  }
-}
-
-impl<T: Sized + Clone> IndexMut<usize> for Buffer<T> {
-  fn index_mut(&mut self, index: usize) -> &mut T {
-    &mut self.data[index]
-  }
-}
-
-// TODO: implement this for other types
-impl Write for Buffer<u8> {
-  #[inline]
-  fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
-    let old_capacity = self.data.capacity();
-    let bytes_written = self.data.write(buf)?;
-    if let Some(ref mc) = self.mem_tracker {
-      if self.data.capacity() - old_capacity > 0 {
-        mc.alloc((self.data.capacity() - old_capacity) as i64)
-      }
-    }
-    Ok(bytes_written)
-  }
-
-  fn flush(&mut self) -> IoResult<()> {
-    // No-op
-    self.data.flush()
-  }
-}
-
-impl AsRef<[u8]> for Buffer<u8> {
-  fn as_ref(&self) -> &[u8] {
-    self.data.as_slice()
-  }
-}
-
-impl<T: Clone> Drop for Buffer<T> {
-  #[inline]
-  fn drop(&mut self) {
-    if let Some(ref mc) = self.mem_tracker {
-      mc.alloc(-((self.data.capacity() * self.type_length) as i64));
-    }
-  }
-}
-
-
-// ----------------------------------------------------------------------
-// Immutable Buffer (BufferPtr) classes
-
-/// An representation of a slice on a reference-counting and read-only byte array.
-/// Sub-slices can be further created from this. The byte array will be released
-/// when all slices are dropped.
+/// An non-resizable and mutable buffer that is merely a pointer to a memory region owned
+/// by some other structure (e.g., arena). Once the owner goes out of scope, it is illegal
+/// to use the buffer instances - undefined behavior will occur if that happens.
+/// TODO: we could use reference counting to track any dangling buffers, and throw error
+/// in the illegal case.
 #[derive(Clone, Debug)]
-pub struct BufferPtr<T> {
-  data: Rc<Vec<T>>,
-  start: usize,
-  len: usize,
-  // TODO: will this create too many references? rethink about this.
-  mem_tracker: Option<MemTrackerPtr>
+pub struct Buffer {
+  ptr: *mut u8,
+  len: usize
 }
 
-impl<T> BufferPtr<T> {
-  pub fn new(v: Vec<T>) -> Self {
-    let len = v.len();
-    Self { data: Rc::new(v), start: 0, len: len, mem_tracker: None }
+impl Buffer {
+  pub fn new() -> Self {
+    Self { ptr: ptr::null_mut(), len: 0 }
   }
 
-  pub fn data(&self) -> &[T] {
-    &self.data[self.start..self.start + self.len]
-  }
-
-  pub fn with_range(mut self, start: usize, len: usize) -> Self {
-    assert!(start <= self.len);
-    assert!(start + len <= self.len);
-    self.start = start;
-    self.len = len;
-    self
-  }
-
-  pub fn with_mem_tracker(mut self, mc: MemTrackerPtr) -> Self {
-    self.mem_tracker = Some(mc);
-    self
-  }
-
-  pub fn start(&self) -> usize {
-    self.start
+  pub fn from_ptr(ptr: *mut u8, len: usize) -> Self {
+    Self { ptr: ptr, len: len }
   }
 
   pub fn len(&self) -> usize {
     self.len
   }
 
-  pub fn is_mem_tracked(&self) -> bool {
-    self.mem_tracker.is_some()
+  pub fn raw_data(&self) -> *const u8 {
+    self.ptr
   }
 
-  pub fn all(&self) -> BufferPtr<T> {
-    BufferPtr {
-      data: self.data.clone(), start: self.start,
-      len: self.len, mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
+  pub fn raw_data_mut(&self) -> *mut u8 {
+    self.ptr
+  }
+
+  pub fn data(&self) -> &[u8] {
+    unsafe {
+      slice::from_raw_parts(self.ptr, self.len)
     }
   }
 
-  pub fn start_from(&self, start: usize) -> BufferPtr<T> {
-    assert!(start <= self.len);
-    BufferPtr {
-      data: self.data.clone(), start: self.start + start,
-      len: self.len - start, mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
-    }
-  }
-
-  pub fn range(&self, start: usize, len: usize) -> BufferPtr<T> {
-    assert!(start + len <= self.len);
-    BufferPtr {
-      data: self.data.clone(), start: self.start + start,
-      len: len, mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
+  pub fn data_mut(&self) -> &mut [u8] {
+    unsafe {
+      slice::from_raw_parts_mut(self.ptr, self.len)
     }
   }
 }
 
-impl<T: Sized> Index<usize> for BufferPtr<T> {
-  type Output = T;
-  fn index(&self, index: usize) -> &T {
-    assert!(index < self.len);
-    &self.data[self.start + index]
-  }
-}
-
-impl<T: Debug> Display for BufferPtr<T> {
-  fn fmt(&self, f: &mut Formatter) -> FmtResult {
-    write!(f, "{:?}", self.data)
-  }
-}
-
-impl<T> Drop for BufferPtr<T> {
-  fn drop(&mut self) {
-    if self.is_mem_tracked() &&
-      Rc::strong_count(&self.data) == 1 && Rc::weak_count(&self.data) == 0 {
-      let mc = self.mem_tracker.as_ref().unwrap();
-      mc.alloc(-(self.data.capacity() as i64));
+/// Convert a byte slice to a buffer.
+/// NOTE: THIS IS VERY UNSAFE!
+/// The caller has to guarantee the vector for the slice won't go out of scope before it
+/// is done using this buffer. Otherwise, undefined behavior could happen. Ideally we
+/// should only use this in tests.
+impl<'a> From<&'a mut [u8]> for Buffer {
+  fn from(s: &'a mut [u8]) -> Buffer {
+    Buffer {
+      ptr: s.as_mut_ptr(),
+      len: s.len()
     }
   }
 }
 
-impl AsRef<[u8]> for BufferPtr<u8> {
-  fn as_ref(&self) -> &[u8] {
-    &self.data[self.start..self.start + self.len]
+impl<'a> From<&'a mut Vec<u8>> for Buffer {
+  fn from(v: &'a mut Vec<u8>) -> Buffer {
+    Buffer {
+      ptr: v.as_mut_ptr(),
+      len: v.len()
+    }
+  }
+}
+
+impl Index<usize> for Buffer {
+  type Output = u8;
+  fn index(&self, index: usize) -> &u8 {
+    assert!(index < self.len, "Index {} out of bound", index);
+    unsafe {
+      &*self.ptr.offset(index as isize)
+    }
+  }
+}
+
+impl IndexMut<usize> for Buffer {
+  fn index_mut(&mut self, index: usize) -> &mut u8 {
+    assert!(index < self.len, "Index {} out of bound", index);
+    unsafe {
+      &mut *self.ptr.offset(index as isize)
+    }
+  }
+}
+
+impl Write for Buffer {
+  fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
+    if self.len < buf.len() {
+      return Err(IoError::new(ErrorKind::Other, "Input buffer too large"));
+    }
+    let dst = self.data_mut();
+    bit_util::memcpy(buf, dst);
+    Ok(buf.len())
+  }
+
+  fn flush(&mut self) -> IoResult<()> {
+    // No-op
+    Ok(())
+  }
+}
+
+// For debugging
+impl fmt::Binary for Buffer {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}[len={}][", self.ptr, self.len)?;
+    let mut i = 0;
+    for b in self.data() {
+      write!(f, "({}){:b}", i, b)?;
+      i += 1;
+    }
+    write!(f, "]")?;
+    Ok(())
+  }
+}
+
+/// Similar to `std::ops::Index`, but returns value instead of ref.
+pub trait BufferRange<RangeType> {
+  fn range(&self, range: RangeType) -> Buffer;
+}
+
+impl BufferRange<RangeFrom<usize>> for Buffer {
+  fn range(&self, range: RangeFrom<usize>) -> Buffer {
+    if range.start > self.len {
+      panic!("Index out of bound: start {} > len {}", range.start, self.len)
+    }
+    Buffer {
+      ptr: unsafe { self.ptr.offset(range.start as isize) },
+      len: self.len - range.start
+    }
+  }
+}
+
+impl BufferRange<RangeTo<usize>> for Buffer {
+  fn range(&self, range: RangeTo<usize>) -> Buffer {
+    if range.end > self.len {
+      panic!("Index out of bound: end {} > len {}", range.end, self.len)
+    }
+    Buffer {
+      ptr: self.ptr,
+      len: range.end
+    }
+  }
+}
+
+impl BufferRange<RangeFull> for Buffer {
+  fn range(&self, _: RangeFull) -> Buffer {
+    Buffer {
+      ptr: self.ptr,
+      len: self.len
+    }
+  }
+}
+
+impl BufferRange<Range<usize>> for Buffer {
+  fn range(&self, range: Range<usize>) -> Buffer {
+    if range.start > self.len {
+      panic!("Index out of bound: start {} > len {}", range.start, self.len)
+    }
+    if range.end > self.len {
+      panic!("Index out of bound: end ({}) > len ({})", range.end, self.len)
+    }
+    Buffer {
+      ptr: unsafe { self.ptr.offset(range.start as isize) },
+      len: range.end - range.start
+    }
+  }
+
+}
+
+
+/// A resize-able buffer whose memory usage is tracked.
+pub struct ResizableBuffer {
+  data: Vec<u8>,
+  arena: ArenaRef
+}
+
+impl ResizableBuffer {
+  pub fn new(init_capacity: usize, arena: ArenaRef) -> Self {
+    Self {
+      data: Vec::with_capacity(init_capacity),
+      arena: arena
+    }
+  }
+
+  #[inline]
+  pub fn len(&self) -> usize {
+    self.data.len()
+  }
+
+  #[inline]
+  pub fn data(&mut self) -> &[u8] {
+    &self.data[..]
+  }
+
+  #[inline]
+  pub fn data_mut(&mut self) -> &mut [u8] {
+    &mut self.data[..]
+  }
+
+  #[inline]
+  pub fn vec(&mut self) -> &mut Vec<u8> {
+    &mut self.data
+  }
+
+  pub fn extend(&mut self, buf: &[u8]) {
+    let data_len = self.data.len();
+    if self.data.capacity() - data_len < buf.len() {
+      self.resize(data_len + buf.len());
+    }
+    self.data.extend_from_slice(buf);
+  }
+
+  pub fn resize(&mut self, new_capacity: usize) -> bool {
+    let old_capacity = self.data.capacity();
+    if old_capacity >= new_capacity {
+      return false
+    }
+    let cap = cmp::max(new_capacity, old_capacity * 2);
+    let additional = cap - old_capacity;
+    self.data.reserve_exact(additional);
+    self.arena.mem_tracker().alloc(additional as i64);
+    return true;
+  }
+
+  /// Turns this buffer into a non-resizable `Buffer`.
+  pub fn to_fixed(self) -> Buffer {
+    let mut blocks = self.arena.blocks.borrow_mut();
+    let mut b: Box<[u8]> = self.data.into_boxed_slice();
+    let ptr = b.as_mut_ptr();
+    let len = b.len();
+    blocks.push(b);
+    Buffer { ptr: ptr, len: len }
+  }
+}
+
+
+impl Write for ResizableBuffer {
+  fn write(&mut self, buf: &[u8]) -> IoResult<usize> {
+    // Check if we have enough capacity to hold `buf`.
+    let data_len = self.data.len();
+    if self.data.capacity() - data_len < buf.len() {
+      self.resize(data_len + buf.len());
+    }
+    self.data.write(buf)
+  }
+
+  fn flush(&mut self) -> IoResult<()> {
+    // No-op
+    Ok(())
+  }
+}
+
+const BLOCK_SIZE : usize = 4096;
+
+pub type ArenaRef = Rc<Arena>;
+
+pub struct Arena {
+  cur_block: RefCell<Block>,
+  mem_tracker: MemTrackerPtr,
+  blocks: RefCell<Vec<Box<[u8]>>>
+}
+
+struct Block {
+  ptr: *mut u8,
+  bytes_remaining: usize
+}
+
+impl Arena {
+  pub fn new() -> Self {
+    Arena::with_mem_tracker(Rc::new(MemTracker::new()))
+  }
+
+  pub fn with_mem_tracker(mem_tracker: MemTrackerPtr) -> Self {
+    let b = Block { ptr: ptr::null_mut(), bytes_remaining: 0 };
+    Self {
+      cur_block: RefCell::new(b),
+      mem_tracker: mem_tracker,
+      blocks: RefCell::new(Vec::new())
+    }
+  }
+
+  pub fn alloc(&self, bytes: usize) -> Buffer {
+    let need_alloc = {
+      let block = self.cur_block.borrow_mut();
+      bytes > block.bytes_remaining
+    };
+    if need_alloc {
+      self.alloc_fallback(bytes)
+    } else {
+      let mut block = self.cur_block.borrow_mut();
+      assert!(!block.ptr.is_null(), "ptr should NOT be null");
+      let res_ptr = block.ptr;
+      unsafe {
+        block.ptr = block.ptr.offset(bytes as isize);
+        block.bytes_remaining -= bytes;
+        Buffer { ptr: res_ptr, len: bytes }
+      }
+    }
+  }
+
+  fn alloc_fallback(&self, bytes: usize) -> Buffer {
+    if bytes > BLOCK_SIZE / 4 {
+      let new_block = self.alloc_new(bytes);
+      return Buffer { ptr: new_block.ptr, len: new_block.bytes_remaining }
+    }
+
+    let mut block = self.alloc_new(BLOCK_SIZE);
+    let res_ptr = block.ptr;
+    unsafe {
+      block.ptr = block.ptr.offset(bytes as isize);
+      block.bytes_remaining -= bytes;
+      self.cur_block.replace(block);
+      Buffer { ptr: res_ptr, len: bytes }
+    }
+  }
+
+  fn alloc_new(&self, bytes: usize) -> Block {
+    unsafe {
+      let mut v = Vec::with_capacity(bytes);
+      v.set_len(bytes);
+      let mut b: Box<[u8]> = v.into_boxed_slice();
+      let ptr = b.as_mut_ptr();
+      ptr::write_bytes(ptr, 0, bytes);
+      let mut blocks = self.blocks.borrow_mut();
+      blocks.push(b);
+      self.mem_tracker.alloc(bytes as i64);
+      Block { ptr: ptr, bytes_remaining: bytes }
+    }
+  }
+
+  pub fn alloc_aligned(&self, bytes: usize) -> Buffer {
+    let ptr_size = mem::size_of::<usize>();
+    assert!(ptr_size <= 128);
+    let align = if ptr_size > 8 { ptr_size } else { 8 };
+    assert!(align & (align - 1) == 0);
+
+    let (ptr, bytes_remaining) = {
+      let block = self.cur_block.borrow();
+      (block.ptr, block.bytes_remaining)
+    };
+    let current_mod = ptr as usize & (align - 1);
+    let slop = if current_mod == 0 { 0 } else { align - current_mod };
+    let needed = bytes + slop;
+    let result = if needed <= bytes_remaining {
+      unsafe {
+        let mut block = self.cur_block.borrow_mut();
+        let p = block.ptr.offset(slop as isize);
+        block.ptr = block.ptr.offset(needed as isize);
+        block.bytes_remaining -= needed;
+        Buffer { ptr: p, len: bytes }
+      }
+    } else {
+      // `alloc_fallback()` always allocate aligned memory
+      self.alloc_fallback(bytes)
+    };
+    assert!(result.ptr as usize & (align - 1) == 0);
+    result
+  }
+
+  pub fn alloc_resizable(arena: &ArenaRef, bytes: usize) -> ResizableBuffer {
+    arena.mem_tracker().alloc(bytes as i64);
+    ResizableBuffer {
+      data: Vec::with_capacity(bytes),
+      arena: arena.clone()
+    }
+  }
+
+  pub fn mem_tracker(&self) -> MemTrackerPtr {
+    self.mem_tracker.clone()
+  }
+
+  pub fn memory_usage(&self) -> i64 {
+    self.mem_tracker.memory_usage()
+  }
+
+  pub fn max_memory_usage(&self) -> i64 {
+    self.mem_tracker.max_memory_usage()
   }
 }
 
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+    use super::*;
+
+  // ----------------------------------------------------------------------
+  // Tests for MemTracker
+  #[test]
+  fn test_mem_tracker() {
+    let mc = MemTracker::new();
+    mc.alloc(100);
+    assert_eq!(mc.memory_usage(), 100);
+    assert_eq!(mc.max_memory_usage(), 100);
+
+    mc.alloc(50);
+    assert_eq!(mc.memory_usage(), 150);
+    assert_eq!(mc.max_memory_usage(), 150);
+
+    mc.alloc(-50);
+    assert_eq!(mc.memory_usage(), 100);
+    assert_eq!(mc.max_memory_usage(), 150);
+  }
+
+  // ----------------------------------------------------------------------
+  // Tests for Arena
 
   #[test]
-  fn test_byte_buffer_mem_tracker() {
-    let mem_tracker = Rc::new(MemTracker::new());
-
-    let mut buffer = ByteBuffer::new()
-      .with_mem_tracker(mem_tracker.clone());
-    buffer.set_data(vec![0; 10]);
-    assert_eq!(mem_tracker.memory_usage(), buffer.capacity() as i64);
-    buffer.set_data(vec![0; 20]);
-    let capacity = buffer.capacity() as i64;
-    assert_eq!(mem_tracker.memory_usage(), capacity);
-
-    let max_capacity =
-    {
-      let mut buffer2 = ByteBuffer::new()
-        .with_mem_tracker(mem_tracker.clone());
-      buffer2.reserve(30);
-      assert_eq!(mem_tracker.memory_usage(), buffer2.capacity() as i64 + capacity);
-      buffer2.set_data(vec![0; 100]);
-      assert_eq!(mem_tracker.memory_usage(), buffer2.capacity() as i64 + capacity);
-      buffer2.capacity() as i64 + capacity
-    };
-
-    assert_eq!(mem_tracker.memory_usage(), capacity);
-    assert_eq!(mem_tracker.max_memory_usage(), max_capacity);
-
-    buffer.reserve(40);
-    assert_eq!(mem_tracker.memory_usage(), buffer.capacity() as i64);
-
-    buffer.consume();
-    assert_eq!(mem_tracker.memory_usage(), buffer.capacity() as i64);
+  fn test_new() {
+    let arena = Arena::new();
+    check_current_block(&arena, true, 0);
+    assert_eq!(arena.memory_usage(), 0);
   }
 
   #[test]
-  fn test_byte_ptr_mem_tracker() {
-    let mem_tracker = Rc::new(MemTracker::new());
+  fn test_alloc_new() {
+    let arena = Arena::new();
 
-    let mut buffer = ByteBuffer::new()
-      .with_mem_tracker(mem_tracker.clone());
-    buffer.set_data(vec![0; 60]);
+    let _ = arena.alloc_new(128);
+    check_current_block(&arena, true, 0);
+    assert_eq!(arena.memory_usage(), 128);
 
-    {
-      let buffer_capacity = buffer.capacity() as i64;
-      let buf_ptr = buffer.consume();
-      assert_eq!(mem_tracker.memory_usage(), buffer_capacity);
-      {
-        let buf_ptr1 = buf_ptr.all();
-        {
-          let _ = buf_ptr.start_from(20);
-          assert_eq!(mem_tracker.memory_usage(), buffer_capacity);
-        }
-        assert_eq!(mem_tracker.memory_usage(), buffer_capacity);
-        let _ = buf_ptr1.range(30, 20);
-        assert_eq!(mem_tracker.memory_usage(), buffer_capacity);
-      }
-      assert_eq!(mem_tracker.memory_usage(), buffer_capacity);
+    let _ = arena.alloc_new(256);
+    check_current_block(&arena, true, 0);
+    assert_eq!(arena.memory_usage(), 256 + 128);
+  }
+
+  #[test]
+  fn test_alloc_fallback() {
+    let arena = Arena::new();
+
+    let _ = arena.alloc_fallback(1025);
+    check_current_block(&arena, true, 0);
+    assert_eq!(arena.memory_usage(), 1025);
+
+    let _ = arena.alloc_fallback(512);
+    check_current_block(&arena, false, BLOCK_SIZE - 512);
+    assert_eq!(arena.memory_usage(), 1025 + BLOCK_SIZE as i64);
+  }
+
+  #[test]
+  fn test_alloc_aligned() {
+    let arena = Arena::new();
+    let ptr_size = ::std::mem::size_of::<usize>();
+    assert!(ptr_size > 1);
+
+    let _ = arena.alloc_fallback(1);
+    check_current_block(&arena, false, BLOCK_SIZE - 1);
+
+    let _ = arena.alloc_aligned(3000);
+    check_current_block(&arena, false, BLOCK_SIZE - 3000 - ptr_size);
+
+    let _ = arena.alloc_aligned(1000);
+    check_current_block(&arena, false, BLOCK_SIZE - 3000 - 1000 - ptr_size);
+
+    // should allocate a new block
+    let _ = arena.alloc_aligned(500);
+    check_current_block(&arena, false, BLOCK_SIZE - 500);
+  }
+
+  #[test]
+  fn test_alloc() {
+    let arena = Arena::new();
+
+    let _ = arena.alloc(128);
+
+    check_current_block(&arena, false, 3968); // 4096 - 128
+    assert_eq!(arena.memory_usage(), 4096);
+
+    let _ = arena.alloc(1024); // should allocate from existing block
+
+    check_current_block(&arena, false, 2944); // 3968 - 1024
+    assert_eq!(arena.memory_usage(), 4096);
+
+    let _ = arena.alloc(8192); // should allocate new block
+
+    check_current_block(&arena, false, 2944);
+    assert_eq!(arena.memory_usage(), 12288); // 8192 + 4096
+
+    let _ = arena.alloc(2048); // should allocate from existing block
+    check_current_block(&arena, false, 896); // 2944 - 2048
+    assert_eq!(arena.memory_usage(), 12288);
+
+    let _ = arena.alloc(1024); // should allocate new block
+
+    check_current_block(&arena, false, 3072); // 4096 - 1024
+    assert_eq!(arena.memory_usage(), 16384); // 12288 + 4096
+  }
+
+    fn check_current_block(arena: &Arena, is_null: bool, bytes: usize) {
+      let block = arena.cur_block.borrow();
+      assert_eq!(block.ptr.is_null(), is_null);
+      assert_eq!(block.bytes_remaining, bytes);
     }
-    assert_eq!(mem_tracker.memory_usage(), buffer.capacity() as i64);
-  }
-
-  #[test]
-  fn test_byte_buffer() {
-    let mut buffer = ByteBuffer::new();
-    assert_eq!(buffer.size(), 0);
-    assert_eq!(buffer.capacity(), 0);
-
-    let mut buffer2 = ByteBuffer::new();
-    buffer2.reserve(40);
-    assert_eq!(buffer2.size(), 0);
-    assert_eq!(buffer2.capacity(), 40);
-
-    buffer.set_data((0..5).collect());
-    assert_eq!(buffer.size(), 5);
-    assert_eq!(buffer[4], 4);
-
-    buffer.set_data((0..20).collect());
-    assert_eq!(buffer.size(), 20);
-    assert_eq!(buffer[10], 10);
-
-    let expected: Vec<u8> = (0..20).collect();
-    {
-      let data = buffer.data();
-      assert_eq!(data, expected.as_slice());
-    }
-
-    buffer.reserve(40);
-    assert!(buffer.capacity() >= 40);
-
-    let byte_ptr = buffer.consume();
-    assert_eq!(buffer.size(), 0);
-    assert_eq!(byte_ptr.as_ref(), expected.as_slice());
-
-    let values: Vec<u8> = (0..30).collect();
-    let _ = buffer.write(values.as_slice());
-    let _ = buffer.flush();
-
-    assert_eq!(buffer.data(), values.as_slice());
-  }
-
-  #[test]
-  fn test_byte_ptr() {
-    let values = (0..50).collect();
-    let ptr = ByteBufferPtr::new(values);
-    assert_eq!(ptr.len(), 50);
-    assert_eq!(ptr.start(), 0);
-    assert_eq!(ptr[40], 40);
-
-    let ptr2 = ptr.all();
-    assert_eq!(ptr2.len(), 50);
-    assert_eq!(ptr2.start(), 0);
-    assert_eq!(ptr2[40], 40);
-
-    let ptr3 = ptr.start_from(20);
-    assert_eq!(ptr3.len(), 30);
-    assert_eq!(ptr3.start(), 20);
-    assert_eq!(ptr3[0], 20);
-
-    let ptr4 = ptr3.range(10, 10);
-    assert_eq!(ptr4.len(), 10);
-    assert_eq!(ptr4.start(), 30);
-    assert_eq!(ptr4[0], 30);
-
-    let expected: Vec<u8> = (30..40).collect();
-    assert_eq!(ptr4.as_ref(), expected.as_slice());
-  }
 }

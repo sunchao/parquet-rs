@@ -19,7 +19,7 @@ use std::mem;
 
 use basic::Type;
 use rand::{Rng, Rand};
-use util::memory::{ByteBuffer, ByteBufferPtr};
+use util::memory::Buffer;
 
 // ----------------------------------------------------------------------
 // Types connect Parquet physical types with Rust-specific types
@@ -80,68 +80,46 @@ impl Rand for Int96 {
 
 #[derive(Clone, Debug)]
 pub struct ByteArray {
-  data: Option<ByteBufferPtr>,
+  data: Buffer
 }
 
 impl ByteArray {
   pub fn new() -> Self {
-    ByteArray { data: None }
+    ByteArray { data: Buffer::new() }
   }
 
   pub fn len(&self) -> usize {
-    assert!(self.data.is_some());
-    self.data.as_ref().unwrap().len()
+    self.data.len()
+  }
+
+  pub fn buffer(&self) -> Buffer {
+    self.data.clone()
   }
 
   pub fn data(&self) -> &[u8] {
-    assert!(self.data.is_some());
-    self.data.as_ref().unwrap().as_ref()
+    self.data.data()
   }
 
-  pub fn set_data(&mut self, data: ByteBufferPtr) {
-    self.data = Some(data);
-  }
-}
-
-impl From<Vec<u8>> for ByteArray {
-  fn from(buf: Vec<u8>) -> ByteArray {
-    Self { data: Some(ByteBufferPtr::new(buf)) }
+  pub fn set_data(&mut self, data: Buffer) {
+    self.data = data;
   }
 }
 
-impl From<ByteBufferPtr> for ByteArray {
-  fn from(ptr: ByteBufferPtr) -> ByteArray {
-    Self { data: Some(ptr) }
-  }
-}
-
-impl From<ByteBuffer> for ByteArray {
-  fn from(mut buf: ByteBuffer) -> ByteArray {
-    Self { data: Some(buf.consume()) }
+impl<'a> From<&'a mut Vec<u8>> for ByteArray {
+  fn from(v: &'a mut Vec<u8>) -> Self {
+    Self {
+      data: Buffer::from(v)
+    }
   }
 }
 
 impl Default for ByteArray {
-  fn default() -> Self { ByteArray { data: None } }
+  fn default() -> Self { ByteArray::new() }
 }
-
 
 impl PartialEq for ByteArray {
   fn eq(&self, other: &ByteArray) -> bool {
     self.data() == other.data()
-  }
-}
-
-impl Rand for ByteArray {
-  fn rand<R: Rng>(rng: &mut R) -> Self {
-    let mut result = ByteArray::new();
-    let mut value = vec!();
-    let len = rng.gen_range::<usize>(0, 128);
-    for _ in 0..len {
-      value.push(rng.gen_range(0, 255) & 0xFF);
-    }
-    result.set_data(ByteBufferPtr::new(value));
-    result
   }
 }
 
@@ -213,7 +191,7 @@ impl AsBytes for str {
 
 pub trait DataType {
   type T: ::std::cmp::PartialEq + ::std::fmt::Debug + ::std::default::Default
-    + ::std::clone::Clone + Rand + AsBytes;
+    + ::std::clone::Clone + AsBytes;
   fn get_physical_type() -> Type;
   fn get_type_size() -> usize;
 }
@@ -277,7 +255,8 @@ mod tests {
     assert_eq!(i96.as_bytes(), &[1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0]);
 
     // Test ByteArray
-    let ba = ByteArray::from(vec![1, 2, 3]);
+    let mut v = vec![1, 2, 3];
+    let ba = ByteArray::from(&mut v);
     assert_eq!(ba.as_bytes(), &[1, 2, 3]);
   }
 }
