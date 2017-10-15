@@ -19,6 +19,8 @@
 #![feature(rustc_private)]
 #![feature(specialization)]
 #![feature(cfg_target_feature)]
+#![feature(refcell_replace_swap)]
+#![feature(box_syntax)]
 
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]

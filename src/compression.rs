@@ -19,7 +19,7 @@ use std::io::{Read, Write};
 
 use basic::Compression as CodecType;
 use errors::{Result, ParquetError};
-use snap::{Decoder, Encoder, decompress_len};
+use snap::{Decoder, Encoder};
 use brotli;
 use flate2::Compression;
 use flate2::read::GzDecoder;
@@ -32,9 +32,12 @@ pub trait Codec {
   ///   but flate2 api doesn't support this.
   fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>>;
 
+
   /// Decompresses data stored in slice `input_buf` and writes output to `output_buf`.
+  /// The length of `output_buf` MUST be equal to the uncompressed length of `input_buf`.
+  ///
   /// Returns the total number of bytes written.
-  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize>;
+  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> Result<()>;
 }
 
 
@@ -63,11 +66,10 @@ impl SnappyCodec {
 }
 
 impl Codec for SnappyCodec {
-  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
-    let len = decompress_len(input_buf)?;
-    output_buf.resize(len, 0);
+  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> Result<()> {
     self.decoder.decompress(input_buf, output_buf)
-      .map_err(|e| general_err!("Error when decompressing using Snappy: {}", e))
+      .map_err(|e| general_err!("Error when decompressing using Snappy: {}", e))?;
+    Ok(())
   }
 
   fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
@@ -86,9 +88,9 @@ impl GZipCodec {
 }
 
 impl Codec for GZipCodec {
-  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
+  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> Result<()> {
     let mut decoder = GzDecoder::new(input_buf)?;
-    decoder.read_to_end(output_buf).map_err(
+    decoder.read_exact(output_buf).map_err(
       |e| general_err!("Error when decompressing using GZip: {}", e))
   }
 
@@ -114,9 +116,9 @@ impl BrotliCodec {
 }
 
 impl Codec for BrotliCodec {
-  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
+  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut [u8]) -> Result<()> {
     brotli::Decompressor::new(input_buf, BROTLI_DEFAULT_BUFFER_SIZE)
-      .read_to_end(output_buf)
+      .read_exact(output_buf)
       .map_err(|e| general_err!("Error when decompressing using Brotli: {}", e))
   }
 
@@ -143,15 +145,13 @@ mod tests {
     let mut c2 = create_codec(c).unwrap().unwrap();
 
     // Compress with c1
-    let mut decompressed = Vec::new();
+    let mut decompressed = vec![0; data.len()];
     let mut compressed_res = c1.compress(data.as_slice());
     assert!(compressed_res.is_ok());
     let mut compressed = compressed_res.unwrap();
 
     // Decompress with c2
-    let mut decompressed_size = c2.decompress(compressed.as_slice(), &mut decompressed);
-    assert!(decompressed_size.is_ok());
-    decompressed.truncate(decompressed_size.unwrap());
+    assert!(c2.decompress(compressed.as_slice(), &mut decompressed).is_ok());
     assert!(*data == decompressed);
 
     // Compress with c2
@@ -160,9 +160,7 @@ mod tests {
     compressed = compressed_res.unwrap();
 
     // Decompress with c1
-    decompressed_size = c1.decompress(compressed.as_slice(), &mut decompressed);
-    assert!(decompressed_size.is_ok());
-    decompressed.truncate(decompressed_size.unwrap());
+    assert!(c1.decompress(compressed.as_slice(), &mut decompressed).is_ok());
     assert!(*data == decompressed);
   }
 

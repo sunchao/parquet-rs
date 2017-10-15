@@ -30,7 +30,8 @@ use schema::types::{self, SchemaDescriptor};
 use column::page::{Page, PageReader};
 use column::reader::{ColumnReader, ColumnReaderImpl};
 use compression::{Codec, create_codec};
-use util::memory::ByteBufferPtr;
+use util::memory::Arena;
+use util::bit_util;
 
 // ----------------------------------------------------------------------
 // APIs for file & row group readers
@@ -62,11 +63,13 @@ pub trait RowGroupReader<'a> {
   /// Get the total number of column chunks in this row group
   fn num_columns(&self) -> usize;
 
-  /// Get page reader for the `i`th column chunk
-  fn get_column_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>>;
+  /// Get page reader for the `i`th column chunk. Memory are allocated through `arena`.
+  fn get_column_page_reader<'b>(
+    &'b self, i: usize, arena: Rc<Arena>
+  ) -> Result<Box<PageReader + 'b>>;
 
-  /// Get value reader for the `i`th column chunk
-  fn get_column_reader(&self, i: usize) -> Result<ColumnReader>;
+  /// Get value reader for the `i`th column chunk. Memory are allocated through `arena`
+  fn get_column_reader(&self, i: usize, arena: Rc<Arena>) -> Result<ColumnReader>;
 }
 
 
@@ -202,7 +205,9 @@ impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
   }
 
   // TODO: fix PARQUET-816
-  fn get_column_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>> {
+  fn get_column_page_reader<'b>(
+    &'b self, i: usize, arena: Rc<Arena>
+  ) -> Result<Box<PageReader + 'b>> {
     let col = self.metadata.column(i);
     let mut col_start = col.data_page_offset();
     if col.has_dictionary_page() {
@@ -213,31 +218,31 @@ impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
     let mut buf = BufReader::new(f);
     let _ = buf.seek(SeekFrom::Start(col_start as u64));
     let page_reader = SerializedPageReader::new(
-      buf.take(col_length).into_inner(), col.num_values(), col.compression())?;
+      arena, buf.take(col_length).into_inner(), col.num_values(), col.compression())?;
     Ok(Box::new(page_reader))
   }
 
-  fn get_column_reader(&self, i: usize) -> Result<ColumnReader> {
+  fn get_column_reader(&self, i: usize, arena: Rc<Arena>) -> Result<ColumnReader> {
     let schema_descr = self.metadata.schema_descr();
     let col_descr = schema_descr.column(i);
-    let col_page_reader = self.get_column_page_reader(i)?;
+    let col_page_reader = self.get_column_page_reader(i, arena.clone())?;
     let col_reader = match col_descr.physical_type() {
       Type::BOOLEAN => ColumnReader::BoolColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
+        ColumnReaderImpl::new(arena.clone(), col_descr, col_page_reader)),
       Type::INT32 => ColumnReader::Int32ColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
+        ColumnReaderImpl::new(arena.clone(), col_descr, col_page_reader)),
       Type::INT64 => ColumnReader::Int64ColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
+        ColumnReaderImpl::new(arena.clone(), col_descr, col_page_reader)),
       Type::INT96 => ColumnReader::Int96ColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
+        ColumnReaderImpl::new(arena.clone(), col_descr, col_page_reader)),
       Type::FLOAT => ColumnReader::FloatColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
+        ColumnReaderImpl::new(arena.clone(), col_descr, col_page_reader)),
       Type::DOUBLE => ColumnReader::DoubleColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
+        ColumnReaderImpl::new(arena.clone(), col_descr, col_page_reader)),
       Type::BYTE_ARRAY => ColumnReader::ByteArrayColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
+        ColumnReaderImpl::new(arena.clone(), col_descr, col_page_reader)),
       Type::FIXED_LEN_BYTE_ARRAY => ColumnReader::FixedLenByteArrayColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
+        ColumnReaderImpl::new(arena.clone(), col_descr, col_page_reader)),
     };
     Ok(col_reader)
   }
@@ -246,6 +251,9 @@ impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
 
 /// A serialized impl for Parquet page reader
 pub struct SerializedPageReader {
+  // Used to allocate memory in this page reader
+  arena: Rc<Arena>,
+
   // The buffer which contains exactly the bytes for the column trunk
   // to be read by this page reader
   buf: BufReader<File>,
@@ -262,12 +270,16 @@ pub struct SerializedPageReader {
 }
 
 impl SerializedPageReader {
-  pub fn new(buf: BufReader<File>, total_num_values: i64,
+  pub fn new(arena: Rc<Arena>, buf: BufReader<File>, total_num_values: i64,
              compression: Compression) -> Result<Self> {
     let decompressor = create_codec(compression)?;
-    let result =
-      Self { buf: buf, total_num_values: total_num_values, seen_num_values: 0,
-             decompressor: decompressor };
+    let result = Self {
+      arena: arena,
+      buf: buf,
+      total_num_values: total_num_values,
+      seen_num_values: 0,
+      decompressor: decompressor
+    };
     Ok(result)
   }
 
@@ -300,30 +312,24 @@ impl PageReader for SerializedPageReader {
         can_decompress = header_v2.is_compressed.unwrap_or(true);
       }
 
-      let compressed_len = page_header.compressed_page_size as usize - offset;
-      let uncompressed_len = page_header.uncompressed_page_size as usize - offset;
       // We still need to read all bytes from buffered stream
-      let mut buffer = vec![0; offset + compressed_len];
-      self.buf.read_exact(&mut buffer)?;
+      let mut buffer = self.arena.alloc(page_header.compressed_page_size as usize);
+      self.buf.read_exact(buffer.data_mut())?;
 
       // TODO: page header could be huge because of statistics. We should set a maximum
       // page header size and abort if that is exceeded.
       if let Some(decompressor) = self.decompressor.as_mut() {
         if can_decompress {
-          let mut decompressed_buffer = vec!();
-          let decompressed_size =
-            decompressor.decompress(&buffer[offset..], &mut decompressed_buffer)?;
-          if decompressed_size != uncompressed_len {
-            return Err(general_err!("Actual decompressed size doesn't \
-              match the expected one ({} vs {})", decompressed_size, uncompressed_len));
+          let decompressed_buffer = self.arena.alloc(
+            page_header.uncompressed_page_size as usize);
+          decompressor.decompress(&buffer.data()[offset..],
+              &mut decompressed_buffer.data_mut()[offset..])?;
+          if offset > 0 {
+            // prepend saved offsets to the decompressed buffer
+            bit_util::memcpy(&buffer.data()[..offset],
+                &mut decompressed_buffer.data_mut()[..offset]);
           }
-          if offset == 0 {
-            buffer = decompressed_buffer;
-          } else {
-            // Prepend saved offsets to the buffer
-            buffer.truncate(offset);
-            buffer.append(&mut decompressed_buffer);
-          }
+          buffer = decompressed_buffer;
         }
       }
 
@@ -334,7 +340,7 @@ impl PageReader for SerializedPageReader {
           let dict_header = page_header.dictionary_page_header.as_ref().unwrap();
           let is_sorted = dict_header.is_sorted.unwrap_or(false);
           Page::DictionaryPage {
-            buf: ByteBufferPtr::new(buffer), num_values: dict_header.num_values as u32,
+            buf: buffer, num_values: dict_header.num_values as u32,
             encoding: Encoding::from(dict_header.encoding), is_sorted: is_sorted
           }
         },
@@ -343,7 +349,7 @@ impl PageReader for SerializedPageReader {
           let header = page_header.data_page_header.as_ref().unwrap();
           self.seen_num_values += header.num_values as i64;
           Page::DataPage {
-            buf: ByteBufferPtr::new(buffer), num_values: header.num_values as u32,
+            buf: buffer, num_values: header.num_values as u32,
             encoding: Encoding::from(header.encoding),
             def_level_encoding: Encoding::from(header.definition_level_encoding),
             rep_level_encoding: Encoding::from(header.repetition_level_encoding)
@@ -355,7 +361,7 @@ impl PageReader for SerializedPageReader {
           let is_compressed = header.is_compressed.unwrap_or(true);
           self.seen_num_values += header.num_values as i64;
           Page::DataPageV2 {
-            buf: ByteBufferPtr::new(buffer), num_values: header.num_values as u32,
+            buf: buffer, num_values: header.num_values as u32,
             encoding: Encoding::from(header.encoding),
             num_nulls: header.num_nulls as u32, num_rows: header.num_rows as u32,
             def_levels_byte_len: header.definition_levels_byte_length as u32,
@@ -456,9 +462,11 @@ mod tests {
     assert_eq!(row_group_reader.metadata().total_byte_size(),
       row_group_metadata.total_byte_size());
 
+    let arena = Rc::new(Arena::new());
+
     // Test page readers
     // TODO: test for every column
-    let page_reader_0_result = row_group_reader.get_column_page_reader(0);
+    let page_reader_0_result = row_group_reader.get_column_page_reader(0, arena);
     assert!(page_reader_0_result.is_ok());
     let mut page_reader_0: Box<PageReader> = page_reader_0_result.unwrap();
     let mut page_count = 0;
@@ -518,9 +526,11 @@ mod tests {
     assert_eq!(row_group_reader.metadata().total_byte_size(),
       row_group_metadata.total_byte_size());
 
+    let arena = Rc::new(Arena::new());
+
     // Test page readers
     // TODO: test for every column
-    let page_reader_0_result = row_group_reader.get_column_page_reader(0);
+    let page_reader_0_result = row_group_reader.get_column_page_reader(0, arena);
     assert!(page_reader_0_result.is_ok());
     let mut page_reader_0: Box<PageReader> = page_reader_0_result.unwrap();
     let mut page_count = 0;

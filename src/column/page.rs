@@ -16,7 +16,7 @@
 // under the License.
 
 use basic::{PageType, Encoding};
-use util::memory::ByteBufferPtr;
+use util::memory::Buffer;
 use errors::Result;
 
 /// Parquet Page definition.
@@ -25,17 +25,17 @@ use errors::Result;
 /// used to store uncompressed bytes of the page.
 pub enum Page {
   DataPage {
-    buf: ByteBufferPtr, num_values: u32, encoding: Encoding,
+    buf: Buffer, num_values: u32, encoding: Encoding,
     def_level_encoding: Encoding, rep_level_encoding: Encoding
   },
   DataPageV2 {
-    buf: ByteBufferPtr, num_values: u32, encoding: Encoding,
+    buf: Buffer, num_values: u32, encoding: Encoding,
     num_nulls: u32, num_rows: u32,
     def_levels_byte_len: u32, rep_levels_byte_len: u32,
     is_compressed: bool
   },
   DictionaryPage {
-    buf: ByteBufferPtr, num_values: u32, encoding: Encoding, is_sorted: bool
+    buf: Buffer, num_values: u32, encoding: Encoding, is_sorted: bool
   }
 }
 
@@ -48,7 +48,7 @@ impl Page {
     }
   }
 
-  pub fn buffer(&self) -> &ByteBufferPtr {
+  pub fn buffer(&self) -> &Buffer {
     match self {
       &Page::DataPage{ ref buf, .. } => &buf,
       &Page::DataPageV2{ ref buf, .. } => &buf,
@@ -86,10 +86,9 @@ pub trait PageReader {
 mod tests {
   use super::*;
 
-  #[test]
   fn test_page() {
     let data_page = Page::DataPage {
-      buf: ByteBufferPtr::new(vec![0, 1, 2]), num_values: 10,
+      buf: Buffer::new(), num_values: 10,
       encoding: Encoding::PLAIN, def_level_encoding: Encoding::RLE,
       rep_level_encoding: Encoding::RLE };
     assert_eq!(data_page.page_type(), PageType::DATA_PAGE);
@@ -98,7 +97,7 @@ mod tests {
     assert_eq!(data_page.encoding(), Encoding::PLAIN);
 
     let data_page_v2 = Page::DataPageV2 {
-      buf: ByteBufferPtr::new(vec![0, 1, 2]), num_values: 10, encoding: Encoding::PLAIN,
+      buf: Buffer::new(), num_values: 10, encoding: Encoding::PLAIN,
       num_nulls: 5, num_rows: 20, def_levels_byte_len: 30, rep_levels_byte_len: 40,
       is_compressed: false
     };
@@ -108,7 +107,7 @@ mod tests {
     assert_eq!(data_page_v2.encoding(), Encoding::PLAIN);
 
     let dict_page = Page::DictionaryPage {
-      buf: ByteBufferPtr::new(vec![0, 1, 2]), num_values: 10,
+      buf: Buffer::new(), num_values: 10,
       encoding: Encoding::PLAIN, is_sorted: false
     };
     assert_eq!(dict_page.page_type(), PageType::DICTIONARY_PAGE);

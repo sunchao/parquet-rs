@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use basic::*;
 use data_type::*;
 use schema::types::ColumnDescPtr;
-use util::memory::ByteBufferPtr;
+use util::memory::{Buffer, BufferRange, ArenaRef};
 use encodings::decoding::{get_decoder, Decoder, PlainDecoder, DictDecoder};
 use encodings::levels::LevelDecoder;
 use errors::{Result, ParquetError};
@@ -41,26 +41,27 @@ pub enum ColumnReader<'a> {
 /// Gets a specific column reader corresponding to column descriptor `col_descr`. The
 /// column reader will read from pages in `col_page_reader`.
 pub fn get_column_reader<'a>(
+  arena: ArenaRef,
   col_descr: ColumnDescPtr,
   col_page_reader: Box<PageReader + 'a>
 ) -> ColumnReader<'a> {
   match col_descr.physical_type() {
     Type::BOOLEAN => ColumnReader::BoolColumnReader(
-      ColumnReaderImpl::new(col_descr, col_page_reader)),
+      ColumnReaderImpl::new(arena, col_descr, col_page_reader)),
     Type::INT32 => ColumnReader::Int32ColumnReader(
-      ColumnReaderImpl::new(col_descr, col_page_reader)),
+      ColumnReaderImpl::new(arena, col_descr, col_page_reader)),
     Type::INT64 => ColumnReader::Int64ColumnReader(
-      ColumnReaderImpl::new(col_descr, col_page_reader)),
+      ColumnReaderImpl::new(arena, col_descr, col_page_reader)),
     Type::INT96 => ColumnReader::Int96ColumnReader(
-      ColumnReaderImpl::new(col_descr, col_page_reader)),
+      ColumnReaderImpl::new(arena, col_descr, col_page_reader)),
     Type::FLOAT => ColumnReader::FloatColumnReader(
-      ColumnReaderImpl::new(col_descr, col_page_reader)),
+      ColumnReaderImpl::new(arena, col_descr, col_page_reader)),
     Type::DOUBLE => ColumnReader::DoubleColumnReader(
-      ColumnReaderImpl::new(col_descr, col_page_reader)),
+      ColumnReaderImpl::new(arena, col_descr, col_page_reader)),
     Type::BYTE_ARRAY => ColumnReader::ByteArrayColumnReader(
-      ColumnReaderImpl::new(col_descr, col_page_reader)),
+      ColumnReaderImpl::new(arena, col_descr, col_page_reader)),
     Type::FIXED_LEN_BYTE_ARRAY => ColumnReader::FixedLenByteArrayColumnReader(
-      ColumnReaderImpl::new(col_descr, col_page_reader))
+      ColumnReaderImpl::new(arena, col_descr, col_page_reader))
   }
 }
 
@@ -86,6 +87,7 @@ pub fn get_typed_column_reader<'a, T: DataType>(
 /// A value reader for a particular primitive column.
 /// The lifetime parameter `'a` denotes the lifetime of the page reader
 pub struct ColumnReaderImpl<'a, T: DataType> {
+  arena: ArenaRef,
   descr: ColumnDescPtr,
   def_level_decoder: Option<LevelDecoder>,
   rep_level_decoder: Option<LevelDecoder>,
@@ -104,8 +106,13 @@ pub struct ColumnReaderImpl<'a, T: DataType> {
 }
 
 impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
-  pub fn new(descr: ColumnDescPtr, page_reader: Box<PageReader + 'a>) -> Self {
+  pub fn new(
+    arena: ArenaRef,
+    descr: ColumnDescPtr,
+    page_reader: Box<PageReader + 'a>
+  ) -> Self {
     Self {
+      arena: arena,
       descr: descr,
       def_level_decoder: None,
       rep_level_decoder: None,
@@ -205,8 +212,7 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
   /// Reads a new page and set up the decoders for levels, values or dictionary.
   /// Returns false if there's no page left.
   fn read_new_page(&mut self) -> Result<bool> {
-    #[allow(while_true)]
-    while true {
+    loop {
       match self.page_reader.get_next_page()? {
         // No more page to read
         None => {
@@ -232,8 +238,8 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
                 let mut rep_decoder = LevelDecoder::new(
                   rep_level_encoding, self.descr.max_rep_level());
                 let total_bytes = rep_decoder.set_data(
-                  self.num_buffered_values as usize, buffer_ptr.all());
-                buffer_ptr = buffer_ptr.start_from(total_bytes);
+                  self.num_buffered_values as usize, buffer_ptr.range(..));
+                buffer_ptr = buffer_ptr.range(total_bytes..);
                 self.rep_level_decoder = Some(rep_decoder);
               }
 
@@ -241,8 +247,8 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
                 let mut def_decoder = LevelDecoder::new(
                   def_level_encoding, self.descr.max_def_level());
                 let total_bytes = def_decoder.set_data(
-                  self.num_buffered_values as usize, buffer_ptr.all());
-                buffer_ptr = buffer_ptr.start_from(total_bytes);
+                  self.num_buffered_values as usize, buffer_ptr.range(..));
+                buffer_ptr = buffer_ptr.range(total_bytes..);
                 self.def_level_decoder = Some(def_decoder);
               }
 
@@ -289,15 +295,13 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
         }
       }
     }
-
-    Ok(true)
   }
 
   // Resolves and updates encoding and set decoder for the current page
   fn set_current_page_encoding(
     &mut self,
     mut encoding: Encoding,
-    buffer_ptr: &ByteBufferPtr,
+    buffer: &Buffer,
     offset: usize,
     len: usize
   ) -> Result<()> {
@@ -314,9 +318,12 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
           // Initialize decoder for this page
           // TODO: support other types of encodings
           let data_decoder = match encoding {
-            Encoding::PLAIN => get_decoder::<T>(self.descr.clone(), encoding)?,
-            Encoding::DELTA_BINARY_PACKED =>
-              get_decoder::<T>(self.descr.clone(), encoding)?,
+            Encoding::PLAIN => {
+              get_decoder::<T>(self.arena.clone(), self.descr.clone(), encoding)?
+            },
+            Encoding::DELTA_BINARY_PACKED => {
+              get_decoder::<T>(self.arena.clone(), self.descr.clone(), encoding)?
+            },
             en => return Err(nyi_err!("Unsupported encoding {}", en))
           };
           self.decoders.insert(encoding, data_decoder);
@@ -324,7 +331,7 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
         self.decoders.get_mut(&encoding).unwrap()
       };
 
-    decoder.set_data(buffer_ptr.start_from(offset), len as usize)?;
+    decoder.set_data(buffer.range(offset..), len as usize)?;
     self.current_encoding = Some(encoding);
     Ok(())
   }
@@ -406,7 +413,7 @@ mod tests {
   use encodings::encoding::{get_encoder, Encoder, DictEncoder};
   use encodings::levels::LevelEncoder;
   use schema::types::{Type as SchemaType, ColumnDescriptor, ColumnPath};
-  use util::memory::{ByteBufferPtr, MemTracker, MemTrackerPtr};
+  use util::memory::{Buffer, ResizableBuffer, Arena, MemTracker, MemTrackerPtr};
   use util::test_common::random_numbers_range;
 
   const NUM_LEVELS: usize = 128;
@@ -532,6 +539,7 @@ mod tests {
 
   struct ColumnReaderTester<T: DataType>
     where T::T: PartialOrd + SampleRange + Copy, T: 'static {
+    arena: ArenaRef,
     rep_levels: Vec<i16>,
     def_levels: Vec<i16>,
     values: Vec<T::T>
@@ -540,7 +548,12 @@ mod tests {
   impl<T: DataType> ColumnReaderTester<T>
     where T::T: PartialOrd + SampleRange + Copy, T: 'static  {
     pub fn new() -> Self {
-      Self { rep_levels: Vec::new(), def_levels: Vec::new(), values: Vec::new() }
+      Self {
+        arena: Rc::new(Arena::new()),
+        rep_levels: Vec::new(),
+        def_levels: Vec::new(),
+        values: Vec::new()
+      }
     }
 
     // method to generate and test data pages v1
@@ -581,11 +594,13 @@ mod tests {
     ) {
       let mut pages = VecDeque::new();
       make_pages::<T>(
-        desc.clone(), Encoding::PLAIN, num_pages, num_levels, min, max,
-        &mut self.def_levels, &mut self.rep_levels, &mut self.values, &mut pages, use_v2);
+        self.arena.clone(), desc.clone(), Encoding::PLAIN, num_pages,
+        num_levels, min, max, &mut self.def_levels, &mut self.rep_levels,
+        &mut self.values, &mut pages, use_v2);
 
       let page_reader = TestPageReader::new(Vec::from(pages));
-      let column_reader: ColumnReader = get_column_reader(desc, Box::new(page_reader));
+      let column_reader: ColumnReader = get_column_reader(
+        self.arena.clone(), desc, Box::new(page_reader));
       let mut typed_column_reader = get_typed_column_reader::<T>(column_reader);
       let mut actual_rep_levels = vec![0; num_levels * num_pages];
       let mut actual_def_levels = vec![0; num_levels * num_pages];
@@ -651,11 +666,13 @@ mod tests {
     ) {
       let mut pages = VecDeque::new();
       make_pages::<T>(
-        desc.clone(), Encoding::RLE_DICTIONARY, num_pages, num_levels, min, max,
-        &mut self.def_levels, &mut self.rep_levels, &mut self.values, &mut pages, use_v2);
+        self.arena.clone(), desc.clone(), Encoding::RLE_DICTIONARY, num_pages,
+        num_levels, min, max, &mut self.def_levels, &mut self.rep_levels,
+        &mut self.values, &mut pages, use_v2);
 
       let page_reader = TestPageReader::new(Vec::from(pages));
-      let column_reader: ColumnReader = get_column_reader(desc, Box::new(page_reader));
+      let column_reader: ColumnReader = get_column_reader(
+        self.arena.clone(), desc, Box::new(page_reader));
       let mut typed_column_reader = get_typed_column_reader::<T>(column_reader);
       let mut actual_rep_levels = vec![0; num_levels * num_pages];
       let mut actual_def_levels = vec![0; num_levels * num_pages];
@@ -723,7 +740,7 @@ mod tests {
     fn add_values<T: DataType>(
       &mut self, encoding: Encoding, values: &[T::T]
     ) where T: 'static;
-    fn add_indices(&mut self, indices: ByteBufferPtr);
+    fn add_indices(&mut self, indices: Buffer);
     fn consume(self) -> Page;
   }
 
@@ -734,26 +751,36 @@ mod tests {
   ///   - consume()
   /// in order to populate and obtain a data page.
   struct DataPageBuilderImpl {
+    arena: ArenaRef,
     desc: ColumnDescPtr,
     encoding: Option<Encoding>,
     mem_tracker: MemTrackerPtr,
     num_values: u32,
-    buffer: Vec<u8>,
+    buffer: ResizableBuffer,
     rep_levels_byte_len: u32,
     def_levels_byte_len: u32,
     datapage_v2: bool
   }
 
   impl DataPageBuilderImpl {
-    // `num_values` is the number of values to put in the data page. `datapage_v2` is used
-    // to indicate whether the generated data page should use V2 format or not.
-    fn new(desc: ColumnDescPtr, num_values: u32, datapage_v2: bool) -> Self {
+    // `arena` is used to allocate memory in this page builder.
+    // `num_values` is the number of values to put in the data page.
+    // `datapage_v2` is used to indicate whether the generated data page should use V2
+    // format or not.
+    fn new(
+      arena: ArenaRef,
+      desc: ColumnDescPtr,
+      num_values: u32,
+      datapage_v2: bool
+    ) -> Self {
+      let buffer = Arena::alloc_resizable(&arena, 1024);
       DataPageBuilderImpl {
+        arena: arena,
         desc: desc,
         encoding: None,
         mem_tracker: Rc::new(MemTracker::new()),
         num_values: num_values,
-        buffer: vec!(),
+        buffer: buffer,
         rep_levels_byte_len: 0,
         def_levels_byte_len: 0,
         datapage_v2: datapage_v2
@@ -763,18 +790,20 @@ mod tests {
     // Adds levels to the buffer and return number of encoded bytes
     fn add_levels(&mut self, max_level: i16, levels: &[i16]) -> u32 {
       let size = LevelEncoder::max_buffer_size(Encoding::RLE, max_level, levels.len());
-      let mut level_encoder = LevelEncoder::new(Encoding::RLE, max_level, vec![0; size]);
+      let buffer = self.arena.alloc(size);
+      let mut level_encoder = LevelEncoder::new(Encoding::RLE, max_level, buffer);
       level_encoder.put(levels).expect("put() should be OK");
       let encoded_levels = level_encoder.consume().expect("consume() should be OK");
       // Actual encoded bytes (without length offset)
-      let encoded_bytes = &encoded_levels[mem::size_of::<i32>()..];
+      let encoded_bytes = &encoded_levels.data()[mem::size_of::<i32>()..];
+
       if self.datapage_v2 {
         // Level encoder always initializes with offset of i32, where it stores length of
         // encoded data; for data page v2 we explicitly store length, therefore we should
         // skip i32 bytes.
-        self.buffer.extend_from_slice(encoded_bytes);
+        self.buffer.extend(encoded_bytes);
       } else {
-        self.buffer.extend_from_slice(encoded_levels.as_slice());
+        self.buffer.extend(encoded_levels.data());
       }
       encoded_bytes.len() as u32
     }
@@ -787,37 +816,34 @@ mod tests {
     }
 
     fn add_def_levels(&mut self, max_levels: i16, def_levels: &[i16]) {
-      assert!(
-        self.num_values == def_levels.len() as u32,
+      assert!(self.num_values == def_levels.len() as u32,
         "Must call `add_rep_levels() first!`");
-
       self.def_levels_byte_len = self.add_levels(max_levels, def_levels);
     }
 
     fn add_values<T: DataType>(
       &mut self, encoding: Encoding, values: &[T::T]
     ) where T: 'static {
-      assert!(
-        self.num_values >= values.len() as u32,
+      assert!(self.num_values >= values.len() as u32,
         "num_values: {}, values.len(): {}", self.num_values, values.len());
       self.encoding = Some(encoding);
-      let mut encoder: Box<Encoder<T>> = get_encoder::<T>(
-        self.desc.clone(), encoding, self.mem_tracker.clone()
-      ).expect("get_encoder() should be OK");
+      let mut encoder = get_encoder::<T>(self.arena.clone(), self.desc.clone(), encoding)
+        .expect("get_encoder() should be OK");
       encoder.put(values).expect("put() should be OK");
       let encoded_values = encoder.flush_buffer().expect("consume_buffer() should be OK");
-      self.buffer.extend_from_slice(encoded_values.data());
+      self.buffer.extend(encoded_values.data());
     }
 
-    fn add_indices(&mut self, indices: ByteBufferPtr) {
+    fn add_indices(&mut self, indices: Buffer) {
       self.encoding = Some(Encoding::RLE_DICTIONARY);
-      self.buffer.extend_from_slice(indices.data());
+      self.buffer.extend(indices.data());
     }
 
     fn consume(self) -> Page {
+      let buf = self.buffer.to_fixed();
       if self.datapage_v2 {
         Page::DataPageV2 {
-          buf: ByteBufferPtr::new(self.buffer),
+          buf: buf,
           num_values: self.num_values,
           encoding: self.encoding.unwrap(),
           num_nulls: 0, // set to dummy value - don't need this when reading data page
@@ -828,7 +854,7 @@ mod tests {
         }
       } else {
         Page::DataPage {
-          buf: ByteBufferPtr::new(self.buffer),
+          buf: buf,
           num_values: self.num_values,
           encoding: self.encoding.unwrap(),
           def_level_encoding: Encoding::RLE,
@@ -840,6 +866,7 @@ mod tests {
   }
 
   fn make_pages<T: DataType>(
+    arena: ArenaRef,
     desc: ColumnDescPtr,
     encoding: Encoding,
     num_pages: usize,
@@ -857,8 +884,7 @@ mod tests {
     let max_def_level = desc.max_def_level();
     let max_rep_level = desc.max_rep_level();
 
-    let mem_tracker = Rc::new(MemTracker::new());
-    let mut dict_encoder = DictEncoder::<T>::new(desc.clone(), mem_tracker);
+    let mut dict_encoder = DictEncoder::<T>::new(arena.clone(), desc.clone());
 
     for i in 0..num_pages {
       let mut num_values_cur_page = 0;
@@ -881,7 +907,8 @@ mod tests {
 
       // Generate the current page
 
-      let mut pb = DataPageBuilderImpl::new(desc.clone(), levels_per_page as u32, use_v2);
+      let mut pb = DataPageBuilderImpl::new(
+        arena.clone(), desc.clone(), levels_per_page as u32, use_v2);
       if max_rep_level > 0 {
         pb.add_rep_levels(max_rep_level, &rep_levels[level_range.clone()]);
       }
@@ -912,7 +939,8 @@ mod tests {
     }
 
     if encoding == Encoding::PLAIN_DICTIONARY || encoding == Encoding::RLE_DICTIONARY {
-      let dict = dict_encoder.write_dict().expect("write_dict() should be OK");
+      let buf = arena.alloc_aligned(dict_encoder.dict_encoded_size() as usize);
+      let dict = dict_encoder.write_dict(buf).expect("write_dict() should be OK");
       let dict_page = Page::DictionaryPage {
         buf: dict,
         num_values: dict_encoder.num_entries() as u32,
