@@ -206,14 +206,14 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
 
               if self.descr.max_rep_level() > 0 {
                 let mut rep_decoder = LevelDecoder::new(rep_level_encoding, self.descr.max_rep_level());
-                let total_bytes = rep_decoder.set_data(buffer_ptr.all());
+                let total_bytes = rep_decoder.set_data(self.num_buffered_values as usize, buffer_ptr.all());
                 buffer_ptr = buffer_ptr.start_from(total_bytes);
                 self.rep_level_decoder = Some(rep_decoder);
               }
 
               if self.descr.max_def_level() > 0 {
                 let mut def_decoder = LevelDecoder::new(def_level_encoding, self.descr.max_def_level());
-                let total_bytes = def_decoder.set_data(buffer_ptr.all());
+                let total_bytes = def_decoder.set_data(self.num_buffered_values as usize, buffer_ptr.all());
                 buffer_ptr = buffer_ptr.start_from(total_bytes);
                 self.def_level_decoder = Some(def_decoder);
               }
@@ -233,7 +233,8 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
               // DataPage v2 only supports RLE encoding for repetition levels
               if self.descr.max_rep_level() > 0 {
                 let mut rep_decoder = LevelDecoder::new(Encoding::RLE, self.descr.max_rep_level());
-                let bytes_read = rep_decoder.set_data_range(&buf, offset, rep_levels_byte_len as usize);
+                let bytes_read = rep_decoder.set_data_range(self.num_buffered_values as usize, &buf,
+                  offset, rep_levels_byte_len as usize);
                 offset += bytes_read;
                 self.rep_level_decoder = Some(rep_decoder);
               }
@@ -241,7 +242,8 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
               // DataPage v2 only supports RLE encoding for definition levels
               if self.descr.max_def_level() > 0 {
                 let mut def_decoder = LevelDecoder::new(Encoding::RLE, self.descr.max_def_level());
-                let bytes_read = def_decoder.set_data_range(&buf, offset, def_levels_byte_len as usize);
+                let bytes_read = def_decoder.set_data_range(self.num_buffered_values as usize, &buf,
+                  offset, def_levels_byte_len as usize);
                 offset += bytes_read;
                 self.def_level_decoder = Some(def_decoder);
               }

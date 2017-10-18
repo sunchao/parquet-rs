@@ -207,7 +207,7 @@ impl BitWriter {
   #[inline]
   pub fn skip(&mut self, num_bytes: usize) -> Result<usize> {
     self.flush();
-    assert!(self.byte_offset < self.max_bytes);
+    assert!(self.byte_offset <= self.max_bytes);
     if self.byte_offset + num_bytes > self.max_bytes {
       return Err(general_err!("Not enough bytes left"));
     }
