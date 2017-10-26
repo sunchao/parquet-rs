@@ -54,7 +54,9 @@ fn plain_encoding<T: DataType>(bench: &mut Bencher, data: Vec<T::T>, type_length
 }
 
 fn col_desc(type_length: i32, primitive_ty: Type) -> ColumnDescriptor {
-  let ty = SchemaType::new_primitive_type(
-    "col", Repetition::OPTIONAL, primitive_ty, LogicalType::NONE, type_length, 0, 0, None).unwrap();
+  let ty = SchemaType::primitive_type_builder("col", primitive_ty)
+    .with_length(type_length)
+    .build()
+    .unwrap();
   ColumnDescriptor::new(Rc::new(ty), None, 0, 0, ColumnPath::new(vec!()))
 }
