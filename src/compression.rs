@@ -26,20 +26,20 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 
 pub trait Codec {
-  /// Compress data stored in slice `input_buf` and return a new
-  /// vector with the compressed data.
+  /// Compresses data stored in slice `input_buf` and returns a new vector with the
+  /// compressed data.
   /// TODO: it's better to pass in vec here (e.g., allow reuse),
   ///   but flate2 api doesn't support this.
   fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>>;
 
-  /// Decompress data stored in slice `input_buf` and write output
-  /// to `output_buf`. Return the total number of bytes written.
+  /// Decompresses data stored in slice `input_buf` and writes output to `output_buf`.
+  /// Returns the total number of bytes written.
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize>;
 }
 
 
-/// Given the compression type `codec`, return a codec used to
-/// compress & decompress bytes for the compression type.
+/// Given the compression type `codec`, returns a codec used to compress & decompress
+/// bytes for the compression type.
 /// This returns `None` if the codec type is `UNCOMPRESSED`.
 pub fn create_codec(codec: CodecType) -> Result<Option<Box<Codec>>> {
   match codec {
@@ -115,7 +115,8 @@ impl BrotliCodec {
 
 impl Codec for BrotliCodec {
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
-    brotli::Decompressor::new(input_buf, BROTLI_DEFAULT_BUFFER_SIZE).read_to_end(output_buf)
+    brotli::Decompressor::new(input_buf, BROTLI_DEFAULT_BUFFER_SIZE)
+      .read_to_end(output_buf)
       .map_err(|e| general_err!("Error when decompressing using Brotli: {}", e))
   }
 
@@ -141,24 +142,24 @@ mod tests {
     let mut c1 = create_codec(c).unwrap().unwrap();
     let mut c2 = create_codec(c).unwrap().unwrap();
 
-    // compress with c1
+    // Compress with c1
     let mut decompressed = Vec::new();
     let mut compressed_res = c1.compress(data.as_slice());
     assert!(compressed_res.is_ok());
     let mut compressed = compressed_res.unwrap();
 
-    // decompress with c2
+    // Decompress with c2
     let mut decompressed_size = c2.decompress(compressed.as_slice(), &mut decompressed);
     assert!(decompressed_size.is_ok());
     decompressed.truncate(decompressed_size.unwrap());
     assert!(*data == decompressed);
 
-    // compress with c2
+    // Compress with c2
     compressed_res = c2.compress(data.as_slice());
     assert!(compressed_res.is_ok());
     compressed = compressed_res.unwrap();
 
-    // decompress with c1
+    // Decompress with c1
     decompressed_size = c1.decompress(compressed.as_slice(), &mut decompressed);
     assert!(decompressed_size.is_ok());
     decompressed.truncate(decompressed_size.unwrap());

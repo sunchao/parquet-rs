@@ -17,7 +17,7 @@
 
 use data_type::AsBytes;
 
-/// Compute hash value for `data`, with a seed value `seed`.
+/// Computes hash value for `data`, with a seed value `seed`.
 /// The data type `T` must implement the `AsBytes` trait.
 /// TODO: implement more efficient hash, such as Crc32, using SSE4 instructions.
 pub fn hash<T: AsBytes>(data: &T, seed: u64) -> u64 {
@@ -33,7 +33,9 @@ fn murmur_hash2_64a<T: AsBytes>(data: &T, seed: u64) -> u64 {
   let len = data_bytes.len();
   let len_64 = (len / 8) * 8;
   let data_bytes_64 = unsafe {
-    ::std::slice::from_raw_parts(&data_bytes[0..len_64] as *const [u8] as *const u64, len / 8)
+    ::std::slice::from_raw_parts(
+      &data_bytes[0..len_64] as *const [u8] as *const u64,
+      len / 8)
   };
 
   let mut h = seed ^ (MURMUR_PRIME.wrapping_mul(data_bytes.len() as u64));

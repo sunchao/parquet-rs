@@ -31,8 +31,9 @@ pub type TypePtr = Rc<Type>;
 pub type SchemaDescPtr = Rc<SchemaDescriptor>;
 pub type ColumnDescPtr = Rc<ColumnDescriptor>;
 
-/// Representation of a Parquet type. Note that the top-level schema type
-/// is represented using `GroupType` whose repetition is `None`.
+/// Representation of a Parquet type.
+/// Note that the top-level schema type is represented using `GroupType` whose
+/// repetition is `None`.
 #[derive(Debug, PartialEq)]
 pub enum Type {
   PrimitiveType {
@@ -45,7 +46,9 @@ pub enum Type {
 }
 
 impl Type {
-  pub fn primitive_type_builder(name: &str, physical_type: PhysicalType) -> PrimitiveTypeBuilder {
+  pub fn primitive_type_builder(
+    name: &str, physical_type: PhysicalType
+  ) -> PrimitiveTypeBuilder {
     PrimitiveTypeBuilder::new(name, physical_type)
   }
 
@@ -64,7 +67,7 @@ impl Type {
     self.get_basic_info().name()
   }
 
-  /// Get the fields from this group type.
+  /// Gets the fields from this group type.
   /// NOTE: this will panic if called on a non-group type.
   // TODO: should we return `&[&Type]` here?
   pub fn get_fields(&self) -> &[TypePtr] {
@@ -82,13 +85,13 @@ impl Type {
     }
   }
 
-  /// Check if 'sub_type' schema is part of current schema, e.g. projected columns
+  /// Check if `sub_type` schema is part of current schema, e.g. projected columns
   pub fn check_contains(&self, sub_type: &Type) -> bool {
-    // names match, and repetitions match or not set for both
-    let basic_match = self.get_basic_info().name() == sub_type.get_basic_info().name() && (
-      self.is_schema() && sub_type.is_schema() || !self.is_schema() && !sub_type.is_schema() &&
-      self.get_basic_info().repetition() == sub_type.get_basic_info().repetition()
-    );
+    // Names match, and repetitions match or not set for both
+    let basic_match = self.get_basic_info().name() == sub_type.get_basic_info().name() &&
+      (self.is_schema() && sub_type.is_schema() || !self.is_schema() &&
+       !sub_type.is_schema() &&
+       self.get_basic_info().repetition() == sub_type.get_basic_info().repetition());
 
     match *self {
       Type::PrimitiveType { .. } if basic_match && sub_type.is_primitive() => {
@@ -102,7 +105,9 @@ impl Type {
         }
 
         for field in sub_type.get_fields() {
-          if !field_map.get(field.name()).map(|tpe| tpe.check_contains(field)).unwrap_or(false) {
+          if !field_map.get(field.name())
+            .map(|tpe| tpe.check_contains(field))
+            .unwrap_or(false) {
             return false;
           }
         }
@@ -193,9 +198,8 @@ impl<'a> PrimitiveTypeBuilder<'a> {
     self
   }
 
-  // Create a new `PrimitiveType` instance from the gathered attributes.
-  // This also checks various illegal conditions and returns `Err` if that
-  // that happen.
+  // Creates a new `PrimitiveType` instance from the gathered attributes.
+  // This also checks various illegal conditions and returns `Err` if that that happen.
   pub fn build(self) -> Result<Type> {
     let basic_info = BasicTypeInfo {
       name: String::from(self.name),
@@ -209,7 +213,8 @@ impl<'a> PrimitiveTypeBuilder<'a> {
       },
       LogicalType::UTF8 | LogicalType::BSON | LogicalType::JSON => {
         if self.physical_type != PhysicalType::BYTE_ARRAY {
-          return Err(general_err!("{} can only annotate BYTE_ARRAY fields", self.logical_type))
+          return Err(general_err!(
+            "{} can only annotate BYTE_ARRAY fields", self.logical_type))
         }
       },
       LogicalType::DECIMAL => {
@@ -217,7 +222,8 @@ impl<'a> PrimitiveTypeBuilder<'a> {
           PhysicalType::INT32 | PhysicalType::INT64 | PhysicalType::BYTE_ARRAY |
           PhysicalType::FIXED_LEN_BYTE_ARRAY => (),
           _ => {
-            return Err(general_err!("DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED"))
+            return Err(general_err!(
+              "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED"))
           }
         };
         if self.precision < 0 {
@@ -256,7 +262,8 @@ impl<'a> PrimitiveTypeBuilder<'a> {
         }
       }
       _ => {
-        return Err(general_err!("{} cannot be applied to a primitive type", self.logical_type))
+        return Err(general_err!(
+          "{} cannot be applied to a primitive type", self.logical_type))
       }
     };
     if self.physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY && self.length < 0 {
@@ -273,8 +280,8 @@ impl<'a> PrimitiveTypeBuilder<'a> {
 }
 
 /// A builder for group types. All attributes are optional except the name.
-/// Note that if not specified explicitly, `None` is used as the repetition
-/// of the group, which means it is a root (message) type.
+/// Note that if not specified explicitly, `None` is used as the repetition of the group,
+/// which means it is a root (message) type.
 pub struct GroupTypeBuilder<'a> {
   name: &'a str,
   repetition: Option<Repetition>,
@@ -411,18 +418,18 @@ impl From<String> for ColumnPath {
 }
 
 
-/// A descriptor for leaf-level primitive columns. This encapsulates
-/// information such as definition and repetition levels and is used to
+/// A descriptor for leaf-level primitive columns.
+/// This encapsulates information such as definition and repetition levels and is used to
 /// re-assemble nested data.
 pub struct ColumnDescriptor {
   // The "leaf" primitive type of this column
   primitive_type: TypePtr,
 
-  // The root type of this column. For instance,
-  // if the column is "a.b.c.d", then the primitive type
-  // is 'd' while the root_type is 'a'.
-  // NOTE: this is sometimes `None` for the convenience of testing.
-  // It should NEVER be `None` when running in production.
+  // The root type of this column. For instance, if the column is "a.b.c.d", then the
+  // primitive type is 'd' while the root_type is 'a'.
+  //
+  // NOTE: this is sometimes `None` for the convenience of testing. It should NEVER be
+  // `None` when running in production.
   root_type: Option<TypePtr>,
 
   // The maximum definition level for this column
@@ -436,9 +443,20 @@ pub struct ColumnDescriptor {
 }
 
 impl ColumnDescriptor {
-  pub fn new(primitive_type: TypePtr, root_type: Option<TypePtr>,
-         max_def_level: i16, max_rep_level: i16, path: ColumnPath) -> Self {
-    Self { primitive_type, root_type, max_def_level, max_rep_level, path }
+  pub fn new(
+    primitive_type: TypePtr,
+    root_type: Option<TypePtr>,
+    max_def_level: i16,
+    max_rep_level: i16,
+    path: ColumnPath
+  ) -> Self {
+    Self {
+      primitive_type: primitive_type,
+      root_type: root_type,
+      max_def_level: max_def_level,
+      max_rep_level: max_rep_level,
+      path: path
+    }
   }
 
   pub fn max_def_level(&self) -> i16 {
@@ -496,8 +514,8 @@ impl ColumnDescriptor {
 
 }
 
-/// A schema descriptor. This encapsulates the top-level schemas for all
-/// the columns, as well as all descriptors for all the primitive columns.
+/// A schema descriptor. This encapsulates the top-level schemas for all the columns, as
+/// well as all descriptors for all the primitive columns.
 pub struct SchemaDescriptor {
   // The top-level schema (the "message" type).
   // This must be a `GroupType` where each field is a root column type in the schema.
@@ -523,7 +541,9 @@ impl SchemaDescriptor {
     let mut leaf_to_base = HashMap::new();
     for f in tp.get_fields() {
       let mut path = vec!();
-      build_tree(f.clone(), tp.clone(), f.clone(), 0, 0, &mut leaves, &mut leaf_to_base, &mut path);
+      build_tree(
+        f.clone(), tp.clone(), f.clone(), 0, 0, &mut leaves,
+        &mut leaf_to_base, &mut path);
     }
     Self { schema: tp, leaves: leaves, leaf_to_base: leaf_to_base }
   }
@@ -543,7 +563,9 @@ impl SchemaDescriptor {
   }
 
   pub fn get_column_root(&self, i: usize) -> &Type {
-    assert!(i < self.leaves.len(), "Index out of bound: {} not in [0, {})", i, self.leaves.len());
+    assert!(
+      i < self.leaves.len(),
+      "Index out of bound: {} not in [0, {})", i, self.leaves.len());
     let result = self.leaf_to_base.get(&i);
     assert!(result.is_some(), "Expected a value for index {} but found None", i);
     result.unwrap().as_ref()
@@ -558,11 +580,16 @@ impl SchemaDescriptor {
   }
 }
 
-fn build_tree(tp: TypePtr, root_tp: TypePtr, base_tp: TypePtr,
-              mut max_rep_level: i16, mut max_def_level: i16,
-              leaves: &mut Vec<ColumnDescPtr>,
-              leaf_to_base: &mut HashMap<usize, TypePtr>,
-              path_so_far: &mut Vec<String>) {
+fn build_tree(
+  tp: TypePtr,
+  root_tp: TypePtr,
+  base_tp: TypePtr,
+  mut max_rep_level: i16,
+  mut max_def_level: i16,
+  leaves: &mut Vec<ColumnDescPtr>,
+  leaf_to_base: &mut HashMap<usize, TypePtr>,
+  path_so_far: &mut Vec<String>
+) {
   assert!(tp.get_basic_info().has_repetition());
 
   path_so_far.push(String::from(tp.name()));
@@ -608,19 +635,24 @@ pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<TypePtr> {
     schema_nodes.push(t.1);
   }
   if schema_nodes.len() != 1 {
-    return Err(general_err!("Expected exactly one root node, but found {}", schema_nodes.len()))
+    return Err(general_err!(
+      "Expected exactly one root node, but found {}", schema_nodes.len()))
   }
 
   Ok(schema_nodes.remove(0))
 }
 
-/// Construct a new Type from the `elements`, starting at index `index`.
-/// The first result is the starting index for the next Type after this one.
-/// If it is equal to `elements.len()`, then this Type is the last one.
+/// Constructs a new Type from the `elements`, starting at index `index`.
+/// The first result is the starting index for the next Type after this one. If it is
+/// equal to `elements.len()`, then this Type is the last one.
 /// The second result is the result Type.
-fn from_thrift_helper(elements: &mut [SchemaElement], index: usize) -> Result<(usize, TypePtr)> {
+fn from_thrift_helper(
+  elements: &mut [SchemaElement],
+  index: usize
+) -> Result<(usize, TypePtr)> {
   if index > elements.len() {
-    return Err(general_err!("Index out of bound, index = {}, len = {}", index, elements.len()))
+    return Err(general_err!(
+      "Index out of bound, index = {}, len = {}", index, elements.len()))
   }
   let logical_type = LogicalType::from(elements[index].converted_type);
   let field_id = elements[index].field_id;
@@ -718,7 +750,8 @@ mod tests {
       .build();
     assert!(result.is_err());
     if let Err(e) = result {
-      assert_eq!(e.description(), "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED");
+      assert_eq!(
+        e.description(), "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED");
     }
 
     result = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
@@ -847,7 +880,8 @@ mod tests {
   #[test]
   fn test_column_descriptor() {
     let result = test_column_descriptor_helper();
-    assert!(result.is_ok(), "Expected result to be OK but got err:\n {}", result.unwrap_err());
+    assert!(
+      result.is_ok(), "Expected result to be OK but got err:\n {}", result.unwrap_err());
   }
 
   fn test_column_descriptor_helper() -> Result<()> {
@@ -880,7 +914,8 @@ mod tests {
   #[test]
   fn test_schema_descriptor() {
     let result = test_schema_descriptor_helper();
-    assert!(result.is_ok(), "Expected result to be OK but got err:\n {}", result.unwrap_err());
+    assert!(
+      result.is_ok(), "Expected result to be OK but got err:\n {}", result.unwrap_err());
   }
 
   // A helper fn to avoid handling the results from type creation
@@ -1009,43 +1044,43 @@ mod tests {
 
   #[test]
   fn test_get_physical_type_primitive() {
-    let field = Type::primitive_type_builder("field", PhysicalType::INT64).build().unwrap();
-    assert_eq!(field.get_physical_type(), PhysicalType::INT64);
+    let f = Type::primitive_type_builder("f", PhysicalType::INT64).build().unwrap();
+    assert_eq!(f.get_physical_type(), PhysicalType::INT64);
 
-    let field = Type::primitive_type_builder("field", PhysicalType::BYTE_ARRAY).build().unwrap();
-    assert_eq!(field.get_physical_type(), PhysicalType::BYTE_ARRAY);
+    let f = Type::primitive_type_builder("f", PhysicalType::BYTE_ARRAY).build().unwrap();
+    assert_eq!(f.get_physical_type(), PhysicalType::BYTE_ARRAY);
   }
 
   #[test]
   fn test_check_contains_primitive_primitive() {
     // OK
-    let field1 = Type::primitive_type_builder("field", PhysicalType::INT32).build().unwrap();
-    let field2 = Type::primitive_type_builder("field", PhysicalType::INT32).build().unwrap();
-    assert!(field1.check_contains(&field2));
+    let f1 = Type::primitive_type_builder("f", PhysicalType::INT32).build().unwrap();
+    let f2 = Type::primitive_type_builder("f", PhysicalType::INT32).build().unwrap();
+    assert!(f1.check_contains(&f2));
 
     // OK: different logical type does not affect check_contains
-    let field1 = Type::primitive_type_builder("field", PhysicalType::INT32)
+    let f1 = Type::primitive_type_builder("f", PhysicalType::INT32)
       .with_logical_type(LogicalType::UINT_8).build().unwrap();
-    let field2 = Type::primitive_type_builder("field", PhysicalType::INT32)
+    let f2 = Type::primitive_type_builder("f", PhysicalType::INT32)
       .with_logical_type(LogicalType::UINT_16).build().unwrap();
-    assert!(field1.check_contains(&field2));
+    assert!(f1.check_contains(&f2));
 
     // KO: different name
-    let field1 = Type::primitive_type_builder("field1", PhysicalType::INT32).build().unwrap();
-    let field2 = Type::primitive_type_builder("field2", PhysicalType::INT32).build().unwrap();
-    assert!(!field1.check_contains(&field2));
+    let f1 = Type::primitive_type_builder("f1", PhysicalType::INT32).build().unwrap();
+    let f2 = Type::primitive_type_builder("f2", PhysicalType::INT32).build().unwrap();
+    assert!(!f1.check_contains(&f2));
 
     // KO: different type
-    let field1 = Type::primitive_type_builder("field", PhysicalType::INT32).build().unwrap();
-    let field2 = Type::primitive_type_builder("field", PhysicalType::INT64).build().unwrap();
-    assert!(!field1.check_contains(&field2));
+    let f1 = Type::primitive_type_builder("f", PhysicalType::INT32).build().unwrap();
+    let f2 = Type::primitive_type_builder("f", PhysicalType::INT64).build().unwrap();
+    assert!(!f1.check_contains(&f2));
 
     // KO: different repetition
-    let field1 = Type::primitive_type_builder("field", PhysicalType::INT32)
+    let f1 = Type::primitive_type_builder("f", PhysicalType::INT32)
       .with_repetition(Repetition::REQUIRED).build().unwrap();
-    let field2 = Type::primitive_type_builder("field", PhysicalType::INT32)
+    let f2 = Type::primitive_type_builder("f", PhysicalType::INT32)
       .with_repetition(Repetition::OPTIONAL).build().unwrap();
-    assert!(!field1.check_contains(&field2));
+    assert!(!f1.check_contains(&f2));
   }
 
   // function to create a new group type for testing
@@ -1063,95 +1098,95 @@ mod tests {
   #[test]
   fn test_check_contains_group_group() {
     // OK: should match okay with empty fields
-    let field1 = Type::group_type_builder("field").build().unwrap();
-    let field2 = Type::group_type_builder("field").build().unwrap();
-    assert!(field1.check_contains(&field2));
+    let f1 = Type::group_type_builder("f").build().unwrap();
+    let f2 = Type::group_type_builder("f").build().unwrap();
+    assert!(f1.check_contains(&f2));
 
     // OK: fields match
-    let field1 = test_new_group_type("field", Repetition::REPEATED, vec![
+    let f1 = test_new_group_type("f", Repetition::REPEATED, vec![
       Type::primitive_type_builder("f1", PhysicalType::INT32).build().unwrap(),
       Type::primitive_type_builder("f2", PhysicalType::INT64).build().unwrap()
     ]);
-    let field2 = test_new_group_type("field", Repetition::REPEATED, vec![
+    let f2 = test_new_group_type("f", Repetition::REPEATED, vec![
       Type::primitive_type_builder("f1", PhysicalType::INT32).build().unwrap(),
       Type::primitive_type_builder("f2", PhysicalType::INT64).build().unwrap()
     ]);
-    assert!(field1.check_contains(&field2));
+    assert!(f1.check_contains(&f2));
 
     // OK: subset of fields
-    let field1 = test_new_group_type("field", Repetition::REPEATED, vec![
+    let f1 = test_new_group_type("f", Repetition::REPEATED, vec![
       Type::primitive_type_builder("f1", PhysicalType::INT32).build().unwrap(),
       Type::primitive_type_builder("f2", PhysicalType::INT64).build().unwrap()
     ]);
-    let field2 = test_new_group_type("field", Repetition::REPEATED, vec![
+    let f2 = test_new_group_type("f", Repetition::REPEATED, vec![
       Type::primitive_type_builder("f2", PhysicalType::INT64).build().unwrap()
     ]);
-    assert!(field1.check_contains(&field2));
+    assert!(f1.check_contains(&f2));
 
     // KO: different name
-    let field1 = Type::group_type_builder("field1").build().unwrap();
-    let field2 = Type::group_type_builder("field2").build().unwrap();
-    assert!(!field1.check_contains(&field2));
+    let f1 = Type::group_type_builder("f1").build().unwrap();
+    let f2 = Type::group_type_builder("f2").build().unwrap();
+    assert!(!f1.check_contains(&f2));
 
     // KO: different repetition
-    let field1 = Type::group_type_builder("field")
+    let f1 = Type::group_type_builder("f")
       .with_repetition(Repetition::OPTIONAL).build().unwrap();
-    let field2 = Type::group_type_builder("field")
+    let f2 = Type::group_type_builder("f")
       .with_repetition(Repetition::REPEATED).build().unwrap();
-    assert!(!field1.check_contains(&field2));
+    assert!(!f1.check_contains(&f2));
 
     // KO: different fields
-    let field1 = test_new_group_type("field", Repetition::REPEATED, vec![
+    let f1 = test_new_group_type("f", Repetition::REPEATED, vec![
       Type::primitive_type_builder("f1", PhysicalType::INT32).build().unwrap(),
       Type::primitive_type_builder("f2", PhysicalType::INT64).build().unwrap()
     ]);
-    let field2 = test_new_group_type("field", Repetition::REPEATED, vec![
+    let f2 = test_new_group_type("f", Repetition::REPEATED, vec![
       Type::primitive_type_builder("f1", PhysicalType::INT32).build().unwrap(),
       Type::primitive_type_builder("f2", PhysicalType::BOOLEAN).build().unwrap()
     ]);
-    assert!(!field1.check_contains(&field2));
+    assert!(!f1.check_contains(&f2));
 
     // KO: different fields
-    let field1 = test_new_group_type("field", Repetition::REPEATED, vec![
+    let f1 = test_new_group_type("f", Repetition::REPEATED, vec![
       Type::primitive_type_builder("f1", PhysicalType::INT32).build().unwrap(),
       Type::primitive_type_builder("f2", PhysicalType::INT64).build().unwrap()
     ]);
-    let field2 = test_new_group_type("field", Repetition::REPEATED, vec![
+    let f2 = test_new_group_type("f", Repetition::REPEATED, vec![
       Type::primitive_type_builder("f3", PhysicalType::INT32).build().unwrap()
     ]);
-    assert!(!field1.check_contains(&field2));
+    assert!(!f1.check_contains(&f2));
   }
 
   #[test]
   fn test_check_contains_group_primitive() {
     // KO: should not match
-    let field1 = Type::group_type_builder("field").build().unwrap();
-    let field2 = Type::primitive_type_builder("field", PhysicalType::INT64).build().unwrap();
-    assert!(!field1.check_contains(&field2));
-    assert!(!field2.check_contains(&field1));
+    let f1 = Type::group_type_builder("f").build().unwrap();
+    let f2 = Type::primitive_type_builder("f", PhysicalType::INT64).build().unwrap();
+    assert!(!f1.check_contains(&f2));
+    assert!(!f2.check_contains(&f1));
 
     // KO: should not match when primitive field is part of group type
-    let field1 = test_new_group_type("field", Repetition::REPEATED, vec![
+    let f1 = test_new_group_type("f", Repetition::REPEATED, vec![
       Type::primitive_type_builder("f1", PhysicalType::INT32).build().unwrap()
     ]);
-    let field2 = Type::primitive_type_builder("f1", PhysicalType::INT32).build().unwrap();
-    assert!(!field1.check_contains(&field2));
-    assert!(!field2.check_contains(&field1));
+    let f2 = Type::primitive_type_builder("f1", PhysicalType::INT32).build().unwrap();
+    assert!(!f1.check_contains(&f2));
+    assert!(!f2.check_contains(&f1));
 
     // OK: match nested types
-    let field1 = test_new_group_type("a", Repetition::REPEATED, vec![
+    let f1 = test_new_group_type("a", Repetition::REPEATED, vec![
       test_new_group_type("b", Repetition::REPEATED, vec![
         Type::primitive_type_builder("c", PhysicalType::INT32).build().unwrap()
       ]),
       Type::primitive_type_builder("d", PhysicalType::INT64).build().unwrap(),
       Type::primitive_type_builder("e", PhysicalType::BOOLEAN).build().unwrap()
     ]);
-    let field2 = test_new_group_type("a", Repetition::REPEATED, vec![
+    let f2 = test_new_group_type("a", Repetition::REPEATED, vec![
       test_new_group_type("b", Repetition::REPEATED, vec![
         Type::primitive_type_builder("c", PhysicalType::INT32).build().unwrap()
       ])
     ]);
-    assert!(field1.check_contains(&field2)); // should match
-    assert!(!field2.check_contains(&field1)); // should fail
+    assert!(f1.check_contains(&f2)); // should match
+    assert!(!f2.check_contains(&f1)); // should fail
   }
 }

@@ -35,8 +35,8 @@ use util::memory::{MemoryPool, ByteBufferPtr};
 // ----------------------------------------------------------------------
 // APIs for file & row group readers
 
-/// Parquet file reader API. With this, user can get metadata information
-/// about the Parquet file, and can get reader for each row group.
+/// Parquet file reader API. With this, user can get metadata information about the
+/// Parquet file, and can get reader for each row group.
 pub trait FileReader {
   /// Get metadata information about this file
   fn metadata(&self) -> &ParquetMetaData;
@@ -45,15 +45,14 @@ pub trait FileReader {
   fn num_row_groups(&self) -> usize;
 
   /// Get the `i`th row group reader. Note this doesn't do bound check.
-  /// N.B.: Box<..> has 'static lifetime in default, but here we need
-  /// the lifetime to be the same as this. Otherwise, the row group metadata
-  /// stored in the row group reader may outlive the file reader.
+  /// N.B.: Box<..> has 'static lifetime in default, but here we need the lifetime to be
+  /// the same as this. Otherwise, the row group metadata stored in the row group reader
+  /// may outlive the file reader.
   fn get_row_group<'a>(&'a self, i: usize) -> Result<Box<RowGroupReader<'a> + 'a>>;
 }
 
-/// Parquet row group reader API. With this, user can get metadata
-/// information about the row group, as well as readers for each individual
-/// column chunk
+/// Parquet row group reader API. With this, user can get metadata information about the
+/// row group, as well as readers for each individual column chunk.
 /// The lifetime 'a is for the metadata inherited from the parent file reader
 pub trait RowGroupReader<'a> {
   /// Get metadata information about this row group.
@@ -71,7 +70,7 @@ pub trait RowGroupReader<'a> {
 }
 
 
-/// A thin wrapper on `T: Read` to be used by Thrift transport. Write is not supported
+/// A thin wrapper on `T: Read` to be used by Thrift transport. Write is not supported.
 pub struct TMemoryBuffer<'a, T> where T: 'a + Read {
   data: &'a mut T
 }
@@ -143,7 +142,8 @@ impl SerializedFileReader {
 
     // TODO: row group filtering
     let mut prot = TCompactInputProtocol::new(transport);
-    let mut t_file_metadata: TFileMetaData = TFileMetaData::read_from_in_protocol(&mut prot)
+    let mut t_file_metadata: TFileMetaData =
+      TFileMetaData::read_from_in_protocol(&mut prot)
       .map_err(|e| ParquetError::General(format!("Could not parse metadata: {}", e)))?;
     let schema = types::from_thrift(&mut t_file_metadata.schema)?;
     let schema_descr = Rc::new(SchemaDescriptor::new(schema.clone()));
@@ -179,8 +179,8 @@ impl FileReader for SerializedFileReader {
 }
 
 /// A serialized impl for row group reader
-/// Here 'a is the lifetime for the row group metadata, which is owned
-/// by the parent Parquet file reader
+/// Here 'a is the lifetime for the row group metadata, which is owned by the parent
+/// Parquet file reader
 pub struct SerializedRowGroupReader<'a, 'm> {
   buf: BufReader<File>,
   metadata: &'a RowGroupMetaData,
@@ -188,7 +188,9 @@ pub struct SerializedRowGroupReader<'a, 'm> {
 }
 
 impl<'a, 'm> SerializedRowGroupReader<'a, 'm> {
-  pub fn new(file: File, metadata: &'a RowGroupMetaData, mem_pool: &'m MemoryPool) -> Self {
+  pub fn new(
+    file: File, metadata: &'a RowGroupMetaData, mem_pool: &'m MemoryPool
+  ) -> Self {
     let buf = BufReader::new(file);
     Self { buf: buf, metadata: metadata, mem_pool: mem_pool }
   }
@@ -248,18 +250,18 @@ impl<'a, 'm> RowGroupReader<'a> for SerializedRowGroupReader<'a, 'm> {
 
 /// A serialized impl for Parquet page reader
 pub struct SerializedPageReader {
-  /// The buffer which contains exactly the bytes for the column trunk
-  /// to be read by this page reader
+  // The buffer which contains exactly the bytes for the column trunk
+  // to be read by this page reader
   buf: BufReader<File>,
 
-  /// The compression codec for this column chunk. Only set for
-  /// non-PLAIN codec.
+  // The compression codec for this column chunk. Only set for
+  // non-PLAIN codec.
   decompressor: Option<Box<Codec>>,
 
-  /// The number of values we have seen so far
+  // The number of values we have seen so far
   seen_num_values: i64,
 
-  /// The number of total values in this column chunk
+  // The number of total values in this column chunk
   total_num_values: i64,
 }
 
@@ -286,28 +288,30 @@ impl PageReader for SerializedPageReader {
     while self.seen_num_values < self.total_num_values {
       let page_header = self.read_page_header()?;
 
-      // when processing data page v2, depending on enabled compression for the page, we should
-      // account for uncompressed data ('offset') of repetition and definition levels.
-      // we always use 0 offset for other pages other than v2, `true` flag means that compression
-      // will be applied if decompressor is defined
+      // When processing data page v2, depending on enabled compression for the page, we
+      // should account for uncompressed data ('offset') of repetition and definition
+      // levels.
+      //
+      // We always use 0 offset for other pages other than v2, `true` flag means that
+      // compression will be applied if decompressor is defined
       let mut offset: usize = 0;
       let mut can_decompress = true;
 
       if let Some(ref header_v2) = page_header.data_page_header_v2 {
         offset = (header_v2.definition_levels_byte_length +
           header_v2.repetition_levels_byte_length) as usize;
-        // when is_compressed flag is missing the page is considered compressed
+        // When is_compressed flag is missing the page is considered compressed
         can_decompress = header_v2.is_compressed.unwrap_or(true);
       }
 
       let compressed_len = page_header.compressed_page_size as usize - offset;
       let uncompressed_len = page_header.uncompressed_page_size as usize - offset;
-      // we still need to read all bytes from buffered stream
+      // We still need to read all bytes from buffered stream
       let mut buffer = vec![0; offset + compressed_len];
       self.buf.read_exact(&mut buffer)?;
 
-      // TODO: page header could be huge because of statistics. We should
-      // set a maximum page header size and abort if that is exceeded.
+      // TODO: page header could be huge because of statistics. We should set a maximum
+      // page header size and abort if that is exceeded.
       if let Some(decompressor) = self.decompressor.as_mut() {
         if can_decompress {
           let mut decompressed_buffer = vec!();
@@ -320,7 +324,7 @@ impl PageReader for SerializedPageReader {
           if offset == 0 {
             buffer = decompressed_buffer;
           } else {
-            // prepend saved offsets to the buffer
+            // Prepend saved offsets to the buffer
             buffer.truncate(offset);
             buffer.append(&mut decompressed_buffer);
           }
@@ -428,7 +432,9 @@ mod tests {
           assert_eq!(is_sorted, false);
           true
         },
-        Page::DataPage { buf, num_values, encoding, def_level_encoding, rep_level_encoding } => {
+        Page::DataPage {
+          buf, num_values, encoding, def_level_encoding, rep_level_encoding
+        } => {
           assert_eq!(buf.len(), 11);
           assert_eq!(num_values, 8);
           assert_eq!(encoding, Encoding::PLAIN_DICTIONARY);
@@ -483,8 +489,10 @@ mod tests {
           assert_eq!(is_sorted, false);
           true
         },
-        Page::DataPageV2 { buf, num_values, encoding, num_nulls, num_rows, def_levels_byte_len,
-            rep_levels_byte_len, is_compressed } => {
+        Page::DataPageV2 {
+          buf, num_values, encoding, num_nulls, num_rows, def_levels_byte_len,
+          rep_levels_byte_len, is_compressed
+        } => {
           assert_eq!(buf.len(), 4);
           assert_eq!(num_values, 5);
           assert_eq!(encoding, Encoding::RLE_DICTIONARY);

@@ -118,7 +118,9 @@ impl RowGroupMetaData {
     self.schema_descr.as_ref()
   }
 
-  pub fn from_thrift(schema_descr: SchemaDescPtr, mut rg: RowGroup) -> Result<RowGroupMetaData> {
+  pub fn from_thrift(
+    schema_descr: SchemaDescPtr, mut rg: RowGroup
+  ) -> Result<RowGroupMetaData> {
     assert_eq!(schema_descr.num_columns(), rg.columns.len());
     let total_byte_size = rg.total_byte_size;
     let num_rows = rg.num_rows;
@@ -245,10 +247,12 @@ impl ColumnChunkMetaData {
     let data_page_offset = col_metadata.data_page_offset;
     let index_page_offset = col_metadata.index_page_offset;
     let dictionary_page_offset = col_metadata.dictionary_page_offset;
-    let result = ColumnChunkMetaData
-    { column_type, column_path, column_descr, encodings, file_path,
-      file_offset, num_values, compression, total_compressed_size, total_uncompressed_size,
-      data_page_offset, index_page_offset, dictionary_page_offset };
+    let result = ColumnChunkMetaData {
+      column_type, column_path, column_descr, encodings, file_path,
+      file_offset, num_values, compression, total_compressed_size,
+      total_uncompressed_size, data_page_offset, index_page_offset,
+      dictionary_page_offset
+    };
     Ok(result)
   }
 }

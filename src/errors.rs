@@ -57,6 +57,7 @@ impl convert::From<ParquetError> for io::Error {
 }
 
 /// Convenient macros for different errors
+
 macro_rules! general_err {
   ($fmt:expr) => (ParquetError::General($fmt.to_owned()));
   ($fmt:expr, $($args:expr),*) => (ParquetError::General(format!($fmt, $($args),*)));

@@ -22,7 +22,7 @@ use basic::{LogicalType, Type as PhysicalType};
 use schema::types::Type;
 use file::metadata::{ParquetMetaData, FileMetaData, RowGroupMetaData, ColumnChunkMetaData};
 
-/// Print Parquet metadata
+/// Prints Parquet metadata
 #[allow(unused_must_use)]
 pub fn print_parquet_metadata(out: &mut io::Write, metadata: &ParquetMetaData) {
   print_file_metadata(out, metadata.file_metadata());
@@ -38,7 +38,7 @@ pub fn print_parquet_metadata(out: &mut io::Write, metadata: &ParquetMetaData) {
   }
 }
 
-/// Print metadata information from `file_metadata`.
+/// Prints metadata information from `file_metadata`.
 #[allow(unused_must_use)]
 pub fn print_file_metadata(out: &mut io::Write, file_metadata: &FileMetaData) {
   writeln!(out, "version: {}", file_metadata.version());
@@ -140,19 +140,21 @@ impl<'a> Printer<'a> {
   pub fn print(&mut self, tp: &Type) {
     self.print_indent();
     match tp {
-      &Type::PrimitiveType{ ref basic_info, physical_type, type_length, scale, precision } => {
+      &Type::PrimitiveType {
+        ref basic_info, physical_type, type_length, scale, precision
+      } => {
         let phys_type_str = match physical_type {
           PhysicalType::FIXED_LEN_BYTE_ARRAY => {
-            // we need to include length for fixed byte array
+            // We need to include length for fixed byte array
             format!("{} ({})", physical_type, type_length)
           },
           _ => format!("{}", physical_type),
         };
-        // also print logical type if it is available
+        // Also print logical type if it is available
         let logical_type_str = match basic_info.logical_type() {
           LogicalType::NONE => format!(""),
           decimal @ LogicalType::DECIMAL => {
-            // for decimal type we should print precision and scale if they are > 0, e.g.
+            // For decimal type we should print precision and scale if they are > 0, e.g.
             // DECIMAL(9, 2) - DECIMAL(9) - DECIMAL
             let precision_scale = match (precision, scale) {
               (p, s) if p > 0 && s > 0 => format!(" ({}, {})", p, s),
@@ -163,8 +165,9 @@ impl<'a> Printer<'a> {
           },
           other_logical_type => format!(" ({})", other_logical_type),
         };
-        write!(self.output, "{} {} {}{};", basic_info.repetition(), phys_type_str, basic_info.name(),
-          logical_type_str);
+        write!(
+          self.output, "{} {} {}{};",
+          basic_info.repetition(), phys_type_str, basic_info.name(), logical_type_str);
       },
       &Type::GroupType{ ref basic_info, ref fields } => {
         if basic_info.has_repetition() {

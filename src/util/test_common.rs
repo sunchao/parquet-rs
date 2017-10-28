@@ -80,8 +80,12 @@ pub fn random_numbers<T: Rand>(n: usize) -> Vec<T> {
   result
 }
 
-pub fn random_numbers_range<T>(n: usize, low: T, high: T, result: &mut Vec<T>)
-    where T: PartialOrd + SampleRange + Copy {
+pub fn random_numbers_range<T>(
+  n: usize,
+  low: T,
+  high: T,
+  result: &mut Vec<T>
+) where T: PartialOrd + SampleRange + Copy {
   let mut rng = thread_rng();
   for _ in 0..n {
     result.push(rng.gen_range(low, high));

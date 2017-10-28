@@ -21,20 +21,20 @@ use basic::{Repetition, Type as PhysicalType, LogicalType};
 use errors::{ParquetError, Result};
 use schema::types::{Type, TypePtr};
 
-/// Parse message type into `Type` class that can be used to extract individual columns
+/// Parses message type into `Type` class that can be used to extract individual columns
 pub fn parse_message_type<'a>(message_type: &'a str) -> Result<Type> {
   let mut parser = Parser { tokenizer: &mut Tokenizer::from_str(message_type) };
   parser.parse_message_type()
 }
 
-/// Tokenizer to split message type string into tokens that are separated using characters defined
-/// in `is_schema_delim` method. Tokenizer also preserves delimiters as tokens.
-/// Tokenizer provides Iterator interface to process tokens; it also allows to step back to
-/// reprocess previous tokens.
+/// Tokenizer to split message type string into tokens that are separated using characters
+/// defined in `is_schema_delim` method. Tokenizer also preserves delimiters as tokens.
+/// Tokenizer provides Iterator interface to process tokens; it also allows to step back
+/// to reprocess previous tokens.
 struct Tokenizer<'a> {
-  // list of all tokens for a string
+  // List of all tokens for a string
   tokens: Vec<&'a str>,
-  // current index of vector
+  // Current index of vector
   index: usize
 }
 
@@ -45,13 +45,14 @@ impl<'a> Tokenizer<'a> {
     Tokenizer { tokens: vec, index: 0 }
   }
 
-  // list of all special characters in schema
+  // List of all special characters in schema
   fn is_schema_delim(c: char) -> bool {
     c == ';' || c == '{' || c == '}' || c == '(' || c == ')' || c == '=' || c == ','
   }
 
-  // Split string into tokens; input string can already be token or can contain delimiters, e.g.
-  // "required" -> Vec("required") and "(UTF8);" -> Vec("(", "UTF8", ")", ";")
+  /// Splits string into tokens; input string can already be token or can contain
+  /// delimiters, e.g. required" -> Vec("required") and
+  /// "(UTF8);" -> Vec("(", "UTF8", ")", ";")
   fn split_token(string: &str) -> Vec<&str> {
     let mut buffer: Vec<&str> = Vec::new();
     let mut tail = string;
@@ -69,7 +70,7 @@ impl<'a> Tokenizer<'a> {
     buffer
   }
 
-  // move pointer to a previous element
+  // Move pointer to a previous element
   fn backtrack(&mut self) {
     self.index -= 1;
   }
@@ -89,7 +90,8 @@ impl<'a> Iterator for Tokenizer<'a> {
 }
 
 /// Internal Schema parser
-/// Traverses message type using tokenizer and parses each group/primitive type recursively.
+/// Traverses message type using tokenizer and parses each group/primitive type
+/// recursively.
 struct Parser<'a> {
   tokenizer: &'a mut Tokenizer<'a>
 }
@@ -104,19 +106,22 @@ fn assert_token(token: Option<&str>, expected: &str) -> Result<()> {
 }
 
 // Utility function to parse i32 or return general error
-fn parse_i32(value: Option<&str>, not_found_msg: &str, parse_fail_msg: &str) -> Result<i32> {
+fn parse_i32(
+  value: Option<&str>, not_found_msg: &str, parse_fail_msg: &str
+) -> Result<i32> {
   value.ok_or(general_err!(not_found_msg)).
     and_then(|v| v.parse::<i32>().
       map_err(|_| general_err!(parse_fail_msg)))
 }
 
 impl<'a> Parser<'a> {
-  // entry function to parse message type, uses internal tokenizer
+  // Entry function to parse message type, uses internal tokenizer
   fn parse_message_type(&mut self) -> Result<Type> {
-    // check that message type starts with "message"
+    // Check that message type starts with "message"
     match self.tokenizer.next() {
       Some("message") => {
-        let name = self.tokenizer.next().ok_or(general_err!("Expected name, found None"))?;
+        let name = self.tokenizer.next()
+          .ok_or(general_err!("Expected name, found None"))?;
         let mut fields = self.parse_child_types()?;
         Type::group_type_builder(name)
           .with_fields(&mut fields)
@@ -128,8 +133,8 @@ impl<'a> Parser<'a> {
     }
   }
 
-  // parse child types for a current group type
-  // this is only invoked on root and group types
+  // Parse child types for a current group type.
+  // This is only invoked on root and group types
   fn parse_child_types(&mut self) -> Result<Vec<TypePtr>> {
     assert_token(self.tokenizer.next(), "{")?;
     let mut vec = Vec::new();
@@ -145,7 +150,7 @@ impl<'a> Parser<'a> {
   }
 
   fn add_type(&mut self) -> Result<Type> {
-    // parse repetition
+    // Parse repetition
     let repetition = self.tokenizer.next().
       ok_or(general_err!("Expected repetition, found None")).
       and_then(|v| v.to_uppercase().parse::<Repetition>())?;
@@ -222,18 +227,18 @@ impl<'a> Parser<'a> {
         ok_or(general_err!("Expected logical type, found None")).
         and_then(|v| v.to_uppercase().parse::<LogicalType>())?;
 
-      // parse precision and scale for decimals
+      // Parse precision and scale for decimals
       let mut precision: i32 = 0;
       let mut scale: i32 = 0;
 
       if tpe == LogicalType::DECIMAL {
         if let Some("(") = self.tokenizer.next() {
-          // parse precision
+          // Parse precision
           precision = parse_i32(self.tokenizer.next(),
             "Expected precision, found None",
             "Failed to parse precision for DECIMAL type")?;
 
-          // parse scale
+          // Parse scale
           scale = if let Some(",") = self.tokenizer.next() {
             parse_i32(self.tokenizer.next(),
               "Expected scale, found None",
@@ -394,7 +399,9 @@ mod tests {
     let mut iter = Tokenizer::from_str("message");
     let result = Parser { tokenizer: &mut iter }.parse_message_type();
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err().to_string(), "Parquet error: Expected name, found None");
+    assert_eq!(
+      result.unwrap_err().to_string(),
+      "Parquet error: Expected name, found None");
   }
 
   #[test]
@@ -420,10 +427,10 @@ mod tests {
 
   #[test]
   fn test_parse_message_type_decimal() {
-    // it is okay for decimal to omit precision and scale with right syntax
-    // here we test wrong syntax of decimal type
+    // It is okay for decimal to omit precision and scale with right syntax.
+    // Here we test wrong syntax of decimal type
 
-    // invalid decimal, need precision and scale
+    // Invalid decimal, need precision and scale
     let schema = "
     message root {
       optional int32 f1 (DECIMAL();
@@ -433,7 +440,7 @@ mod tests {
     let result = Parser { tokenizer: &mut iter }.parse_message_type();
     assert!(result.is_err());
 
-    // invalid decimal, has precision, needs scale
+    // Invalid decimal, has precision, needs scale
     let schema = "
     message root {
       optional int32 f1 (DECIMAL(8,));
@@ -443,7 +450,7 @@ mod tests {
     let result = Parser { tokenizer: &mut iter }.parse_message_type();
     assert!(result.is_err());
 
-    // valid decimal (precision, scale)
+    // Valid decimal (precision, scale)
     let schema = "
     message root {
       optional int32 f1 (DECIMAL(8, 3));

@@ -358,7 +358,11 @@ pub struct MemoryPool {
 impl MemoryPool {
   pub fn new() -> Self {
     let arena = TypedArena::new();
-    Self { arena: arena, cur_bytes_allocated: Cell::new(0), max_bytes_allocated: Cell::new(0) }
+    Self {
+      arena: arena,
+      cur_bytes_allocated: Cell::new(0),
+      max_bytes_allocated: Cell::new(0)
+    }
   }
 
   /// Acquire a new byte buffer of at least `size` bytes

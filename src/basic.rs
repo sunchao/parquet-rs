@@ -327,7 +327,8 @@ mod tests {
     assert_eq!(Type::from(parquet::Type::FLOAT) , Type::FLOAT);
     assert_eq!(Type::from(parquet::Type::DOUBLE) , Type::DOUBLE);
     assert_eq!(Type::from(parquet::Type::BYTE_ARRAY) , Type::BYTE_ARRAY);
-    assert_eq!(Type::from(parquet::Type::FIXED_LEN_BYTE_ARRAY) , Type::FIXED_LEN_BYTE_ARRAY);
+    assert_eq!(Type::from(parquet::Type::FIXED_LEN_BYTE_ARRAY) ,
+               Type::FIXED_LEN_BYTE_ARRAY);
   }
 
   #[test]
@@ -561,7 +562,8 @@ mod tests {
   fn test_from_page_type() {
     assert_eq!(PageType::from(parquet::PageType::DATA_PAGE), PageType::DATA_PAGE);
     assert_eq!(PageType::from(parquet::PageType::INDEX_PAGE), PageType::INDEX_PAGE);
-    assert_eq!(PageType::from(parquet::PageType::DICTIONARY_PAGE), PageType::DICTIONARY_PAGE);
+    assert_eq!(PageType::from(parquet::PageType::DICTIONARY_PAGE),
+               PageType::DICTIONARY_PAGE);
     assert_eq!(PageType::from(parquet::PageType::DATA_PAGE_V2), PageType::DATA_PAGE_V2);
   }
 }

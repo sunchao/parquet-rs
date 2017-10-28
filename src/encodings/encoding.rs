@@ -27,35 +27,37 @@ use errors::{Result, ParquetError};
 use schema::types::ColumnDescPtr;
 use util::memory::{ByteBufferPtr, ByteBuffer, Buffer, MemTrackerPtr};
 use util::bit_util::{BitWriter, log2, num_required_bits};
-use util::hash_util::{self};
+use util::hash_util;
 use encodings::rle_encoding::RleEncoder;
 
 /// An Parquet encoder for the data type `T`.
-/// Currently this allocate internal buffers for the encoded values.
-/// After done putting values, caller should call `flush_buffer()` to
-/// get an immutable buffer pointer.
+///
+/// Currently this allocates internal buffers for the encoded values. After done putting
+/// values, caller should call `flush_buffer()` to get an immutable buffer pointer.
 pub trait Encoder<T: DataType> {
-  /// Encode data from `values`.
+  /// Encodes data from `values`.
   fn put(&mut self, values: &[T::T]) -> Result<()>;
 
-  /// Return the encoding type of this encoder.
+  /// Returns the encoding type of this encoder.
   fn encoding(&self) -> Encoding;
 
-  /// Flush the underlying byte buffer that's being processed
-  /// by this encoder, and return the immutable copy of it.
-  /// This will also reset the internal state.
+  /// Flushes the underlying byte buffer that's being processed by this encoder, and
+  /// return the immutable copy of it. This will also reset the internal state.
   fn flush_buffer(&mut self) -> Result<ByteBufferPtr>;
 }
 
 
-/// Get a encoder for the particular data type `T` and encoding `encoding`. Memory usage for
-/// the encoder instance is tracked by `mem_tracker`.
-pub fn get_encoder<T: DataType>(desc: ColumnDescPtr,
-                                encoding: Encoding,
-                                mem_tracker: MemTrackerPtr)
-                                -> Result<Box<Encoder<T>>> where T: 'static {
+/// Gets a encoder for the particular data type `T` and encoding `encoding`. Memory usage
+/// for the encoder instance is tracked by `mem_tracker`.
+pub fn get_encoder<T: DataType>(
+  desc: ColumnDescPtr,
+  encoding: Encoding,
+  mem_tracker: MemTrackerPtr
+) -> Result<Box<Encoder<T>>> where T: 'static {
   let encoder = match encoding {
-    Encoding::PLAIN => Box::new(PlainEncoder::new(desc, mem_tracker, vec!())) as Box<Encoder<T>>,
+    Encoding::PLAIN => {
+      Box::new(PlainEncoder::new(desc, mem_tracker, vec!())) as Box<Encoder<T>>
+    },
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
       Box::new(DictEncoder::new(desc, mem_tracker))
     },
@@ -82,15 +84,21 @@ impl<T: DataType> PlainEncoder<T> {
   pub fn new(desc: ColumnDescPtr, mem_tracker: MemTrackerPtr, vec: Vec<u8>) -> Self {
     let mut byte_buffer = ByteBuffer::new().with_mem_tracker(mem_tracker);
     byte_buffer.set_data(vec);
-    Self { buffer: byte_buffer, bit_writer: BitWriter::new(256), desc: desc, _phantom: PhantomData }
+    Self {
+      buffer: byte_buffer,
+      bit_writer: BitWriter::new(256),
+      desc: desc,
+      _phantom: PhantomData
+    }
   }
 }
 
 default impl<T: DataType> Encoder<T> for PlainEncoder<T> {
   fn put(&mut self, values: &[T::T]) -> Result<()> {
     let bytes = unsafe {
-      slice::from_raw_parts(values as *const [T::T] as *const u8,
-                            mem::size_of::<T::T>() * values.len())
+      slice::from_raw_parts(
+        values as *const [T::T] as *const u8,
+        mem::size_of::<T::T>() * values.len())
     };
     self.buffer.write(bytes)?;
     Ok(())
@@ -102,7 +110,6 @@ default impl<T: DataType> Encoder<T> for PlainEncoder<T> {
 
   #[inline]
   fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
-    // TODO: maybe we should write directly to `out`?
     self.bit_writer.flush();
     {
       let bit_buffer = self.bit_writer.buffer();
@@ -212,17 +219,18 @@ default impl<T: DataType> DictEncoder<T> {
     self.uniques.size()
   }
 
-  /// Write out the dictionary values with PLAIN encoding in a byte
-  /// buffer, and return the result.
+  /// Writes out the dictionary values with PLAIN encoding in a byte buffer, and return
+  /// the result.
   #[inline]
   pub fn write_dict(&self) -> Result<ByteBufferPtr> {
-    let mut plain_encoder = PlainEncoder::<T>::new(self.desc.clone(), self.mem_tracker.clone(), vec!());
+    let mut plain_encoder = PlainEncoder::<T>::new(
+      self.desc.clone(), self.mem_tracker.clone(), vec!());
     plain_encoder.put(self.uniques.data())?;
     plain_encoder.flush_buffer()
   }
 
-  /// Write out the dictionary values with RLE encoding in a byte
-  /// buffer, and return the result.
+  /// Writes out the dictionary values with RLE encoding in a byte buffer, and return the
+  /// result.
   #[inline]
   pub fn write_indices(&mut self) -> Result<ByteBufferPtr> {
     let bit_width = self.bit_width();
@@ -350,9 +358,9 @@ const DEFAULT_NUM_MINI_BLOCKS: usize = 4;
 /// Each block consists of:
 ///   [min delta] [list of bitwidths of miniblocks] [miniblocks]
 ///
-/// Current implementation writes values in 'put' method, multiple calls to 'put' add to existing
-/// block or start new block if block size is exceeded. Calling 'flush_buffer' writes out all data
-/// and resets internal state, including page header.
+/// Current implementation writes values in `put` method, multiple calls to `put` to
+/// existing block or start new block if block size is exceeded. Calling `flush_buffer`
+/// writes out all data and resets internal state, including page header.
 ///
 /// Supports only Int32Type and Int64Type.
 ///
@@ -393,23 +401,23 @@ impl<T: DataType> DeltaBitPackEncoder<T> {
     }
   }
 
-  // write page header for blocks, this method is invoked when we are done encoding values
-  // it is also okay to encode when no values have been provided
+  // Writes page header for blocks, this method is invoked when we are done encoding
+  // values. It is also okay to encode when no values have been provided
   fn write_page_header(&mut self) {
-    // we ignore the result of each 'put' operation, because MAX_PAGE_HEADER_WRITER_SIZE is chosen
-    // to fit all header values and guarantees that writes will not fail.
+    // We ignore the result of each 'put' operation, because MAX_PAGE_HEADER_WRITER_SIZE
+    // is chosen to fit all header values and guarantees that writes will not fail.
 
-    // write the size of each block
+    // Write the size of each block
     self.page_header_writer.put_vlq_int(self.block_size as u64);
-    // write the number of mini blocks
+    // Write the number of mini blocks
     self.page_header_writer.put_vlq_int(self.num_mini_blocks as u64);
-    // write the number of all values (including non-encoded first value)
+    // Write the number of all values (including non-encoded first value)
     self.page_header_writer.put_vlq_int(self.total_values as u64);
-    // write first value
+    // Write first value
     self.page_header_writer.put_zigzag_vlq_int(self.first_value);
   }
 
-  // write current delta buffer (<= 'block size' values) into bit writer
+  // Write current delta buffer (<= 'block size' values) into bit writer
   fn flush_block_values(&mut self) -> Result<()> {
     if self.values_in_block == 0 {
       return Ok(())
@@ -420,10 +428,10 @@ impl<T: DataType> DeltaBitPackEncoder<T> {
       min_delta = cmp::min(min_delta, self.deltas[i]);
     }
 
-    // write min delta
+    // Write min delta
     self.bit_writer.put_zigzag_vlq_int(min_delta);
 
-    // slice to store bit width for each mini block
+    // Slice to store bit width for each mini block
     // apply unsafe allocation to avoid double mutable borrow
     let mini_block_widths: &mut [u8] = unsafe {
       let tmp_slice = self.bit_writer.get_next_byte_ptr(self.num_mini_blocks)?;
@@ -431,29 +439,31 @@ impl<T: DataType> DeltaBitPackEncoder<T> {
     };
 
     for i in 0..self.num_mini_blocks {
-      // find how many values we need to encode - either block size or whatever values left
+      // Find how many values we need to encode - either block size or whatever values
+      // left
       let n = cmp::min(self.mini_block_size, self.values_in_block);
       if n == 0 {
         break;
       }
 
-      // compute the max delta in current mini block
+      // Compute the max delta in current mini block
       let mut max_delta = i64::min_value();
       for j in 0..n {
         max_delta = cmp::max(max_delta, self.deltas[i * self.mini_block_size + j]);
       }
 
-      // compute bit width to store (max_delta - min_delta)
+      // Compute bit width to store (max_delta - min_delta)
       let bit_width = num_required_bits(self.subtract_u64(max_delta, min_delta));
       mini_block_widths[i] = bit_width as u8;
 
-      // encode values in current mini block using min_delta and bit_width
+      // Encode values in current mini block using min_delta and bit_width
       for j in 0..n {
-        let packed_value = self.subtract_u64(self.deltas[i * self.mini_block_size + j], min_delta);
+        let packed_value = self.subtract_u64(
+          self.deltas[i * self.mini_block_size + j], min_delta);
         self.bit_writer.put_value(packed_value, bit_width);
       }
 
-      // pad the last block (n < mini_block_size)
+      // Pad the last block (n < mini_block_size)
       for _ in n..self.mini_block_size {
         self.bit_writer.put_value(0, bit_width);
       }
@@ -461,8 +471,9 @@ impl<T: DataType> DeltaBitPackEncoder<T> {
       self.values_in_block -= n;
     }
 
-    assert!(self.values_in_block == 0, "Expected 0 values in block, found {}", self.values_in_block);
-
+    assert!(
+      self.values_in_block == 0,
+      "Expected 0 values in block, found {}", self.values_in_block);
     Ok(())
   }
 }
@@ -476,7 +487,7 @@ default impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
     }
 
     let mut idx;
-    // define values to encode, initialize state
+    // Define values to encode, initialize state
     if self.total_values == 0 {
       self.first_value = self.as_i64(values, 0);
       self.current_value = self.first_value;
@@ -484,10 +495,10 @@ default impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
     } else {
       idx = 0;
     }
-    // add all values (including first value)
+    // Add all values (including first value)
     self.total_values += values.len();
 
-    // write block
+    // Write block
     while idx < values.len() {
       let value = self.as_i64(values, idx);
       self.deltas[self.values_in_block] = self.subtract(value, self.current_value);
@@ -507,9 +518,9 @@ default impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
   }
 
   fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
-    // write remaining values
+    // Write remaining values
     self.flush_block_values()?;
-    // write page header with total values
+    // Write page header with total values
     self.write_page_header();
 
     self.page_header_writer.flush();
@@ -526,7 +537,7 @@ default impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
     }
     buffer.flush()?;
 
-    // reset state
+    // Reset state
     self.page_header_writer.clear();
     self.bit_writer.clear();
     self.total_values = 0;
@@ -540,7 +551,7 @@ default impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
 
 // Helper trait to define specific conversions and subtractions when computing deltas
 trait DeltaBitPackEncoderConversion<T: DataType> {
-  // method should panic if type is not supported, otherwise no-op
+  // Method should panic if type is not supported, otherwise no-op
   #[inline]
   fn assert_supported_type();
 
@@ -583,13 +594,14 @@ impl DeltaBitPackEncoderConversion<Int32Type> for DeltaBitPackEncoder<Int32Type>
 
   #[inline]
   fn subtract(&self, left: i64, right: i64) -> i64 {
-    // it is okay for values to overflow, wrapping_sub wrapping around at the boundary
+    // It is okay for values to overflow, wrapping_sub wrapping around at the boundary
     (left as i32).wrapping_sub(right as i32) as i64
   }
 
   #[inline]
   fn subtract_u64(&self, left: i64, right: i64) -> u64 {
-    // conversion of i32 -> u32 -> u64 is to avoid non-zero left most bytes in int representation
+    // Conversion of i32 -> u32 -> u64 is to avoid non-zero left most bytes in int
+    // representation
     (left as i32).wrapping_sub(right as i32) as u32 as u64
   }
 }
@@ -607,7 +619,7 @@ impl DeltaBitPackEncoderConversion<Int64Type> for DeltaBitPackEncoder<Int64Type>
 
   #[inline]
   fn subtract(&self, left: i64, right: i64) -> i64 {
-    // it is okay for values to overflow, wrapping_sub wrapping around at the boundary
+    // It is okay for values to overflow, wrapping_sub wrapping around at the boundary
     left.wrapping_sub(right)
   }
 
@@ -686,7 +698,9 @@ mod tests {
         enc @ _ => Self::test_internal(enc, total, type_length)
       };
 
-      assert!(result.is_ok(), "Expected result to be OK but got err:\n {}", result.unwrap_err());
+      assert!(
+        result.is_ok(),
+        "Expected result to be OK but got err:\n {}", result.unwrap_err());
     }
 
     fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()>;
@@ -768,7 +782,9 @@ mod tests {
     ColumnDescriptor::new(Rc::new(ty), None, 0, 0, ColumnPath::new(vec!()))
   }
 
-  fn create_test_encoder<T: DataType>(type_len: i32, enc: Encoding) -> Box<Encoder<T>> where T: 'static {
+  fn create_test_encoder<T: DataType>(
+    type_len: i32, enc: Encoding
+  ) -> Box<Encoder<T>> where T: 'static {
     let desc = create_test_col_desc(type_len, T::get_physical_type());
     let mem_tracker = MemTracker::new_ptr(None).unwrap();
     let encoder = match enc {
@@ -788,7 +804,9 @@ mod tests {
     encoder
   }
 
-  fn create_test_decoder<T: DataType>(type_len: i32, enc: Encoding) -> Box<Decoder<T>> where T: 'static {
+  fn create_test_decoder<T: DataType>(
+    type_len: i32, enc: Encoding
+  ) -> Box<Decoder<T>> where T: 'static {
     let desc = create_test_col_desc(type_len, T::get_physical_type());
     let decoder = match enc {
       Encoding::PLAIN => {

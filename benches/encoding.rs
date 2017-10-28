@@ -44,7 +44,9 @@ fn plain_encoding_i64(bench: &mut Bencher) {
   plain_encoding::<Int64Type>(bench, vec![0; BATCH_SIZE], 8, Type::INT64);
 }
 
-fn plain_encoding<T: DataType>(bench: &mut Bencher, data: Vec<T::T>, type_length: i32, primitive_ty: Type) {
+fn plain_encoding<T: DataType>(
+  bench: &mut Bencher, data: Vec<T::T>, type_length: i32, primitive_ty: Type
+) {
   let mem_tracker = MemTracker::new_ptr(None).expect("");
   let mut encoder = PlainEncoder::<T>::new(
     Rc::new(col_desc(type_length, primitive_ty)), mem_tracker, vec!());

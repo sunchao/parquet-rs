@@ -21,9 +21,8 @@ use errors::Result;
 
 /// Parquet Page definition.
 ///
-/// These are 1-to-1 mapped from the equivalent Thrift
-/// definitions, except `buf` which used to store uncompressed bytes
-/// of the page.
+/// These are 1-to-1 mapped from the equivalent Thrift definitions, except `buf` which
+/// used to store uncompressed bytes of the page.
 pub enum Page {
   DataPage {
     buf: ByteBufferPtr, num_values: u32, encoding: Encoding,
@@ -74,11 +73,11 @@ impl Page {
   }
 }
 
-/// API for reading pages from a column chunk. This offers a iterator
-/// like API to get the next page.
+/// API for reading pages from a column chunk. This offers a iterator like API to get the
+/// next page.
 pub trait PageReader {
-  /// Get the next page in the column chunk associated with this reader.
-  /// Return `None` if there's no page left.
+  /// Gets the next page in the column chunk associated with this reader.
+  /// Returns `None` if there's no page left.
   fn get_next_page(&mut self) -> Result<Option<Page>>;
 }
 
