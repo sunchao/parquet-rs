@@ -205,7 +205,9 @@ impl BitWriter {
     self.flush();
     assert!(self.byte_offset <= self.max_bytes);
     if self.byte_offset + num_bytes > self.max_bytes {
-      return Err(general_err!("Not enough bytes left"));
+      return Err(general_err!(
+        "Not enough bytes left in BitWriter. Need {} but only have {}",
+        self.byte_offset + num_bytes, self.max_bytes));
     }
     let result = self.byte_offset;
     self.byte_offset += num_bytes;

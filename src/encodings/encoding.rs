@@ -234,7 +234,9 @@ default impl<T: DataType> DictEncoder<T> {
   #[inline]
   pub fn write_indices(&mut self) -> Result<ByteBufferPtr> {
     let bit_width = self.bit_width();
-    let buffer_len = 1 + RleEncoder::min_buffer_size(bit_width);
+    // TODO: the caller should allocate the buffer
+    let buffer_len = 1 + RleEncoder::min_buffer_size(bit_width)
+      + RleEncoder::max_buffer_size(bit_width, self.buffered_indices.size());
     let mut buffer: Vec<u8> = vec![0; buffer_len as usize];
     buffer[0] = bit_width as u8;
     self.mem_tracker.alloc(buffer.capacity() as i64);
@@ -639,7 +641,7 @@ mod tests {
   use util::memory::MemTracker;
   use util::test_common::RandGen;
 
-  const TEST_SET_SIZE: usize = 32;
+  const TEST_SET_SIZE: usize = 1024;
 
   #[test]
   fn test_bool() {
