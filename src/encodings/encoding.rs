@@ -309,7 +309,7 @@ default impl<T: DataType> DictEncoder<T> {
       while slot != HASH_SLOT_EMPTY && self.uniques[slot as usize] != *value {
         j += 1;
         if j == new_size {
-          j == 0;
+          j = 0;
         }
         slot = new_hash_slots[j];
       }
