@@ -96,7 +96,9 @@ pub enum Compression {
   SNAPPY,
   GZIP,
   LZO,
-  BROTLI
+  BROTLI,
+  LZ4,
+  ZSTD
 }
 
 /// Mirrors `parquet::PageType`
@@ -225,7 +227,9 @@ impl convert::From<parquet::CompressionCodec> for Compression {
       parquet::CompressionCodec::SNAPPY => Compression::SNAPPY,
       parquet::CompressionCodec::GZIP => Compression::GZIP,
       parquet::CompressionCodec::LZO => Compression::LZO,
-      parquet::CompressionCodec::BROTLI => Compression::BROTLI
+      parquet::CompressionCodec::BROTLI => Compression::BROTLI,
+      parquet::CompressionCodec::LZ4 => Compression::LZ4,
+      parquet::CompressionCodec::ZSTD => Compression::ZSTD
     }
   }
 }
@@ -534,6 +538,8 @@ mod tests {
     assert_eq!(Compression::GZIP.to_string(), "GZIP");
     assert_eq!(Compression::LZO.to_string(), "LZO");
     assert_eq!(Compression::BROTLI.to_string(), "BROTLI");
+    assert_eq!(Compression::LZ4.to_string(), "LZ4");
+    assert_eq!(Compression::ZSTD.to_string(), "ZSTD");
   }
 
   #[test]
@@ -548,6 +554,10 @@ mod tests {
                Compression::LZO);
     assert_eq!(Compression::from(parquet::CompressionCodec::BROTLI),
                Compression::BROTLI);
+    assert_eq!(Compression::from(parquet::CompressionCodec::LZ4),
+               Compression::LZ4);
+    assert_eq!(Compression::from(parquet::CompressionCodec::ZSTD),
+               Compression::ZSTD);
   }
 
   #[test]
