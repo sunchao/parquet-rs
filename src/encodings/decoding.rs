@@ -69,7 +69,7 @@ pub fn get_decoder<T: DataType>(
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
       return Err(general_err!("Cannot initialize this encoding through this function"))
     },
-    e => return Err(nyi_err!("Encoding {} is not supported.", e))
+    e => return Err(nyi_err!("Encoding {} is not supported", e))
   };
   Ok(decoder)
 }
@@ -684,9 +684,34 @@ impl<> Decoder<ByteArrayType> for DeltaByteArrayDecoder<ByteArrayType> {
 mod tests {
   use super::*;
   use std::mem;
+  use std::rc::Rc;
   use util::bit_util::set_array_bit;
   use util::test_common::RandGen;
   use super::super::encoding::*;
+  use schema::types::{ColumnDescriptor, ColumnPath, Type as Tpe};
+
+  #[test]
+  fn test_get_decoder_int32() {
+    // we do not check for data type when creating decoders, so it is fine to check for INT32
+
+    // supported encodings
+    test_get_decoder::<Int32Type>(Encoding::PLAIN, None);
+    test_get_decoder::<Int32Type>(Encoding::DELTA_BINARY_PACKED, None);
+    test_get_decoder::<Int32Type>(Encoding::DELTA_LENGTH_BYTE_ARRAY, None);
+    test_get_decoder::<Int32Type>(Encoding::DELTA_BYTE_ARRAY, None);
+
+    // error when initializing
+    test_get_decoder::<Int32Type>(Encoding::RLE_DICTIONARY,
+      Some(general_err!("Cannot initialize this encoding through this function")));
+    test_get_decoder::<Int32Type>(Encoding::PLAIN_DICTIONARY,
+      Some(general_err!("Cannot initialize this encoding through this function")));
+
+    // unsupported
+    test_get_decoder::<Int32Type>(Encoding::RLE,
+      Some(nyi_err!("Encoding RLE is not supported")));
+    test_get_decoder::<Int32Type>(Encoding::BIT_PACKED,
+      Some(nyi_err!("Encoding BIT_PACKED is not supported")));
+  }
 
   #[test]
   fn test_plain_decode_int32() {
@@ -912,6 +937,22 @@ mod tests {
       Int64Type::gen_vec(-1, 64)
     ];
     test_delta_bit_packed_decode::<Int64Type>(data);
+  }
+
+  fn test_get_decoder<T: 'static + DataType>(encoding: Encoding, err: Option<ParquetError>) {
+    let type_ptr = Rc::new(Tpe::primitive_type_builder("col", Type::INT32).build().unwrap());
+    let descr = Rc::new(ColumnDescriptor::new(type_ptr, None, 0, 0, ColumnPath::from("col")));
+    let decoder = get_decoder::<T>(descr, encoding);
+    match err {
+      Some(parquet_error) => {
+        assert!(decoder.is_err());
+        assert_eq!(decoder.err().unwrap(), parquet_error);
+      },
+      None => {
+        assert!(decoder.is_ok());
+        assert_eq!(decoder.unwrap().encoding(), encoding);
+      }
+    }
   }
 
   fn test_plain_decode<T: DataType>(data: ByteBufferPtr,

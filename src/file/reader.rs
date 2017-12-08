@@ -115,13 +115,13 @@ impl SerializedFileReader {
     let file_metadata = buf.get_ref().metadata()?;
     let file_size = file_metadata.len();
     if file_size < (FOOTER_SIZE as u64) {
-      return Err(general_err!("Corrputed file, smaller than file footer"));
+      return Err(general_err!("Invalid parquet file. Size is smaller than footer"));
     }
     let mut footer_buffer: [u8; FOOTER_SIZE] = [0; FOOTER_SIZE];
     buf.seek(SeekFrom::End(-(FOOTER_SIZE as i64)))?;
     buf.read_exact(&mut footer_buffer)?;
     if footer_buffer[4..] != PARQUET_MAGIC {
-      return Err(general_err!("Invalid parquet file. Corrupt footer."));
+      return Err(general_err!("Invalid parquet file. Corrupt footer"));
     }
     let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]) as i64;
     if metadata_len < 0 {
@@ -382,6 +382,43 @@ mod tests {
   use super::*;
   use std::fs;
   use std::env;
+  use std::io::Write;
+
+  #[test]
+  fn test_file_reader_metadata_size_smaller_than_footer() {
+    let test_file = get_temp_file("corrupt-1.parquet", &[]);
+    let reader_result = SerializedFileReader::new(test_file);
+    assert!(reader_result.is_err());
+    assert_eq!(reader_result.err().unwrap(),
+      general_err!("Invalid parquet file. Size is smaller than footer"));
+  }
+
+  #[test]
+  fn test_file_reader_metadata_corrupt_footer() {
+    let test_file = get_temp_file("corrupt-2.parquet", &[1, 2, 3, 4, 5, 6, 7, 8]);
+    let reader_result = SerializedFileReader::new(test_file);
+    assert!(reader_result.is_err());
+    assert_eq!(reader_result.err().unwrap(),
+      general_err!("Invalid parquet file. Corrupt footer"));
+  }
+
+  #[test]
+  fn test_file_reader_metadata_invalid_length() {
+    let test_file = get_temp_file("corrupt-3.parquet", &[0, 0, 0, 255, b'P', b'A', b'R', b'1']);
+    let reader_result = SerializedFileReader::new(test_file);
+    assert!(reader_result.is_err());
+    assert_eq!(reader_result.err().unwrap(),
+      general_err!("Invalid parquet file. Metadata length is less than zero (-16777216)"));
+  }
+
+  #[test]
+  fn test_file_reader_metadata_invalid_start() {
+    let test_file = get_temp_file("corrupt-4.parquet", &[255, 0, 0, 0, b'P', b'A', b'R', b'1']);
+    let reader_result = SerializedFileReader::new(test_file);
+    assert!(reader_result.is_err());
+    assert_eq!(reader_result.err().unwrap(),
+      general_err!("Invalid parquet file. Metadata start is less than zero (-255)"));
+  }
 
   #[test]
   fn test_file_reader() {
@@ -412,6 +449,8 @@ mod tests {
     let row_group_reader_result = reader.get_row_group(0);
     assert!(row_group_reader_result.is_ok());
     let row_group_reader: Box<RowGroupReader> = row_group_reader_result.unwrap();
+    assert_eq!(row_group_reader.num_columns(), row_group_metadata.num_columns());
+    assert_eq!(row_group_reader.metadata().total_byte_size(), row_group_metadata.total_byte_size());
 
     // Test page readers
     // TODO: test for every column
@@ -465,10 +504,14 @@ mod tests {
     assert_eq!(file_metadata.num_rows(), 5);
     assert_eq!(file_metadata.version(), 1);
 
+    let row_group_metadata: &RowGroupMetaData = metadata.row_group(0);
+
     // Test row group reader
     let row_group_reader_result = reader.get_row_group(0);
     assert!(row_group_reader_result.is_ok());
     let row_group_reader: Box<RowGroupReader> = row_group_reader_result.unwrap();
+    assert_eq!(row_group_reader.num_columns(), row_group_metadata.num_columns());
+    assert_eq!(row_group_reader.metadata().total_byte_size(), row_group_metadata.total_byte_size());
 
     // Test page readers
     // TODO: test for every column
@@ -507,10 +550,30 @@ mod tests {
     assert_eq!(page_count, 2);
   }
 
-  fn get_test_file<'a>(file_name: &str) -> fs::File {
+  fn get_test_file(file_name: &str) -> fs::File {
     let mut path_buf = env::current_dir().unwrap();
     path_buf.push("data");
     path_buf.push(file_name);
+    let file = File::open(path_buf.as_path());
+    assert!(file.is_ok());
+    file.unwrap()
+  }
+
+  fn get_temp_file(file_name: &str, content: &[u8]) -> fs::File {
+    // build tmp path to a file in "target/debug/testdata"
+    let mut path_buf = env::current_dir().unwrap();
+    path_buf.push("target");
+    path_buf.push("debug");
+    path_buf.push("testdata");
+    fs::create_dir_all(&path_buf).unwrap();
+    path_buf.push(file_name);
+
+    // write file content
+    let mut tmp_file = File::create(path_buf.as_path()).unwrap();
+    tmp_file.write_all(content).unwrap();
+    tmp_file.sync_all().unwrap();
+
+    // read file and return file handle
     let file = File::open(path_buf.as_path());
     assert!(file.is_ok());
     file.unwrap()

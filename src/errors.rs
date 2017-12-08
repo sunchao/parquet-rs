@@ -24,7 +24,7 @@ use thrift;
 use snap;
 
 quick_error! {
-  #[derive(Debug)]
+  #[derive(Debug, PartialEq)]
   pub enum ParquetError {
     General(message: String) {
       display("Parquet error: {}", message)
@@ -76,4 +76,3 @@ macro_rules! eof_err {
   ($fmt:expr) => (ParquetError::EOF($fmt.to_owned()));
   ($fmt:expr, $($args:expr),*) => (ParquetError::EOF(format!($fmt, $($args),*)));
 }
-
