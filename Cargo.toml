@@ -17,5 +17,4 @@ snap = "0.2"
 brotli = "1.0.7"
 flate2 = "0.2"
 rand = "0.3"
-
-thrift = { git = "https://github.com/apache/thrift" }
+thrift = "0.0.4"
