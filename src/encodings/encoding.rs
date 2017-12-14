@@ -179,7 +179,7 @@ pub struct DictEncoder<T: DataType> {
 
   // Store `hash_table_size` - 1, so that `j & mod_bitmask` is equivalent to
   // `j % hash_table_size`, but uses far fewer CPU cycles.
-  mod_bitmask: u64,
+  mod_bitmask: u32,
 
   // Stores indices which map (many-to-one) to the values in the `uniques` array.
   // Here we are using fix-sized array with linear probing.
@@ -206,7 +206,7 @@ default impl<T: DataType> DictEncoder<T> {
     Self {
       desc: desc,
       hash_table_size: INITIAL_HASH_TABLE_SIZE,
-      mod_bitmask: (INITIAL_HASH_TABLE_SIZE - 1) as u64,
+      mod_bitmask: (INITIAL_HASH_TABLE_SIZE - 1) as u32,
       hash_slots: slots,
       buffered_indices: Buffer::new().with_mem_tracker(mem_tracker.clone()),
       uniques: Buffer::new().with_mem_tracker(mem_tracker.clone()),
@@ -306,7 +306,7 @@ default impl<T: DataType> DictEncoder<T> {
         continue;
       }
       let value = &self.uniques[index as usize];
-      let mut j = (hash_util::hash(value, 0) & ((new_size - 1) as u64)) as usize;
+      let mut j = (hash_util::hash(value, 0) & ((new_size - 1) as u32)) as usize;
       let mut slot = new_hash_slots[j];
       while slot != HASH_SLOT_EMPTY && self.uniques[slot as usize] != *value {
         j += 1;
@@ -320,7 +320,7 @@ default impl<T: DataType> DictEncoder<T> {
     }
 
     self.hash_table_size = new_size;
-    self.mod_bitmask = (new_size - 1) as u64;
+    self.mod_bitmask = (new_size - 1) as u32;
     mem::replace(&mut self.hash_slots, new_hash_slots);
   }
 }
@@ -511,7 +511,6 @@ default impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
         self.flush_block_values()?;
       }
     }
-
     Ok(())
   }
 

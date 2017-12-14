@@ -18,6 +18,7 @@
 #![feature(type_ascription)]
 #![feature(rustc_private)]
 #![feature(specialization)]
+#![feature(cfg_target_feature)]
 
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
@@ -33,6 +34,7 @@ extern crate snap;
 extern crate brotli;
 extern crate flate2;
 extern crate rand;
+extern crate x86intrin;
 
 // TODO: don't expose everything!
 #[macro_use]
