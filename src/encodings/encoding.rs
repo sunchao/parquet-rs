@@ -199,7 +199,7 @@ pub struct DictEncoder<T: DataType> {
   mem_tracker: MemTrackerPtr
 }
 
-default impl<T: DataType> DictEncoder<T> {
+impl<T: DataType> DictEncoder<T> {
   pub fn new(desc: ColumnDescPtr, mem_tracker: MemTrackerPtr) -> Self {
     let mut slots = Buffer::new().with_mem_tracker(mem_tracker.clone());
     slots.resize(INITIAL_HASH_TABLE_SIZE, -1);

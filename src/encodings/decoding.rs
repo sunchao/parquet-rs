@@ -586,7 +586,7 @@ pub struct DeltaByteArrayDecoder<T: DataType> {
   // The current index into `prefix_lengths`,
   current_idx: usize,
 
-  // Decoder for all suffixs, the # of which should be the same as `prefix_lengths.len()`
+  // Decoder for all suffixes, the # of which should be the same as `prefix_lengths.len()`
   suffix_decoder: Option<DeltaLengthByteArrayDecoder<ByteArrayType>>,
 
   // The last byte array, used to derive the current prefix
