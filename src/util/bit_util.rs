@@ -352,6 +352,7 @@ pub struct BitReader {
   buffered_values: u64,
 
   //
+  // End                                         Start
   // |............|B|B|B|B|B|B|B|B|..............|
   //                   ^          ^
   //                 bit_offset   byte_offset
@@ -392,7 +393,7 @@ impl BitReader {
   /// Gets the current byte offset
   #[inline]
   pub fn get_byte_offset(&self) -> usize {
-    self.byte_offset + self.bit_offset / 8 + 1
+    self.byte_offset + ceil(self.bit_offset as i64, 8) as usize
   }
 
   /// Reads a value of type `T` and of size `num_bits`.
@@ -529,6 +530,21 @@ mod tests {
     assert_eq!(ceil(10000000000, 10), 1000000000);
     assert_eq!(ceil(10, 10000000000), 1);
     assert_eq!(ceil(10000000000, 1000000000), 10);
+  }
+
+  #[test]
+  fn test_bit_reader_get_byte_offset() {
+    let buffer = vec![255; 10];
+    let mut bit_reader = BitReader::from(buffer);
+    assert_eq!(bit_reader.get_byte_offset(), 0); // offset (0 bytes, 0 bits)
+    bit_reader.get_value::<i32>(6);
+    assert_eq!(bit_reader.get_byte_offset(), 1); // offset (0 bytes, 6 bits)
+    bit_reader.get_value::<i32>(10);
+    assert_eq!(bit_reader.get_byte_offset(), 2); // offset (0 bytes, 16 bits)
+    bit_reader.get_value::<i32>(20);
+    assert_eq!(bit_reader.get_byte_offset(), 5); // offset (0 bytes, 36 bits)
+    bit_reader.get_value::<i32>(30);
+    assert_eq!(bit_reader.get_byte_offset(), 9); // offset (8 bytes, 2 bits)
   }
 
   #[test]

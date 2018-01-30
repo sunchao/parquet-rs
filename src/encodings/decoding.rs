@@ -314,8 +314,8 @@ pub struct DeltaBitPackDecoder<T: DataType> {
   // Header info
   num_values: usize,
   num_mini_blocks: i64,
-  values_per_mini_block: i64,
-  values_current_mini_block: i64,
+  values_per_mini_block: usize,
+  values_current_mini_block: usize,
   first_value: i64,
   first_value_read: bool,
 
@@ -324,6 +324,7 @@ pub struct DeltaBitPackDecoder<T: DataType> {
   mini_block_idx: usize,
   delta_bit_width: u8,
   delta_bit_widths: ByteBuffer,
+  deltas_in_mini_block: Vec<u64>, // eagerly loaded deltas for a mini block
 
   current_value: i64,
 
@@ -345,20 +346,19 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
       mini_block_idx: 0,
       delta_bit_width: 0,
       delta_bit_widths: ByteBuffer::new(),
+      deltas_in_mini_block: vec![],
       current_value: 0,
       _phantom: PhantomData
     }
   }
 
   pub fn get_offset(&self) -> usize {
-    assert!(self.initialized, "bit reader is not initialized");
+    assert!(self.initialized, "Bit reader is not initialized");
     self.bit_reader.get_byte_offset()
   }
 
   #[inline]
   fn init_block(&mut self) -> Result<()> {
-    assert!(self.initialized, "bit reader is not initialized");
-
     self.min_delta = self.bit_reader.get_zigzag_vlq_int()
       .ok_or(eof_err!("Not enough data to decode 'min_delta'"))?;
 
@@ -373,6 +373,21 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
     self.mini_block_idx = 0;
     self.delta_bit_width = self.delta_bit_widths.data()[0];
     self.values_current_mini_block = self.values_per_mini_block;
+    Ok(())
+  }
+
+  #[inline]
+  fn load_deltas_in_mini_block(&mut self) -> Result<()> {
+    self.deltas_in_mini_block.clear();
+
+    for _ in 0..self.values_current_mini_block {
+      // TODO: use SIMD to optimize this?
+      // TODO: we should be loading data eagerly like same decoder in parquet-mr
+      let delta = self.bit_reader.get_value::<u64>(self.delta_bit_width as usize)
+        .ok_or(eof_err!("Not enough data to decode 'delta'"))?;
+      self.deltas_in_mini_block.push(delta);
+    }
+
     Ok(())
   }
 }
@@ -399,14 +414,14 @@ default impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
     self.delta_bit_widths.clear();
     self.values_current_mini_block = 0;
 
-    self.values_per_mini_block = (block_size / self.num_mini_blocks) as i64;
+    self.values_per_mini_block = (block_size / self.num_mini_blocks) as usize;
     assert!(self.values_per_mini_block % 8 == 0);
 
     Ok(())
   }
 
   fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
-    assert!(self.initialized, "bit reader is not initialized");
+    assert!(self.initialized, "Bit reader is not initialized");
 
     let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
@@ -425,11 +440,12 @@ default impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
         } else {
           self.init_block()?;
         }
+        self.load_deltas_in_mini_block()?;
       }
 
-      // TODO: use SIMD to optimize this?
-      let delta = self.bit_reader.get_value::<u64>(self.delta_bit_width as usize)
-        .ok_or(eof_err!("Not enough data to decode 'delta'"))?;
+      // we decrement values in current mini block, so we need to invert index for delta
+      let delta = self.deltas_in_mini_block[
+        self.deltas_in_mini_block.len() - self.values_current_mini_block];
       // It is OK for deltas to contain "overflowed" values after encoding,
       // e.g. i64::MAX - i64::MIN, so we use `wrapping_add` to "overflow" again and
       // restore original value.
@@ -807,7 +823,7 @@ mod tests {
   }
 
   #[test]
-  #[should_panic(expected = "bit reader is not initialized")]
+  #[should_panic(expected = "Bit reader is not initialized")]
   fn test_delta_bit_packed_not_initialized_offset() {
     // Fail if set_data() is not called before get_offset()
     let decoder = DeltaBitPackDecoder::<Int32Type>::new();
@@ -815,15 +831,7 @@ mod tests {
   }
 
   #[test]
-  #[should_panic(expected = "bit reader is not initialized")]
-  fn test_delta_bit_packed_not_initialized_init_block() {
-    // Fail if set_data() is not called before get() -> init_block()
-    let mut decoder = DeltaBitPackDecoder::<Int32Type>::new();
-    decoder.init_block().unwrap();
-  }
-
-  #[test]
-  #[should_panic(expected = "bit reader is not initialized")]
+  #[should_panic(expected = "Bit reader is not initialized")]
   fn test_delta_bit_packed_not_initialized_get() {
     // Fail if set_data() is not called before get()
     let mut decoder = DeltaBitPackDecoder::<Int32Type>::new();
@@ -937,6 +945,27 @@ mod tests {
       Int64Type::gen_vec(-1, 64)
     ];
     test_delta_bit_packed_decode::<Int64Type>(data);
+  }
+
+  #[test]
+  fn test_delta_bit_packed_decoder_sampl() {
+    let data_bytes = vec![
+      128, 1, 4, 3, 58, 28, 6, 0,
+      0, 0, 0, 8, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, 0, 0, 0,
+      0, 0
+    ];
+    let buffer = ByteBufferPtr::new(data_bytes);
+    let mut decoder: DeltaBitPackDecoder<Int32Type> = DeltaBitPackDecoder::new();
+    decoder.set_data(buffer, 3).unwrap();
+    // check exact offsets, because when reading partial values we end up with
+    // some data not being read from bit reader
+    assert_eq!(decoder.get_offset(), 5);
+    let mut result = vec![0, 0, 0];
+    decoder.get(&mut result).unwrap();
+    assert_eq!(decoder.get_offset(), 34);
+    assert_eq!(result, vec![29, 43, 89]);
   }
 
   fn test_get_decoder<T: 'static + DataType>(encoding: Encoding, err: Option<ParquetError>) {
