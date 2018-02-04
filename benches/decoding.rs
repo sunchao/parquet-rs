@@ -44,7 +44,7 @@ macro_rules! plain {
       let mut encoder = PlainEncoder::<$ty>::new(
         Rc::new(col_desc(0, $pty)), mem_tracker, vec!());
 
-      let values = $gen_data_fn($num_values);
+      let (_, values) = $gen_data_fn($num_values);
       encoder.put(&values[..]).expect("put() should be OK");
       let buffer = encoder.flush_buffer().expect("flush_buffer() should be OK");
 
@@ -63,7 +63,7 @@ macro_rules! dict {
       let mut encoder = DictEncoder::<$ty>::new(
         Rc::new(col_desc(0, $pty)), mem_tracker);
 
-      let values = $gen_data_fn($num_values);
+      let (_, values) = $gen_data_fn($num_values);
       encoder.put(&values[..]).expect("put() should be OK");
       let mut dict_decoder = PlainDecoder::<$ty>::new(0);
       dict_decoder.set_data(
@@ -85,7 +85,7 @@ macro_rules! delta_bit_pack {
     fn $fname(bench: &mut Bencher) {
       let mut encoder = DeltaBitPackEncoder::<$ty>::new();
 
-      let values = $gen_data_fn($num_values);
+      let (_, values) = $gen_data_fn($num_values);
       encoder.put(&values[..]).expect("put() should be OK");
       let buffer = encoder.flush_buffer().expect("flush_buffer() should be OK");
 
@@ -102,6 +102,7 @@ fn bench_decoding<T: DataType>(
   buffer: ByteBufferPtr,
   mut decoder: Box<Decoder<T>>
 ) {
+  bench.bytes = buffer.len() as u64;
   bench.iter(|| {
     decoder.set_data(buffer.clone(), num_values).expect("set_data() should be OK");
     let mut values = vec![T::T::default(); batch_size];

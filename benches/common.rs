@@ -27,13 +27,14 @@ use parquet::schema::types::{Type as SchemaType, ColumnDescriptor, ColumnPath};
 
 macro_rules! gen_random_ints {
   ($fname:ident, $limit:expr) => {
-    pub fn $fname(total: usize) -> Vec<i32> {
+    pub fn $fname(total: usize) -> (usize, Vec<i32>) {
       let mut values = Vec::with_capacity(total);
       let mut rng = thread_rng();
       for _ in 0..total {
         values.push(rng.gen_range::<i32>(0, $limit));
       }
-      values
+      let bytes = values.len() * ::std::mem::size_of::<i32>();
+      (bytes, values)
     }
   }
 }
@@ -42,7 +43,7 @@ gen_random_ints!(gen_10, 10);
 gen_random_ints!(gen_100, 100);
 gen_random_ints!(gen_1000, 1000);
 
-pub fn gen_test_strs(total: usize) -> Vec<ByteArray> {
+pub fn gen_test_strs(total: usize) -> (usize, Vec<ByteArray>) {
   let mut words = Vec::new();
   words.push("aaaaaaaaaa");
   words.push("bbbbbbbbbb");
@@ -61,7 +62,8 @@ pub fn gen_test_strs(total: usize) -> Vec<ByteArray> {
     let idx = rnd.gen_range::<usize>(0, 10);
     values.push(ByteArray::from(words[idx]));
   }
-  values
+  let bytes = values.iter().fold(0, |acc, w| acc + w.len());
+  (bytes, values)
 }
 
 pub fn col_desc(type_length: i32, primitive_ty: Type) -> ColumnDescriptor {

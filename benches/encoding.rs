@@ -42,8 +42,8 @@ macro_rules! plain {
       let mem_tracker = Rc::new(MemTracker::new());
       let encoder = PlainEncoder::<$ty>::new(
         Rc::new(col_desc(0, $pty)), mem_tracker, vec!());
-      let values = $gen_data_fn($batch_size);
-      bench_encoding(bench, values, Box::new(encoder));
+      let (bytes, values) = $gen_data_fn($batch_size);
+      bench_encoding(bench, bytes, values, Box::new(encoder));
     }
   }
 }
@@ -55,8 +55,8 @@ macro_rules! dict {
       let mem_tracker = Rc::new(MemTracker::new());
       let encoder = DictEncoder::<$ty>::new(
         Rc::new(col_desc(0, $pty)), mem_tracker);
-      let values = $gen_data_fn($batch_size);
-      bench_encoding(bench, values, Box::new(encoder));
+      let (bytes, values) = $gen_data_fn($batch_size);
+      bench_encoding(bench, bytes, values, Box::new(encoder));
     }
   }
 }
@@ -66,17 +66,19 @@ macro_rules! delta_bit_pack {
     #[bench]
     fn $fname(bench: &mut Bencher) {
       let encoder = DeltaBitPackEncoder::<$ty>::new();
-      let values = $gen_data_fn($batch_size);
-      bench_encoding(bench, values, Box::new(encoder));
+      let (bytes, values) = $gen_data_fn($batch_size);
+      bench_encoding(bench, bytes, values, Box::new(encoder));
     }
   }
 }
 
 fn bench_encoding<T: DataType>(
   bench: &mut Bencher,
+  bytes: usize,
   values: Vec<T::T>,
   mut encoder: Box<Encoder<T>>
 ) {
+  bench.bytes = bytes as u64;
   bench.iter(|| {
     encoder.put(&values[..]).expect("put() should be OK");
     encoder.flush_buffer().expect("flush_buffer() should be OK");
