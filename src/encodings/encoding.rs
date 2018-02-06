@@ -64,6 +64,12 @@ pub fn get_encoder<T: DataType>(
     Encoding::DELTA_BINARY_PACKED => {
       Box::new(DeltaBitPackEncoder::new())
     },
+    Encoding::DELTA_LENGTH_BYTE_ARRAY => {
+      Box::new(DeltaLengthByteArrayEncoder::new())
+    },
+    Encoding::DELTA_BYTE_ARRAY => {
+      Box::new(DeltaByteArrayEncoder::new())
+    },
     e => return Err(nyi_err!("Encoding {} is not supported.", e))
   };
   Ok(encoder)
@@ -630,6 +636,136 @@ impl DeltaBitPackEncoderConversion<Int64Type> for DeltaBitPackEncoder<Int64Type>
   }
 }
 
+/// Encoding for byte arrays to separate the length values and the data.
+/// The lengths are encoded using DELTA_BINARY_PACKED encoding, data is
+/// stored as raw bytes.
+pub struct DeltaLengthByteArrayEncoder<T: DataType> {
+  // length encoder
+  len_encoder: DeltaBitPackEncoder<Int32Type>,
+  // byte array data
+  data: Vec<ByteArray>,
+  _phantom: PhantomData<T>
+}
+
+impl<T: DataType> DeltaLengthByteArrayEncoder<T> {
+  pub fn new() -> Self {
+    Self {
+      len_encoder: DeltaBitPackEncoder::new(),
+      data: vec!(),
+      _phantom: PhantomData
+    }
+  }
+}
+
+default impl<T: DataType> Encoder<T> for DeltaLengthByteArrayEncoder<T> {
+  fn put(&mut self, _values: &[T::T]) -> Result<()> {
+    panic!("DeltaLengthByteArrayEncoder only supports ByteArrayType");
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::DELTA_LENGTH_BYTE_ARRAY
+  }
+
+  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+    panic!("DeltaLengthByteArrayEncoder only supports ByteArrayType");
+  }
+}
+
+impl Encoder<ByteArrayType> for DeltaLengthByteArrayEncoder<ByteArrayType> {
+  fn put(&mut self, values: &[ByteArray]) -> Result<()> {
+    let lengths: Vec<i32> =
+      values.iter().map(|byte_array| byte_array.len() as i32).collect();
+    self.len_encoder.put(&lengths)?;
+    for byte_array in values {
+      self.data.push(byte_array.clone());
+    }
+    Ok(())
+  }
+
+  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+    let mut total_bytes = vec!();
+    let lengths = self.len_encoder.flush_buffer()?;
+    total_bytes.extend_from_slice(lengths.data());
+    self.data.iter().for_each(|byte_array| {
+      total_bytes.extend_from_slice(byte_array.data());
+    });
+    self.data.clear();
+    Ok(ByteBufferPtr::new(total_bytes))
+  }
+}
+
+/// Encoding for byte arrays, prefix lengths are encoded using DELTA_BINARY_PACKED
+/// encoding, followed by suffixes with DELTA_LENGTH_BYTE_ARRAY encoding.
+pub struct DeltaByteArrayEncoder<T: DataType> {
+  prefix_len_encoder: DeltaBitPackEncoder<Int32Type>,
+  suffix_writer: DeltaLengthByteArrayEncoder<T>,
+  previous: Vec<u8>,
+  _phantom: PhantomData<T>
+}
+
+impl<T: DataType> DeltaByteArrayEncoder<T> {
+  pub fn new() -> Self {
+    Self {
+      prefix_len_encoder: DeltaBitPackEncoder::<Int32Type>::new(),
+      suffix_writer: DeltaLengthByteArrayEncoder::<T>::new(),
+      previous: vec!(),
+      _phantom: PhantomData
+    }
+  }
+}
+
+default impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
+  fn put(&mut self, _values: &[T::T]) -> Result<()> {
+    panic!("DeltaByteArrayEncoder only supports ByteArrayType");
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::DELTA_BYTE_ARRAY
+  }
+
+  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+    panic!("DeltaByteArrayEncoder only supports ByteArrayType");
+  }
+}
+
+impl Encoder<ByteArrayType> for DeltaByteArrayEncoder<ByteArrayType> {
+  fn put(&mut self, values: &[ByteArray]) -> Result<()> {
+    let mut prefix_lengths: Vec<i32> = vec!();
+    let mut suffixes: Vec<ByteArray> = vec!();
+
+    for byte_array in values {
+      let current = byte_array.data();
+      // Maximum prefix length that is shared between previous value and current value
+      let prefix_len = cmp::min(self.previous.len(), current.len());
+      let mut match_len = 0;
+      while match_len < prefix_len && self.previous[match_len] == current[match_len] {
+        match_len += 1;
+      }
+      prefix_lengths.push(match_len as i32);
+      suffixes.push(byte_array.slice(match_len, byte_array.len() - match_len));
+      // Update previous for the next prefix
+      self.previous.clear();
+      self.previous.extend_from_slice(current);
+    }
+    self.prefix_len_encoder.put(&prefix_lengths)?;
+    self.suffix_writer.put(&suffixes)?;
+    Ok(())
+  }
+
+  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+    // TODO: investigate if we can merge lengths and suffixes
+    // without copying data into new vector.
+    let mut total_bytes = vec!();
+    // Insert lengths ...
+    let lengths = self.prefix_len_encoder.flush_buffer()?;
+    total_bytes.extend_from_slice(lengths.data());
+    // ... followed by suffixes
+    let suffixes = self.suffix_writer.flush_buffer()?;
+    total_bytes.extend_from_slice(suffixes.data());
+
+    Ok(ByteBufferPtr::new(total_bytes))
+  }
+}
 
 #[cfg(test)]
 mod tests {
@@ -684,6 +820,8 @@ mod tests {
   fn test_byte_array() {
     ByteArrayType::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
     ByteArrayType::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
+    ByteArrayType::test(Encoding::DELTA_LENGTH_BYTE_ARRAY, TEST_SET_SIZE, -1);
+    ByteArrayType::test(Encoding::DELTA_BYTE_ARRAY, TEST_SET_SIZE, -1);
   }
 
   #[test]
@@ -798,6 +936,12 @@ mod tests {
       Encoding::DELTA_BINARY_PACKED => {
         Box::new(DeltaBitPackEncoder::<T>::new())
       },
+      Encoding::DELTA_LENGTH_BYTE_ARRAY => {
+        Box::new(DeltaLengthByteArrayEncoder::<T>::new())
+      },
+      Encoding::DELTA_BYTE_ARRAY => {
+        Box::new(DeltaByteArrayEncoder::<T>::new())
+      },
       _ => {
         panic!("Not implemented yet.");
       }
@@ -818,6 +962,12 @@ mod tests {
       },
       Encoding::DELTA_BINARY_PACKED => {
         Box::new(DeltaBitPackDecoder::<T>::new())
+      },
+      Encoding::DELTA_LENGTH_BYTE_ARRAY => {
+        Box::new(DeltaLengthByteArrayDecoder::<T>::new())
+      },
+      Encoding::DELTA_BYTE_ARRAY => {
+        Box::new(DeltaByteArrayDecoder::<T>::new())
       },
       _ => {
         panic!("Not implemented yet.");

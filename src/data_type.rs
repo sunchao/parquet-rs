@@ -101,6 +101,11 @@ impl ByteArray {
   pub fn set_data(&mut self, data: ByteBufferPtr) {
     self.data = Some(data);
   }
+
+  pub fn slice(&self, start: usize, len: usize) -> Self {
+    assert!(self.data.is_some());
+    Self::from(self.data.as_ref().unwrap().range(start, len))
+  }
 }
 
 impl From<Vec<u8>> for ByteArray {

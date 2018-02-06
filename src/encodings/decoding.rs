@@ -63,12 +63,12 @@ pub fn get_decoder<T: DataType>(
     Encoding::PLAIN => {
       Box::new(PlainDecoder::new(descr.type_length())) as Box<Decoder<T>>
     },
-    Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackDecoder::new()),
-    Encoding::DELTA_LENGTH_BYTE_ARRAY => Box::new(DeltaLengthByteArrayDecoder::new()),
-    Encoding::DELTA_BYTE_ARRAY => Box::new(DeltaByteArrayDecoder::new()),
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
       return Err(general_err!("Cannot initialize this encoding through this function"))
     },
+    Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackDecoder::new()),
+    Encoding::DELTA_LENGTH_BYTE_ARRAY => Box::new(DeltaLengthByteArrayDecoder::new()),
+    Encoding::DELTA_BYTE_ARRAY => Box::new(DeltaByteArrayDecoder::new()),
     e => return Err(nyi_err!("Encoding {} is not supported", e))
   };
   Ok(decoder)
@@ -606,7 +606,7 @@ pub struct DeltaByteArrayDecoder<T: DataType> {
   suffix_decoder: Option<DeltaLengthByteArrayDecoder<ByteArrayType>>,
 
   // The last byte array, used to derive the current prefix
-  previous_value: Option<ByteBufferPtr>,
+  previous_value: Vec<u8>,
 
   // Number of values left
   num_values: usize,
@@ -618,7 +618,7 @@ pub struct DeltaByteArrayDecoder<T: DataType> {
 impl<T: DataType> DeltaByteArrayDecoder<T> {
   pub fn new() -> Self {
     Self { prefix_lengths: vec!(), current_idx: 0, suffix_decoder: None,
-           previous_value: None, num_values: 0, _phantom: PhantomData }
+           previous_value: vec!(), num_values: 0, _phantom: PhantomData }
   }
 }
 
@@ -653,6 +653,8 @@ impl<> Decoder<ByteArrayType> for DeltaByteArrayDecoder<ByteArrayType> {
       data.start_from(prefix_len_decoder.get_offset()), num_values)?;
     self.suffix_decoder = Some(suffix_decoder);
     self.num_values = num_prefixes;
+    self.current_idx = 0;
+    self.previous_value.clear();
     Ok(())
   }
 
@@ -661,33 +663,25 @@ impl<> Decoder<ByteArrayType> for DeltaByteArrayDecoder<ByteArrayType> {
 
     let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
-      // Process prefix
-      let mut prefix_slice: Option<Vec<u8>> = None;
-      let prefix_len = self.prefix_lengths[self.current_idx];
-      if prefix_len != 0 {
-        assert!(self.previous_value.is_some());
-        let previous = self.previous_value.as_ref().unwrap();
-        prefix_slice = Some(Vec::from(previous.as_ref()));
-      }
       // Process suffix
       // TODO: this is awkward - maybe we should add a non-vectorized API?
       let mut suffix = vec![ByteArray::new(); 1];
       let suffix_decoder = self.suffix_decoder.as_mut().unwrap();
       suffix_decoder.get(&mut suffix[..])?;
+      let suffix = suffix[0].data();
+
+      // Extract current prefix length, can be 0
+      let prefix_len = self.prefix_lengths[self.current_idx] as usize;
 
       // Concatenate prefix with suffix
-      let result: Vec<u8> = match prefix_slice {
-        Some(mut prefix) => {
-          prefix.extend_from_slice(suffix[0].data());
-          prefix
-        }
-        None => Vec::from(suffix[0].data())
-      };
+      let mut result = Vec::new();
+      result.extend_from_slice(&self.previous_value[0..prefix_len]);
+      result.extend_from_slice(suffix);
 
-      // TODO: can reuse the original vec
-      let data = ByteBufferPtr::new(result);
-      buffer[i].set_data(data.all());
-      self.previous_value = Some(data);
+      let data = ByteBufferPtr::new(result.clone());
+      buffer[i].set_data(data);
+      self.previous_value = result;
+      self.current_idx += 1;
     }
 
     self.num_values -= num_values;
@@ -702,6 +696,7 @@ mod tests {
   use std::mem;
   use std::rc::Rc;
   use util::bit_util::set_array_bit;
+  use util::memory::MemTracker;
   use util::test_common::RandGen;
   use super::super::encoding::*;
   use schema::types::{ColumnDescriptor, ColumnPath, Type as Tpe};
@@ -968,6 +963,34 @@ mod tests {
     assert_eq!(result, vec![29, 43, 89]);
   }
 
+  #[test]
+  fn test_delta_byte_array_same_arrays() {
+    let data = vec![
+      vec![ByteArray::from(vec![1, 2, 3, 4, 5, 6])],
+      vec![ByteArray::from(vec![1, 2, 3, 4, 5, 6]), ByteArray::from(vec![1, 2, 3, 4, 5, 6])],
+      vec![ByteArray::from(vec![1, 2, 3, 4, 5, 6]), ByteArray::from(vec![1, 2, 3, 4, 5, 6])]
+    ];
+    test_delta_byte_array_decode(data);
+  }
+
+  #[test]
+  fn test_delta_byte_array_unique_arrays() {
+    let data = vec![
+      vec![ByteArray::from(vec![1])],
+      vec![ByteArray::from(vec![2, 3]), ByteArray::from(vec![4, 5, 6])],
+      vec![ByteArray::from(vec![7, 8]), ByteArray::from(vec![9, 0, 1, 2])]
+    ];
+    test_delta_byte_array_decode(data);
+  }
+
+  #[test]
+  fn test_delta_byte_array_single_array() {
+    let data = vec![
+      vec![ByteArray::from(vec![1, 2, 3, 4, 5, 6])]
+    ];
+    test_delta_byte_array_decode(data);
+  }
+
   fn test_get_decoder<T: 'static + DataType>(encoding: Encoding, err: Option<ParquetError>) {
     let type_ptr = Rc::new(Tpe::primitive_type_builder("col", Type::INT32).build().unwrap());
     let descr = Rc::new(ColumnDescriptor::new(type_ptr, None, 0, 0, ColumnPath::from("col")));
@@ -998,21 +1021,41 @@ mod tests {
     assert_eq!(buffer, expected);
   }
 
-  // Data to encode/decode, each vector is mapped to block of values in encoder, e.g.
-  // vec![vec![1, 2, 3]] will write single block with 1, 2, 3 values
-  fn test_delta_bit_packed_decode<T: DataType>(data: Vec<Vec<T::T>>) {
+  fn test_delta_bit_packed_decode<T: 'static + DataType>(data: Vec<Vec<T::T>>) {
+    test_delta_decode::<T>(data, Encoding::DELTA_BINARY_PACKED);
+  }
+
+  fn test_delta_byte_array_decode(data: Vec<Vec<ByteArray>>) {
+    test_delta_decode::<ByteArrayType>(data, Encoding::DELTA_BYTE_ARRAY);
+  }
+
+  // test column descriptor for the column, used as a placeholder for delta encodings
+  fn get_test_column_desc_ptr() -> ColumnDescPtr {
+    let type_ptr = Rc::new(Tpe::primitive_type_builder("col", Type::INT32).build().unwrap());
+    Rc::new(ColumnDescriptor::new(type_ptr, None, 0, 0, ColumnPath::from("col")))
+  }
+
+  // Input data represents vector of data slices to write (test multiple `put()` calls)
+  // For example,
+  //   vec![vec![1, 2, 3]] invokes `put()` once and writes {1, 2, 3}
+  //   vec![vec![1, 2], vec![3]] invokes `put()` twice and writes {1, 2, 3}
+  fn test_delta_decode<T: 'static + DataType>(data: Vec<Vec<T::T>>, encoding: Encoding) {
     // Encode data
-    let mut encoder: DeltaBitPackEncoder<T> = DeltaBitPackEncoder::new();
+    let mut encoder = get_encoder::<T>(get_test_column_desc_ptr(), encoding,
+      Rc::new(MemTracker::new())).expect("get encoder");
+
     for v in &data[..] {
       encoder.put(&v[..]).expect("ok to encode");
     }
     let bytes = encoder.flush_buffer().expect("ok to flush buffer");
 
-    // Flatten data as contiguous array of values
+    // Flatten expected data as contiguous array of values
     let expected: Vec<T::T> = data.iter().flat_map(|s| s.clone()).collect();
 
     // Decode data and compare with original
-    let mut decoder: DeltaBitPackDecoder<T> = DeltaBitPackDecoder::new();
+    let mut decoder = get_decoder::<T>(get_test_column_desc_ptr(), encoding)
+      .expect("get decoder");
+
     let mut result = vec![T::T::default(); expected.len()];
     decoder.set_data(bytes, expected.len()).expect("ok to set data");
     let mut result_num_values = 0;
@@ -1020,7 +1063,6 @@ mod tests {
       result_num_values += decoder.get(&mut result[result_num_values..])
         .expect("ok to decode");
     }
-
     assert_eq!(result_num_values, expected.len());
     assert_eq!(result, expected);
   }
