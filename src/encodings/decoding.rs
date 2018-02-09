@@ -703,8 +703,6 @@ mod tests {
 
   #[test]
   fn test_get_decoder_int32() {
-    // we do not check for data type when creating decoders, so it is fine to check for INT32
-
     // supported encodings
     test_get_decoder::<Int32Type>(Encoding::PLAIN, None);
     test_get_decoder::<Int32Type>(Encoding::DELTA_BINARY_PACKED, None);
@@ -967,8 +965,14 @@ mod tests {
   fn test_delta_byte_array_same_arrays() {
     let data = vec![
       vec![ByteArray::from(vec![1, 2, 3, 4, 5, 6])],
-      vec![ByteArray::from(vec![1, 2, 3, 4, 5, 6]), ByteArray::from(vec![1, 2, 3, 4, 5, 6])],
-      vec![ByteArray::from(vec![1, 2, 3, 4, 5, 6]), ByteArray::from(vec![1, 2, 3, 4, 5, 6])]
+      vec![
+        ByteArray::from(vec![1, 2, 3, 4, 5, 6]),
+        ByteArray::from(vec![1, 2, 3, 4, 5, 6])
+      ],
+      vec![
+        ByteArray::from(vec![1, 2, 3, 4, 5, 6]),
+        ByteArray::from(vec![1, 2, 3, 4, 5, 6])
+      ]
     ];
     test_delta_byte_array_decode(data);
   }
@@ -991,9 +995,18 @@ mod tests {
     test_delta_byte_array_decode(data);
   }
 
-  fn test_get_decoder<T: 'static + DataType>(encoding: Encoding, err: Option<ParquetError>) {
-    let type_ptr = Rc::new(Tpe::primitive_type_builder("col", Type::INT32).build().unwrap());
-    let descr = Rc::new(ColumnDescriptor::new(type_ptr, None, 0, 0, ColumnPath::from("col")));
+  // Test column descriptor for the column.
+  // Used for testing of Int32Type decoders and as a placeholder for delta encodings.
+  fn get_test_column_desc_ptr() -> ColumnDescPtr {
+    let type_ptr =
+      Rc::new(Tpe::primitive_type_builder("col", Type::INT32).build().unwrap());
+    Rc::new(ColumnDescriptor::new(type_ptr, None, 0, 0, ColumnPath::from("col")))
+  }
+
+  fn test_get_decoder<T: 'static + DataType>(
+    encoding: Encoding, err: Option<ParquetError>
+  ) {
+    let descr = get_test_column_desc_ptr();
     let decoder = get_decoder::<T>(descr, encoding);
     match err {
       Some(parquet_error) => {
@@ -1027,12 +1040,6 @@ mod tests {
 
   fn test_delta_byte_array_decode(data: Vec<Vec<ByteArray>>) {
     test_delta_decode::<ByteArrayType>(data, Encoding::DELTA_BYTE_ARRAY);
-  }
-
-  // test column descriptor for the column, used as a placeholder for delta encodings
-  fn get_test_column_desc_ptr() -> ColumnDescPtr {
-    let type_ptr = Rc::new(Tpe::primitive_type_builder("col", Type::INT32).build().unwrap());
-    Rc::new(ColumnDescriptor::new(type_ptr, None, 0, 0, ColumnPath::from("col")))
   }
 
   // Input data represents vector of data slices to write (test multiple `put()` calls)

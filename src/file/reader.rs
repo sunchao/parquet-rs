@@ -404,16 +404,19 @@ mod tests {
 
   #[test]
   fn test_file_reader_metadata_invalid_length() {
-    let test_file = get_temp_file("corrupt-3.parquet", &[0, 0, 0, 255, b'P', b'A', b'R', b'1']);
+    let test_file =
+      get_temp_file("corrupt-3.parquet", &[0, 0, 0, 255, b'P', b'A', b'R', b'1']);
     let reader_result = SerializedFileReader::new(test_file);
     assert!(reader_result.is_err());
     assert_eq!(reader_result.err().unwrap(),
-      general_err!("Invalid parquet file. Metadata length is less than zero (-16777216)"));
+      general_err!(
+        "Invalid parquet file. Metadata length is less than zero (-16777216)"));
   }
 
   #[test]
   fn test_file_reader_metadata_invalid_start() {
-    let test_file = get_temp_file("corrupt-4.parquet", &[255, 0, 0, 0, b'P', b'A', b'R', b'1']);
+    let test_file =
+      get_temp_file("corrupt-4.parquet", &[255, 0, 0, 0, b'P', b'A', b'R', b'1']);
     let reader_result = SerializedFileReader::new(test_file);
     assert!(reader_result.is_err());
     assert_eq!(reader_result.err().unwrap(),
@@ -450,7 +453,8 @@ mod tests {
     assert!(row_group_reader_result.is_ok());
     let row_group_reader: Box<RowGroupReader> = row_group_reader_result.unwrap();
     assert_eq!(row_group_reader.num_columns(), row_group_metadata.num_columns());
-    assert_eq!(row_group_reader.metadata().total_byte_size(), row_group_metadata.total_byte_size());
+    assert_eq!(row_group_reader.metadata().total_byte_size(),
+      row_group_metadata.total_byte_size());
 
     // Test page readers
     // TODO: test for every column
@@ -511,7 +515,8 @@ mod tests {
     assert!(row_group_reader_result.is_ok());
     let row_group_reader: Box<RowGroupReader> = row_group_reader_result.unwrap();
     assert_eq!(row_group_reader.num_columns(), row_group_metadata.num_columns());
-    assert_eq!(row_group_reader.metadata().total_byte_size(), row_group_metadata.total_byte_size());
+    assert_eq!(row_group_reader.metadata().total_byte_size(),
+      row_group_metadata.total_byte_size());
 
     // Test page readers
     // TODO: test for every column

@@ -92,7 +92,8 @@ fn print_column_chunk_metadata(out: &mut io::Write, cc_metadata: &ColumnChunkMet
   writeln!(out, "file offset: {}", cc_metadata.file_offset());
   writeln!(out, "num of values: {}", cc_metadata.num_values());
   writeln!(out, "total compressed size (in bytes): {}", cc_metadata.compressed_size());
-  writeln!(out, "total uncompressed size (in bytes): {}", cc_metadata.uncompressed_size());
+  writeln!(out, "total uncompressed size (in bytes): {}",
+    cc_metadata.uncompressed_size());
   writeln!(out, "data page offset: {}", cc_metadata.data_page_offset());
   let index_page_offset_str = match cc_metadata.index_page_offset() {
     None => "N/A".to_owned(),
