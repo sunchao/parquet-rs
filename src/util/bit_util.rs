@@ -528,8 +528,8 @@ mod tests {
 
   #[test]
   fn test_bit_reader_get_byte_offset() {
-    let buffer = vec![255; 10];
-    let mut bit_reader = BitReader::from(buffer);
+    let mut v = vec![255; 10];
+    let mut bit_reader = BitReader::from(&mut v[..]);
     assert_eq!(bit_reader.get_byte_offset(), 0); // offset (0 bytes, 0 bits)
     bit_reader.get_value::<i32>(6);
     assert_eq!(bit_reader.get_byte_offset(), 1); // offset (0 bytes, 6 bits)

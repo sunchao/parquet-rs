@@ -952,7 +952,7 @@ mod tests {
 
   #[test]
   fn test_delta_bit_packed_decoder_sampl() {
-    let data_bytes = vec![
+    let mut data_bytes = vec![
       128, 1, 4, 3, 58, 28, 6, 0,
       0, 0, 0, 8, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0,

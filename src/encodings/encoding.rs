@@ -924,16 +924,24 @@ mod tests {
     }
 
     fn test_dict_internal(total: usize, type_length: i32) -> Result<()> {
+      println!("XXX: start testing dict internal");
       let arena = Rc::new(Arena::new());
       let mut encoder = create_test_dict_encoder::<T>(arena.clone(), type_length);
       let mut values = <T as RandGen<T>>::gen_vec(type_length, total);
       encoder.put(&values[..])?;
+      println!("XXX: finished put");
 
       let mut data = encoder.flush_buffer()?;
+      println!("XXX: created dict decoder");
+
       let mut decoder = create_test_dict_decoder::<T>();
       let mut dict_decoder = PlainDecoder::<T>::new(type_length);
+
+
       let buffer = arena.alloc(encoder.dict_encoded_size() as usize);
       let dict_buffer = encoder.write_dict(buffer)?;
+      println!("XXX: finished writing dict");
+
       dict_decoder.set_data(dict_buffer, encoder.num_entries())?;
       decoder.set_dict(Box::new(dict_decoder))?;
       let mut result_data = vec![T::T::default(); total];
