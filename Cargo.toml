@@ -3,7 +3,10 @@ name = "parquet"
 version = "0.1.0"
 license = "Apache-2.0"
 description = "Apache Parquet implementation in Rust"
-authors = ["Chao Sun <sunchao@apache.org>"]
+authors = [
+    "Chao Sun <sunchao@apache.org>",
+    "Ivan Sadikov <ivan.sadikov@gmail.com>"
+]
 homepage = "https://github.com/sunchao/parquet-rs"
 repository = "https://github.com/sunchao/parquet-rs"
 keywords = ["parquet", "hadoop"]
