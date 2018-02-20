@@ -107,9 +107,9 @@ impl<T: DataType> PlainDecoder<T> {
   }
 }
 
-default impl<T: DataType> Decoder<T> for PlainDecoder<T> {
+impl<T: DataType> Decoder<T> for PlainDecoder<T> {
   #[inline]
-  fn set_data(&mut self, data: ByteBufferPtr, num_values: usize) -> Result<()> {
+  default fn set_data(&mut self, data: ByteBufferPtr, num_values: usize) -> Result<()> {
     self.num_values = num_values;
     self.start = 0;
     self.data = Some(data);
@@ -127,7 +127,7 @@ default impl<T: DataType> Decoder<T> for PlainDecoder<T> {
   }
 
   #[inline]
-  fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+  default fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
     assert!(self.data.is_some());
 
     let data = self.data.as_mut().unwrap();
@@ -392,10 +392,10 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
   }
 }
 
-default impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
+impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
   // # of total values is derived from encoding
   #[inline]
-  fn set_data(&mut self, data: ByteBufferPtr, _: usize) -> Result<()> {
+  default fn set_data(&mut self, data: ByteBufferPtr, _: usize) -> Result<()> {
     self.bit_reader = BitReader::new(data);
     self.initialized = true;
 
@@ -420,7 +420,7 @@ default impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
     Ok(())
   }
 
-  fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+  default fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
     assert!(self.initialized, "Bit reader is not initialized");
 
     let num_values = cmp::min(buffer.len(), self.num_values);
@@ -476,9 +476,9 @@ trait DeltaBitPackDecoderConversion<T: DataType> {
   ) -> Result<()>;
 }
 
-default impl<T: DataType> DeltaBitPackDecoderConversion<T> for DeltaBitPackDecoder<T> {
+impl<T: DataType> DeltaBitPackDecoderConversion<T> for DeltaBitPackDecoder<T> {
   #[inline]
-  fn set_decoded_value(&self, _: &mut [T::T], _: usize, _: i64) -> Result<()> {
+  default fn set_decoded_value(&self, _: &mut [T::T], _: usize, _: i64) -> Result<()> {
     Err(general_err!("DeltaBitPackDecoder only supports Int32Type and Int64Type"))
   }
 }
@@ -541,12 +541,12 @@ impl<T: DataType> DeltaLengthByteArrayDecoder<T> {
   }
 }
 
-default impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
-  fn set_data(&mut self, _: ByteBufferPtr, _: usize) -> Result<()> {
+impl<T: DataType> Decoder<T> for DeltaLengthByteArrayDecoder<T> {
+  default fn set_data(&mut self, _: ByteBufferPtr, _: usize) -> Result<()> {
     Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
-  fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
+  default fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
     Err(general_err!("DeltaLengthByteArrayDecoder only support ByteArrayType"))
   }
 
@@ -622,12 +622,12 @@ impl<T: DataType> DeltaByteArrayDecoder<T> {
   }
 }
 
-default impl<'m, T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
-  fn set_data(&mut self, _: ByteBufferPtr, _: usize) -> Result<()> {
+impl<'m, T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
+  default fn set_data(&mut self, _: ByteBufferPtr, _: usize) -> Result<()> {
     Err(general_err!("DeltaByteArrayDecoder only support ByteArrayType"))
   }
 
-  fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
+  default fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
     Err(general_err!("DeltaByteArrayDecoder only support ByteArrayType"))
   }
 
@@ -1083,8 +1083,8 @@ mod tests {
     fn to_byte_array(data: &[T::T]) -> Vec<u8>;
   }
 
-  default impl<T> ToByteArray<T> for T where T: DataType {
-    fn to_byte_array(data: &[T::T]) -> Vec<u8> {
+  impl<T> ToByteArray<T> for T where T: DataType {
+    default fn to_byte_array(data: &[T::T]) -> Vec<u8> {
       let mut v = vec!();
       let type_len = ::std::mem::size_of::<T::T>();
       v.extend_from_slice(

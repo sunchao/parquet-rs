@@ -99,8 +99,8 @@ impl<T: DataType> PlainEncoder<T> {
   }
 }
 
-default impl<T: DataType> Encoder<T> for PlainEncoder<T> {
-  fn put(&mut self, values: &[T::T]) -> Result<()> {
+impl<T: DataType> Encoder<T> for PlainEncoder<T> {
+  default fn put(&mut self, values: &[T::T]) -> Result<()> {
     let bytes = unsafe {
       slice::from_raw_parts(
         values as *const [T::T] as *const u8,
@@ -115,7 +115,7 @@ default impl<T: DataType> Encoder<T> for PlainEncoder<T> {
   }
 
   #[inline]
-  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+  default fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
     self.bit_writer.flush();
     {
       let bit_buffer = self.bit_writer.buffer();
@@ -331,7 +331,7 @@ impl<T: DataType> DictEncoder<T> {
   }
 }
 
-default impl<T: DataType> Encoder<T> for DictEncoder<T> {
+impl<T: DataType> Encoder<T> for DictEncoder<T> {
   #[inline]
   fn put(&mut self, values: &[T::T]) -> Result<()> {
     for i in values {
@@ -488,7 +488,7 @@ impl<T: DataType> DeltaBitPackEncoder<T> {
 
 // Implementation is shared between Int32Type and Int64Type,
 // see `DeltaBitPackEncoderConversion` below for specifics.
-default impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
+impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
   fn put(&mut self, values: &[T::T]) -> Result<()> {
     if values.is_empty() {
       return Ok(())
@@ -572,20 +572,20 @@ trait DeltaBitPackEncoderConversion<T: DataType> {
   fn subtract_u64(&self, left: i64, right: i64) -> u64;
 }
 
-default impl<T: DataType> DeltaBitPackEncoderConversion<T> for DeltaBitPackEncoder<T> {
+impl<T: DataType> DeltaBitPackEncoderConversion<T> for DeltaBitPackEncoder<T> {
   #[inline]
-  fn assert_supported_type() {
+  default fn assert_supported_type() {
     panic!("DeltaBitPackDecoder only supports Int32Type and Int64Type");
   }
 
   #[inline]
-  fn as_i64(&self, _values: &[T::T], _index: usize) -> i64 { 0 }
+  default fn as_i64(&self, _values: &[T::T], _index: usize) -> i64 { 0 }
 
   #[inline]
-  fn subtract(&self, _left: i64, _right: i64) -> i64 { 0 }
+  default fn subtract(&self, _left: i64, _right: i64) -> i64 { 0 }
 
   #[inline]
-  fn subtract_u64(&self, _left: i64, _right: i64) -> u64 { 0 }
+  default fn subtract_u64(&self, _left: i64, _right: i64) -> u64 { 0 }
 }
 
 impl DeltaBitPackEncoderConversion<Int32Type> for DeltaBitPackEncoder<Int32Type> {
@@ -657,8 +657,8 @@ impl<T: DataType> DeltaLengthByteArrayEncoder<T> {
   }
 }
 
-default impl<T: DataType> Encoder<T> for DeltaLengthByteArrayEncoder<T> {
-  fn put(&mut self, _values: &[T::T]) -> Result<()> {
+impl<T: DataType> Encoder<T> for DeltaLengthByteArrayEncoder<T> {
+  default fn put(&mut self, _values: &[T::T]) -> Result<()> {
     panic!("DeltaLengthByteArrayEncoder only supports ByteArrayType");
   }
 
@@ -666,7 +666,7 @@ default impl<T: DataType> Encoder<T> for DeltaLengthByteArrayEncoder<T> {
     Encoding::DELTA_LENGTH_BYTE_ARRAY
   }
 
-  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+  default fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
     panic!("DeltaLengthByteArrayEncoder only supports ByteArrayType");
   }
 }
@@ -714,8 +714,8 @@ impl<T: DataType> DeltaByteArrayEncoder<T> {
   }
 }
 
-default impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
-  fn put(&mut self, _values: &[T::T]) -> Result<()> {
+impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
+  default fn put(&mut self, _values: &[T::T]) -> Result<()> {
     panic!("DeltaByteArrayEncoder only supports ByteArrayType");
   }
 
@@ -723,7 +723,7 @@ default impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
     Encoding::DELTA_BYTE_ARRAY
   }
 
-  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+  default fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
     panic!("DeltaByteArrayEncoder only supports ByteArrayType");
   }
 }
@@ -780,6 +780,7 @@ mod tests {
 
   #[test]
   fn test_bool() {
+
     BoolType::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
     BoolType::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
   }
@@ -847,7 +848,7 @@ mod tests {
     fn test_dict_internal(total: usize, type_length: i32) -> Result<()>;
   }
 
-  default impl<T: DataType> EncodingTester<T> for T where T: 'static {
+  impl<T: DataType> EncodingTester<T> for T where T: 'static {
     fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()> {
       let mut encoder = create_test_encoder::<T>(type_length, enc);
       let mut values = <T as RandGen<T>>::gen_vec(type_length, total);
