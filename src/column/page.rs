@@ -88,7 +88,7 @@ mod tests {
 
   fn test_page() {
     let data_page = Page::DataPage {
-      buf: Buffer::new(), num_values: 10,
+      buf: Buffer::from(vec![0, 1, 2]), num_values: 10,
       encoding: Encoding::PLAIN, def_level_encoding: Encoding::RLE,
       rep_level_encoding: Encoding::RLE };
     assert_eq!(data_page.page_type(), PageType::DATA_PAGE);
@@ -97,7 +97,7 @@ mod tests {
     assert_eq!(data_page.encoding(), Encoding::PLAIN);
 
     let data_page_v2 = Page::DataPageV2 {
-      buf: Buffer::new(), num_values: 10, encoding: Encoding::PLAIN,
+      buf: Buffer::from(vec![0, 1, 2]), num_values: 10, encoding: Encoding::PLAIN,
       num_nulls: 5, num_rows: 20, def_levels_byte_len: 30, rep_levels_byte_len: 40,
       is_compressed: false
     };
@@ -107,7 +107,7 @@ mod tests {
     assert_eq!(data_page_v2.encoding(), Encoding::PLAIN);
 
     let dict_page = Page::DictionaryPage {
-      buf: Buffer::new(), num_values: 10,
+      buf: Buffer::from(vec![0, 1, 2]), num_values: 10,
       encoding: Encoding::PLAIN, is_sorted: false
     };
     assert_eq!(dict_page.page_type(), PageType::DICTIONARY_PAGE);

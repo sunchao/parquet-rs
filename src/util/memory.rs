@@ -74,7 +74,7 @@ impl MemTracker {
 /// to use the buffer instances - undefined behavior will occur if that happens.
 /// TODO: we could use reference counting to track any dangling buffers, and throw error
 /// in the illegal case.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Buffer {
   // The pointer to the data buffer
   ptr: *mut u8,
@@ -128,6 +128,18 @@ impl Drop for Buffer {
   }
 }
 
+impl PartialEq for Buffer {
+  fn eq(&self, other: &Buffer) -> bool {
+    if self.len != other.len {
+      false
+    } else {
+      unsafe {
+        bit_util::memcmp(self.ptr, other.ptr, self.len) == 0 
+      }
+    }
+  }
+}
+
 /// Convert a byte slice to a buffer.
 /// NOTE: THIS IS VERY UNSAFE!
 /// The caller has to guarantee the vector for the slice won't go out of scope before it
@@ -144,6 +156,7 @@ impl Drop for Buffer {
 
 impl<'a> From<Vec<u8>> for Buffer {
   fn from(v: Vec<u8>) -> Buffer {
+    println!("From {:?}", v);
     let len = v.len();
     let ptr = Box::into_raw(v.into_boxed_slice()) as *mut [u8] as *mut u8;
     Buffer {
@@ -197,6 +210,35 @@ impl Write for Buffer {
 
   fn flush(&mut self) -> IoResult<()> {
     // No-op
+    Ok(())
+  }
+}
+
+impl fmt::Display for Buffer {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}[len={}][", self.ptr, self.len)?;
+    let mut i = 0;
+    for b in self.data() {
+      write!(f, "({}){:b}", i, b)?;
+      i += 1;
+    }
+    write!(f, "]")?;
+    Ok(())
+  }
+}
+
+impl fmt::Debug for Buffer {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}(len={})[", self.ptr, self.len)?;
+    let mut i = 0;
+    for b in self.data() {
+      if i != 0 {
+        write!(f, " ")?;
+      }
+      write!(f, "{:b}", b)?;
+      i += 1;
+    }
+    write!(f, "]")?;
     Ok(())
   }
 }
@@ -465,6 +507,16 @@ impl Arena {
     };
     assert!(result.ptr as usize & (align - 1) == 0);
     result
+  }
+
+  pub fn alloc_vec(&self, v: Vec<u8>) -> Buffer {
+    let len = v.len();
+    let mut b = v.into_boxed_slice();
+    let ptr = b.as_mut_ptr();
+    let mut blocks = self.blocks.borrow_mut();
+    blocks.push(b);
+    self.mem_tracker.alloc(len as i64);
+    Buffer { ptr: ptr, len: len, is_owner: false }
   }
 
   pub fn alloc_resizable(arena: &ArenaRef, bytes: usize) -> ResizableBuffer {

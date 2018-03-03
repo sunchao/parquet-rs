@@ -115,6 +115,12 @@ impl From<Vec<u8>> for ByteArray {
   }
 }
 
+impl From<Buffer> for ByteArray {
+  fn from(buf: Buffer) -> ByteArray {
+    Self { data: buf }
+  }
+}
+
 impl Default for ByteArray {
   fn default() -> Self { ByteArray::new() }
 }

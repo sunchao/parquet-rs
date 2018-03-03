@@ -257,21 +257,13 @@ impl<T: DataType> DictEncoder<T> {
     let bit_width = self.bit_width();
 
     // TODO: the caller should allocate the buffer
-    // let buffer_len = 1 + RleEncoder::min_buffer_size(bit_width)
-    //   + RleEncoder::max_buffer_size(bit_width, self.buffered_indices.size());
-    // let mut buffer: Vec<u8> = vec![0; buffer_len as usize];
-    // buffer[0] = bit_width as u8;
-    // self.mem_tracker.alloc(buffer.capacity() as i64);
-
-    // // Write bit width in the first byte
-    // buffer.write((self.bit_width() as u8).as_bytes())?;
-    // let mut encoder = RleEncoder::new_from_buf(self.bit_width(), buffer, 1);
-    // for index in self.buffered_indices.data() {
-
     let buffer_len = 1 + RleEncoder::min_buffer_size(bit_width);
-    let buffer = self.arena.alloc_aligned(buffer_len as usize);
-    buffer.data_mut()[0] = bit_width as u8;
+    let mut v: Vec<u8> = vec![0; buffer_len as usize];
+    v[0] = bit_width as u8;
 
+    // Write bit width in the first byte
+    v.write((self.bit_width() as u8).as_bytes())?;
+    let buffer = self.arena.alloc_vec(v);
     let mut encoder = RleEncoder::new(self.bit_width(), buffer.range(1..));
     for index in &self.buffered_indices {
       if !encoder.put(*index as u64)? {
@@ -280,6 +272,7 @@ impl<T: DataType> DictEncoder<T> {
     }
     self.buffered_indices.clear();
     encoder.flush()?;
+    // TODO: double check this
     let result = buffer.range(..encoder.len()+1);
     Ok(result)
   }
@@ -723,7 +716,6 @@ impl Encoder<ByteArrayType> for DeltaLengthByteArrayEncoder<ByteArrayType> {
   }
 
   fn flush_buffer(&mut self) -> Result<Buffer> {
-    // TODO: allocate from arena
     let mut total_bytes = vec!();
     let lengths = self.len_encoder.flush_buffer()?;
     total_bytes.extend_from_slice(lengths.data());
@@ -731,7 +723,9 @@ impl Encoder<ByteArrayType> for DeltaLengthByteArrayEncoder<ByteArrayType> {
       total_bytes.extend_from_slice(byte_array.data());
     });
     self.data.clear();
-    Ok(Buffer::from(total_bytes))
+
+    let buffer = self.arena.alloc_vec(total_bytes);
+    Ok(buffer)
   }
 }
 
@@ -777,6 +771,7 @@ impl Encoder<ByteArrayType> for DeltaByteArrayEncoder<ByteArrayType> {
     let mut suffixes: Vec<ByteArray> = vec!();
 
     for byte_array in values {
+      println!("Processing {:?}", byte_array);
       let current = byte_array.data();
       // Maximum prefix length that is shared between previous value and current value
       let prefix_len = cmp::min(self.previous.len(), current.len());
@@ -785,7 +780,15 @@ impl Encoder<ByteArrayType> for DeltaByteArrayEncoder<ByteArrayType> {
         match_len += 1;
       }
       prefix_lengths.push(match_len as i32);
-      suffixes.push(byte_array.slice(match_len, byte_array.len() - match_len));
+
+      // Copy the content of the byte array
+      let mut buf = self.arena.alloc(byte_array.len() - match_len);
+      bit_util::memcpy(&current[match_len..], buf.data_mut());
+      suffixes.push(ByteArray::from(buf));
+
+      println!("matched len = {}", match_len);
+      println!("suffixes = {:?}", suffixes);
+
       // Update previous for the next prefix
       self.previous.clear();
       self.previous.extend_from_slice(current);
@@ -807,7 +810,8 @@ impl Encoder<ByteArrayType> for DeltaByteArrayEncoder<ByteArrayType> {
     let suffixes = self.suffix_writer.flush_buffer()?;
     total_bytes.extend_from_slice(suffixes.data());
 
-    Ok(Buffer::from(total_bytes))
+    let buffer = self.arena.alloc_vec(total_bytes);
+    Ok(buffer)
   }
 }
 

@@ -48,6 +48,11 @@ pub fn convert_to_bytes<T>(val: &T, num_bytes: usize) -> Vec<u8> {
   bytes
 }
 
+extern {
+  #[inline]
+  pub fn memcmp(p1: *const u8, p2: *const u8, n: usize) -> i32;
+}
+
 #[inline]
 pub fn memcpy(source: &[u8], target: &mut [u8]) {
   assert!(target.len() >= source.len(),
@@ -528,8 +533,8 @@ mod tests {
 
   #[test]
   fn test_bit_reader_get_byte_offset() {
-    let mut v = vec![255; 10];
-    let mut bit_reader = BitReader::from(&mut v[..]);
+    let v = vec![255; 10];
+    let mut bit_reader = BitReader::from(v);
     assert_eq!(bit_reader.get_byte_offset(), 0); // offset (0 bytes, 0 bits)
     bit_reader.get_value::<i32>(6);
     assert_eq!(bit_reader.get_byte_offset(), 1); // offset (0 bytes, 6 bits)
