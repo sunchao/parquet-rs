@@ -9,7 +9,7 @@ An [Apache Parquet](https://parquet.apache.org/) implementation in Rust (work in
 ## Development
 ### Requirements
 - Rust nightly
-- Thrift (with Rust support)
+- Thrift 0.11.0 or higher
 
 To install Rust nightly build, run this (assuming you have Rust installed already):
 ```shell
@@ -17,9 +17,10 @@ rustup update nightly
 rustup default nightly
 ```
 
-Building project requires Thrift with Rust support, which is in master branch. Build from source:
+Building project requires Thrift 0.11.0 or higher, which comes with the Rust
+support. To build from source:
 ```shell
-git clone --depth=1 https://github.com/apache/thrift
+git clone --depth=1 -b 0.11.0 https://github.com/apache/thrift
 cd thrift
 
 # export env vars for openssl (this might not be needed depending on packages installation)

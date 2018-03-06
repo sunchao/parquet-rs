@@ -13,7 +13,7 @@ rust:
 
 before_script:
   - git clone https://github.com/apache/thrift.git
-  - cd thrift && ./bootstrap.sh
+  - cd thrift && git checkout -b 0.11.0 origin/0.11.0 && ./bootstrap.sh
   - ./configure --enable-libs=no
   - make && sudo make install
   - cd $TRAVIS_BUILD_DIR/src/parquet_thrift && thrift --gen rs parquet.thrift
