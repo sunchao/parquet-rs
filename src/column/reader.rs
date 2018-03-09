@@ -312,13 +312,7 @@ impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
         // Search cache for data page decoder
         if !self.decoders.contains_key(&encoding) {
           // Initialize decoder for this page
-          // TODO: support other types of encodings
-          let data_decoder = match encoding {
-            Encoding::PLAIN => get_decoder::<T>(self.descr.clone(), encoding)?,
-            Encoding::DELTA_BINARY_PACKED =>
-              get_decoder::<T>(self.descr.clone(), encoding)?,
-            en => return Err(nyi_err!("Unsupported encoding {}", en))
-          };
+          let data_decoder = get_decoder::<T>(self.descr.clone(), encoding)?;
           self.decoders.insert(encoding, data_decoder);
         }
         self.decoders.get_mut(&encoding).unwrap()
