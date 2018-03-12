@@ -441,26 +441,27 @@ mod tests {
     // branch for generating i32 cases
     ($test_func:ident, i32, $func:ident, $def_level:expr, $rep_level:expr,
      $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
-      #[test]
-      fn $test_func() {
-        let primitive_type = get_test_int32_type();
-        let desc = Rc::new(ColumnDescriptor::new(
-          Rc::new(primitive_type), None, $def_level, $rep_level,
-          ColumnPath::new(Vec::new())));
-        let mut tester = ColumnReaderTester::<Int32Type>::new();
-        tester.$func(desc, $num_pages, $num_levels, $batch_size, $min, $max);
-      }
+      test_internal!($test_func, Int32Type, get_test_int32_type, $func, $def_level,
+                     $rep_level, $num_pages, $num_levels, $batch_size, $min, $max);
     };
     // branch for generating i64 cases
     ($test_func:ident, i64, $func:ident, $def_level:expr, $rep_level:expr,
      $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
+      test_internal!($test_func, Int64Type, get_test_int64_type, $func, $def_level,
+                     $rep_level, $num_pages, $num_levels, $batch_size, $min, $max);
+    };
+  }
+
+  macro_rules! test_internal {
+    ($test_func:ident, $ty:ident, $pty:ident, $func:ident, $def_level:expr,
+     $rep_level:expr, $num_pages:expr, $num_levels:expr, $batch_size:expr,
+     $min:expr, $max:expr) => {
       #[test]
       fn $test_func() {
-        let primitive_type = get_test_int64_type();
         let desc = Rc::new(ColumnDescriptor::new(
-          Rc::new(primitive_type), None, $def_level, $rep_level,
+          Rc::new($pty()), None, $def_level, $rep_level,
           ColumnPath::new(Vec::new())));
-        let mut tester = ColumnReaderTester::<Int64Type>::new();
+        let mut tester = ColumnReaderTester::<$ty>::new();
         tester.$func(desc, $num_pages, $num_levels, $batch_size, $min, $max);
       }
     };
@@ -606,6 +607,7 @@ mod tests {
     let mut tester = ColumnReaderTester::<Int32Type>::new();
     tester.test_read_batch(
       desc,
+      Encoding::RLE_DICTIONARY,
       NUM_PAGES,
       NUM_LEVELS,
       batch_size,
@@ -613,7 +615,8 @@ mod tests {
       ::std::i32::MAX,
       values,
       def_levels,
-      rep_levels
+      rep_levels,
+      false
     );
   }
 
@@ -640,7 +643,8 @@ mod tests {
       min: T::T,
       max: T::T
     ) {
-      self.test_plain(desc, num_pages, num_levels, batch_size, min, max, false);
+      self.test_read_batch_general(desc, Encoding::PLAIN, num_pages, num_levels,
+                                   batch_size, min, max, false);
     }
 
     // method to generate and test data pages v2
@@ -653,53 +657,8 @@ mod tests {
       min: T::T,
       max: T::T
     ) {
-      self.test_plain(desc, num_pages, num_levels, batch_size, min, max, true);
-    }
-
-    fn test_plain(
-      &mut self,
-      desc: ColumnDescPtr,
-      num_pages: usize,
-      num_levels: usize,
-      batch_size: usize,
-      min: T::T,
-      max: T::T,
-      use_v2: bool
-    ) {
-      let mut pages = VecDeque::new();
-      make_pages::<T>(
-        desc.clone(), Encoding::PLAIN, num_pages, num_levels, min, max,
-        &mut self.def_levels, &mut self.rep_levels, &mut self.values, &mut pages, use_v2);
-
-      let page_reader = TestPageReader::new(Vec::from(pages));
-      let column_reader: ColumnReader = get_column_reader(desc, Box::new(page_reader));
-      let mut typed_column_reader = get_typed_column_reader::<T>(column_reader);
-      let mut actual_rep_levels = vec![0; num_levels * num_pages];
-      let mut actual_def_levels = vec![0; num_levels * num_pages];
-      let mut actual_values = vec![T::T::default(); num_levels * num_pages];
-
-      let mut curr_values_read = 0;
-      let mut curr_levels_read = 0;
-      let mut done = false;
-      while !done {
-        let (values_read, levels_read) = typed_column_reader.read_batch(
-          batch_size,
-          Some(&mut actual_def_levels[curr_levels_read..]),
-          Some(&mut actual_rep_levels[curr_levels_read..]),
-          &mut actual_values[curr_values_read..])
-        .expect("read_batch() should be OK");
-
-        if values_read == 0 && levels_read == 0 {
-          done = true;
-        }
-
-        curr_values_read += values_read;
-        curr_levels_read += levels_read;
-      }
-
-      assert_eq!(&actual_rep_levels[..curr_levels_read], &self.rep_levels[..]);
-      assert_eq!(&actual_def_levels[..curr_levels_read], &self.def_levels[..]);
-      assert_eq!(&actual_values[..curr_values_read], &self.values[..]);
+      self.test_read_batch_general(desc, Encoding::PLAIN, num_pages, num_levels,
+                                   batch_size, min, max, true);
     }
 
     fn dict_v1(
@@ -711,7 +670,8 @@ mod tests {
       min: T::T,
       max: T::T
     ) {
-      self.test_dict(desc, num_pages, num_levels, batch_size, min, max, false);
+      self.test_read_batch_general(desc, Encoding::RLE_DICTIONARY, num_pages, num_levels,
+                                   batch_size, min, max, false);
     }
 
     fn dict_v2(
@@ -723,12 +683,16 @@ mod tests {
       min: T::T,
       max: T::T
     ) {
-      self.test_dict(desc, num_pages, num_levels, batch_size, min, max, true);
+      self.test_read_batch_general(desc, Encoding::RLE_DICTIONARY, num_pages, num_levels,
+                                   batch_size, min, max, true);
     }
 
-    fn test_dict(
+    // Helper function for the general case of `read_batch()` where `values`,
+    // `def_levels` and `rep_levels` are always provided with enough space.
+    fn test_read_batch_general(
       &mut self,
       desc: ColumnDescPtr,
+      encoding: Encoding,
       num_pages: usize,
       num_levels: usize,
       batch_size: usize,
@@ -736,28 +700,58 @@ mod tests {
       max: T::T,
       use_v2: bool
     ) {
+      let mut def_levels = vec![0; num_levels * num_pages];
+      let mut rep_levels = vec![0; num_levels * num_pages];
+      let mut values = vec![T::T::default(); num_levels * num_pages];
+      self.test_read_batch(desc, encoding, num_pages, num_levels, batch_size, min, max,
+                           &mut values, Some(&mut def_levels), Some(&mut rep_levels),
+                           use_v2);
+    }
+
+    // Helper function to test `read_batch()` method with custom buffers for values,
+    // definition and repetition levels.
+    fn test_read_batch(
+      &mut self,
+      desc: ColumnDescPtr,
+      encoding: Encoding,
+      num_pages: usize,
+      num_levels: usize,
+      batch_size: usize,
+      min: T::T,
+      max: T::T,
+      values: &mut [T::T],
+      mut def_levels: Option<&mut [i16]>,
+      mut rep_levels: Option<&mut [i16]>,
+      use_v2: bool
+    ) {
       let mut pages = VecDeque::new();
       make_pages::<T>(
-        desc.clone(), Encoding::RLE_DICTIONARY, num_pages, num_levels, min, max,
+        desc.clone(), encoding, num_pages, num_levels, min, max,
         &mut self.def_levels, &mut self.rep_levels, &mut self.values, &mut pages, use_v2);
-
+      let max_def_level = desc.max_def_level();
       let page_reader = TestPageReader::new(Vec::from(pages));
       let column_reader: ColumnReader = get_column_reader(desc, Box::new(page_reader));
       let mut typed_column_reader = get_typed_column_reader::<T>(column_reader);
-      let mut actual_rep_levels = vec![0; num_levels * num_pages];
-      let mut actual_def_levels = vec![0; num_levels * num_pages];
-      let mut actual_values = vec![T::T::default(); num_levels * num_pages];
 
       let mut curr_values_read = 0;
       let mut curr_levels_read = 0;
       let mut done = false;
       while !done {
+        let actual_def_levels = match &mut def_levels {
+          Some(ref mut vec) => Some(&mut vec[curr_levels_read..]),
+          None => None
+        };
+        let actual_rep_levels = match rep_levels {
+          Some(ref mut vec) => Some(&mut vec[curr_levels_read..]),
+          None => None
+        };
+
         let (values_read, levels_read) = typed_column_reader.read_batch(
           batch_size,
-          Some(&mut actual_def_levels[curr_levels_read..]),
-          Some(&mut actual_rep_levels[curr_levels_read..]),
-          &mut actual_values[curr_values_read..])
-        .expect("read_batch() should be OK");
+          actual_def_levels,
+          actual_rep_levels,
+          &mut values[curr_values_read..]
+        ).expect("read_batch() should be OK");
 
         if values_read == 0 && levels_read == 0 {
           done = true;
@@ -767,82 +761,28 @@ mod tests {
         curr_levels_read += levels_read;
       }
 
-      assert_eq!(
-        actual_rep_levels.len(), self.rep_levels.len(),
-        "rep len doesn't match");
-      assert_eq!(
-        &actual_rep_levels[..curr_levels_read], &self.rep_levels[..],
-        "rep content doesn't match");
-      assert_eq!(
-        actual_def_levels.len(), self.def_levels.len(),
-        "def len doesn't match");
-      assert_eq!(
-        &actual_def_levels[..curr_levels_read], &self.def_levels[..],
-        "def content doesn't match");
-      assert_eq!(
-        &actual_values[..curr_values_read], &self.values[..],
-        "values content doesn't match");
-    }
-
-    // Helper function to test `read_batch()` method with custom buffers for values,
-    // definition and repetition levels.
-    fn test_read_batch(
-      &mut self,
-      desc: ColumnDescPtr,
-      num_pages: usize,
-      num_levels: usize,
-      batch_size: usize,
-      min: T::T,
-      max: T::T,
-      values: &mut [T::T],
-      mut def_levels: Option<&mut [i16]>,
-      mut rep_levels: Option<&mut [i16]>
-    ) {
-      let mut pages = VecDeque::new();
-      make_pages::<T>(
-        desc.clone(), Encoding::RLE_DICTIONARY, num_pages, num_levels, min, max,
-        &mut self.def_levels, &mut self.rep_levels, &mut self.values, &mut pages, false);
-
-      let page_reader = TestPageReader::new(Vec::from(pages));
-      let column_reader: ColumnReader = get_column_reader(desc, Box::new(page_reader));
-      let mut typed_column_reader = get_typed_column_reader::<T>(column_reader);
-
-      let (values_read, levels_read) = {
-        let actual_def_levels = match def_levels {
-          Some(ref mut vec) => Some(&mut vec[..]),
-          None => None
-        };
-
-        let actual_rep_levels = match rep_levels {
-          Some(ref mut vec) => Some(&mut vec[..]),
-          None => None
-        };
-
-        typed_column_reader.read_batch(
-          batch_size,
-          actual_def_levels,
-          actual_rep_levels,
-          values
-        ).expect("read_batch() should be OK")
-      };
-
-      assert!(values.len() >= values_read, "values.len() >= values_read");
-      assert_eq!(&values[0..values_read], &self.values[0..values_read]);
+      assert!(values.len() >= curr_values_read, "values.len() >= values_read");
+      assert_eq!(&values[0..curr_values_read], &self.values[0..curr_values_read],
+                 "values content doesn't match");
 
       if let Some(ref levels) = def_levels {
-        assert!(levels.len() >= levels_read, "def_levels.len() >= levels_read");
-        assert_eq!(&levels[0..levels_read], &self.def_levels[0..levels_read]);
+        assert!(levels.len() >= curr_levels_read, "def_levels.len() >= levels_read");
+        assert_eq!(&levels[0..curr_levels_read], &self.def_levels[0..curr_levels_read],
+                   "definition levels content doesn't match");
       }
 
       if let Some(ref levels) = rep_levels {
-        assert!(levels.len() >= levels_read, "rep_levels.len() >= levels_read");
-        assert_eq!(&levels[0..levels_read], &self.rep_levels[0..levels_read]);
+        assert!(levels.len() >= curr_levels_read, "rep_levels.len() >= levels_read");
+        assert_eq!(&levels[0..curr_levels_read], &self.rep_levels[0..curr_levels_read],
+                   "repetition levels content doesn't match");
       }
 
       if def_levels.is_none() && rep_levels.is_none() {
-        assert!(levels_read == 0, "Expected to read 0 levels, found {}", levels_read);
-      } else if def_levels.is_some() {
-        assert!(levels_read >= values_read, "Expected levels >= values");
+        assert!(curr_levels_read == 0, "expected to read 0 levels, found {}",
+                curr_levels_read);
+      } else if def_levels.is_some() && max_def_level > 0 {
+        assert!(curr_levels_read >= curr_values_read,
+                "expected levels read to be greater than values read");
       }
     }
   }
