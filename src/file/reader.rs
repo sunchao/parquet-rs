@@ -30,6 +30,7 @@ use schema::types::{self, SchemaDescriptor};
 use column::page::{Page, PageReader};
 use column::reader::{ColumnReader, ColumnReaderImpl};
 use compression::{Codec, create_codec};
+use util::io::FileChunk;
 use util::memory::ByteBufferPtr;
 
 // ----------------------------------------------------------------------
@@ -208,12 +209,11 @@ impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
     if col.has_dictionary_page() {
       col_start = col.dictionary_page_offset().unwrap();
     }
-    let col_length = col.compressed_size() as u64;
-    let f = self.buf.get_ref().try_clone()?;
-    let mut buf = BufReader::new(f);
-    let _ = buf.seek(SeekFrom::Start(col_start as u64));
+    let col_length = col.compressed_size();
+    let file_chunk = FileChunk::new(
+      self.buf.get_ref(), col_start as usize, col_length as usize);
     let page_reader = SerializedPageReader::new(
-      buf.take(col_length).into_inner(), col.num_values(), col.compression())?;
+      file_chunk, col.num_values(), col.compression())?;
     Ok(Box::new(page_reader))
   }
 
@@ -246,9 +246,9 @@ impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
 
 /// A serialized impl for Parquet page reader
 pub struct SerializedPageReader {
-  // The buffer which contains exactly the bytes for the column trunk
-  // to be read by this page reader
-  buf: BufReader<File>,
+  // The file chunk buffer which references exactly the bytes
+  // for the column trunk to be read by this page reader
+  buf: FileChunk,
 
   // The compression codec for this column chunk. Only set for
   // non-PLAIN codec.
@@ -262,12 +262,19 @@ pub struct SerializedPageReader {
 }
 
 impl SerializedPageReader {
-  pub fn new(buf: BufReader<File>, total_num_values: i64,
-             compression: Compression) -> Result<Self> {
+  pub fn new(
+    buf: FileChunk,
+    total_num_values: i64,
+    compression: Compression
+  ) -> Result<Self> {
     let decompressor = create_codec(compression)?;
     let result =
-      Self { buf: buf, total_num_values: total_num_values, seen_num_values: 0,
-             decompressor: decompressor };
+      Self {
+        buf: buf,
+        total_num_values: total_num_values,
+        seen_num_values: 0,
+        decompressor: decompressor
+      };
     Ok(result)
   }
 
@@ -421,6 +428,27 @@ mod tests {
     assert!(reader_result.is_err());
     assert_eq!(reader_result.err().unwrap(),
       general_err!("Invalid parquet file. Metadata start is less than zero (-255)"));
+  }
+
+  #[test]
+  fn test_reuse_file_chunk() {
+    // This test covers the case of maintaining the correct start position in a file
+    // stream for each column reader after initializing and moving to the next one
+    // (without necessarily reading the entire column).
+    let test_file = get_test_file("alltypes_plain.parquet");
+    let reader = SerializedFileReader::new(test_file).unwrap();
+    let row_group = reader.get_row_group(0).unwrap();
+
+    let mut page_readers = Vec::new();
+    for i in 0..row_group.num_columns() {
+      page_readers.push(row_group.get_column_page_reader(i).unwrap());
+    }
+
+    // Now buffer each col reader, we do not expect any failures like:
+    // General("underlying Thrift error: end of file")
+    for mut page_reader in page_readers {
+      assert!(page_reader.get_next_page().is_ok());
+    }
   }
 
   #[test]

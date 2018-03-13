@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+pub mod io;
 pub mod memory;
 pub mod test_common;
 #[macro_use]
