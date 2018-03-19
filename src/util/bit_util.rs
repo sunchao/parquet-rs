@@ -174,6 +174,14 @@ impl BitWriter {
     self.buffer
   }
 
+  /// Flushes the internal buffered bits and returns the buffer's content.
+  /// This is a borrow equivalent of `consume` method.
+  #[inline]
+  pub fn flush_buffer(&mut self) -> &[u8] {
+    self.flush();
+    &self.buffer()[0..self.byte_offset]
+  }
+
   /// Clears the internal state so the buffer can be reused.
   #[inline]
   pub fn clear(&mut self) {
@@ -668,6 +676,19 @@ mod tests {
     writer.put_aligned(42, 4);
     let result = writer.consume();
     assert_eq!(result.as_ref(), [0x10, 42, 0, 0, 0]);
+  }
+
+  #[test]
+  fn test_consume_flush_buffer() {
+    let mut writer1 = BitWriter::new(3);
+    let mut writer2 = BitWriter::new(3);
+    for i in 1..10 {
+      writer1.put_value(i, 4);
+      writer2.put_value(i, 4);
+    }
+    let res1 = writer1.flush_buffer();
+    let res2 = writer2.consume();
+    assert_eq!(res1, &res2[..]);
   }
 
   #[test]

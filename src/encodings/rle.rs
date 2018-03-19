@@ -185,8 +185,17 @@ impl RleEncoder {
   }
 
   #[inline]
-  pub fn consume(self) -> Vec<u8> {
-    self.bit_writer.consume()
+  pub fn consume(mut self) -> Result<Vec<u8>> {
+    self.flush()?;
+    Ok(self.bit_writer.consume())
+  }
+
+  /// Borrow equivalent of the `consume` method.
+  /// Call `clear()` after invoking this method.
+  #[inline]
+  pub fn flush_buffer(&mut self) -> Result<&[u8]> {
+    self.flush()?;
+    Ok(self.bit_writer.flush_buffer())
   }
 
   /// Clears the internal state so this encoder can be reused (e.g., after becoming full).
@@ -484,6 +493,20 @@ mod tests {
   }
 
   #[test]
+  fn test_rle_consume_flush_buffer() {
+    let data = vec![1, 1, 1, 2, 2, 3, 3, 3];
+    let mut encoder1 = RleEncoder::new(3, 256);
+    let mut encoder2 = RleEncoder::new(3, 256);
+    for value in data {
+      encoder1.put(value as u64).unwrap();
+      encoder2.put(value as u64).unwrap();
+    }
+    let res1 = encoder1.flush_buffer().unwrap();
+    let res2 = encoder2.consume().unwrap();
+    assert_eq!(res1, &res2[..]);
+  }
+
+  #[test]
   fn test_rle_decode_bool() {
     // RLE test data: 50 1s followed by 50 0s
     // 01100100 00000001 01100100 00000000
@@ -566,8 +589,7 @@ mod tests {
       let result = encoder.put(*v as u64);
       assert!(result.is_ok());
     }
-    encoder.flush().expect("Expect flush() OK");
-    let buffer = ByteBufferPtr::new(encoder.consume());
+    let buffer = ByteBufferPtr::new(encoder.consume().expect("Expect consume() OK"));
     if expected_len != -1 {
       assert_eq!(buffer.len(), expected_len as usize);
     }
@@ -675,8 +697,7 @@ mod tests {
     for v in &values {
       assert!(encoder.put(*v as u64).expect("put() should be OK"));
     }
-    encoder.flush().expect("flush() should be OK");
-    let buffer = encoder.consume();
+    let buffer = encoder.consume().expect("consume() should be OK");
     let mut decoder = RleDecoder::new(bit_width);
     decoder.set_data(ByteBufferPtr::new(buffer));
     let mut actual_values: Vec<i16> = vec![0; values.len()];
@@ -692,8 +713,7 @@ mod tests {
       assert!(result, "put() should not return false");
     }
 
-    encoder.flush().expect("flush() should be OK");
-    let buffer = ByteBufferPtr::new(encoder.consume());
+    let buffer = ByteBufferPtr::new(encoder.consume().expect("consume() should be OK"));
 
     // Verify read
     let mut decoder = RleDecoder::new(bit_width);

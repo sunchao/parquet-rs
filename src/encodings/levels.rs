@@ -23,7 +23,7 @@ use data_type::AsBytes;
 use errors::{Result, ParquetError};
 use util::bit_util::{BitReader, BitWriter, ceil, log2};
 use util::memory::ByteBufferPtr;
-use super::rle_encoding::{RleEncoder, RleDecoder};
+use super::rle::{RleEncoder, RleDecoder};
 
 enum InternalEncoder {
   RLE(RleEncoder),
@@ -83,7 +83,9 @@ impl LevelEncoder {
     match self.encoder {
       InternalEncoder::RLE(ref mut rle_encoder) => {
         for value in buffer {
-          if !rle_encoder.put(*value as u64)? { break; }
+          if !rle_encoder.put(*value as u64)? {
+            return Err(general_err!("RLE buffer is full"));
+          }
           num_encoded += 1;
         }
         rle_encoder.flush()?;
@@ -126,11 +128,12 @@ impl LevelEncoder {
   #[inline]
   pub fn consume(self) -> Result<Vec<u8>> {
     match self.encoder {
-      InternalEncoder::RLE(mut rle_encoder) => {
-        rle_encoder.flush()?;
-        let len = (rle_encoder.len() as i32).to_le();
+      InternalEncoder::RLE(rle_encoder) => {
+        let mut encoded_data = rle_encoder.consume()?;
+        // Account for the buffer offset
+        let encoded_len = encoded_data.len() - mem::size_of::<i32>();
+        let len = (encoded_len as i32).to_le();
         let len_bytes = len.as_bytes();
-        let mut encoded_data = rle_encoder.consume();
         encoded_data[0..len_bytes.len()].copy_from_slice(len_bytes);
         Ok(encoded_data)
       },

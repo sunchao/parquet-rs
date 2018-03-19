@@ -17,5 +17,5 @@
 
 pub mod encoding;
 pub mod decoding;
-pub mod rle_encoding;
+pub mod rle;
 pub mod levels;

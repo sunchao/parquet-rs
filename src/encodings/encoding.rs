@@ -28,7 +28,7 @@ use schema::types::ColumnDescPtr;
 use util::memory::{ByteBufferPtr, ByteBuffer, Buffer, MemTrackerPtr};
 use util::bit_util::{BitWriter, log2, num_required_bits};
 use util::hash_util;
-use encodings::rle_encoding::RleEncoder;
+use encodings::rle::RleEncoder;
 
 /// An Parquet encoder for the data type `T`.
 ///
@@ -54,12 +54,15 @@ pub fn get_encoder<T: DataType>(
   encoding: Encoding,
   mem_tracker: MemTrackerPtr
 ) -> Result<Box<Encoder<T>>> where T: 'static {
-  let encoder = match encoding {
+  let encoder: Box<Encoder<T>> = match encoding {
     Encoding::PLAIN => {
-      Box::new(PlainEncoder::new(desc, mem_tracker, vec!())) as Box<Encoder<T>>
+      Box::new(PlainEncoder::new(desc, mem_tracker, vec!()))
     },
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
       Box::new(DictEncoder::new(desc, mem_tracker))
+    },
+    Encoding::RLE => {
+      Box::new(RleValueEncoder::new())
     },
     Encoding::DELTA_BINARY_PACKED => {
       Box::new(DeltaBitPackEncoder::new())
@@ -116,12 +119,8 @@ impl<T: DataType> Encoder<T> for PlainEncoder<T> {
 
   #[inline]
   default fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
-    self.bit_writer.flush();
-    {
-      let bit_buffer = self.bit_writer.buffer();
-      self.buffer.write(&bit_buffer[0..self.bit_writer.byte_offset()])?;
-      self.buffer.flush()?;
-    }
+    self.buffer.write(self.bit_writer.flush_buffer())?;
+    self.buffer.flush()?;
     self.bit_writer.clear();
 
     Ok(self.buffer.consume())
@@ -256,8 +255,7 @@ impl<T: DataType> DictEncoder<T> {
       }
     }
     self.buffered_indices.clear();
-    encoder.flush()?;
-    Ok(ByteBufferPtr::new(encoder.consume()))
+    Ok(ByteBufferPtr::new(encoder.consume()?))
   }
 
   #[inline]
@@ -348,6 +346,81 @@ impl<T: DataType> Encoder<T> for DictEncoder<T> {
   #[inline]
   fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
     self.write_indices()
+  }
+}
+
+// ----------------------------------------------------------------------
+// RLE encoding
+
+const DEFAULT_RLE_BUFFER_LEN: usize = 1024;
+
+/// RLE/Bit-Packing hybrid encoding for values.
+/// Currently is used only for data pages v2 and supports boolean types.
+pub struct RleValueEncoder<T: DataType> {
+  // Buffer with raw values that we collect,
+  // when flushing buffer they are encoded using RLE encoder
+  encoder: Option<RleEncoder>,
+  _phantom: PhantomData<T>
+}
+
+impl<T: DataType> RleValueEncoder<T> {
+  pub fn new() -> Self {
+    Self { encoder: None, _phantom: PhantomData }
+  }
+}
+
+impl<T: DataType> Encoder<T> for RleValueEncoder<T> {
+  #[inline]
+  default fn put(&mut self, _values: &[T::T]) -> Result<()> {
+    panic!("RleValueEncoder only supports BoolType");
+  }
+
+  fn encoding(&self) -> Encoding {
+    Encoding::RLE
+  }
+
+  #[inline]
+  default fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+    panic!("RleValueEncoder only supports BoolType");
+  }
+}
+
+impl Encoder<BoolType> for RleValueEncoder<BoolType> {
+  #[inline]
+  default fn put(&mut self, values: &[bool]) -> Result<()> {
+    if self.encoder.is_none() {
+      self.encoder = Some(RleEncoder::new(1, DEFAULT_RLE_BUFFER_LEN));
+    }
+    let rle_encoder = self.encoder.as_mut().unwrap();
+    for value in values {
+      if !rle_encoder.put(*value as u64)? {
+        return Err(general_err!("RLE buffer is full"));
+      }
+    }
+    Ok(())
+  }
+
+  #[inline]
+  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+    assert!(self.encoder.is_some(), "RLE value encoder is not initialized");
+    let rle_encoder = self.encoder.as_mut().unwrap();
+
+    // Flush all encoder buffers and raw values
+    let encoded_data = {
+      let buf = rle_encoder.flush_buffer()?;
+
+      // Note that buf does not have any offset, all data is encoded bytes
+      let len = (buf.len() as i32).to_le();
+      let len_bytes = len.as_bytes();
+      let mut encoded_data = Vec::new();
+      encoded_data.extend_from_slice(len_bytes);
+      encoded_data.extend_from_slice(buf);
+      encoded_data
+    };
+    // Reset rle encoder for the next batch
+    rle_encoder.clear();
+
+    Ok(ByteBufferPtr::new(encoded_data))
   }
 }
 
@@ -530,18 +603,9 @@ impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
     // Write page header with total values
     self.write_page_header();
 
-    self.page_header_writer.flush();
-    self.bit_writer.flush();
-
     let mut buffer = ByteBuffer::new();
-    {
-      let bit_buffer = self.page_header_writer.buffer();
-      buffer.write(&bit_buffer[0..self.page_header_writer.byte_offset()])?;
-    }
-    {
-      let bit_buffer = self.bit_writer.buffer();
-      buffer.write(&bit_buffer[0..self.bit_writer.byte_offset()])?;
-    }
+    buffer.write(self.page_header_writer.flush_buffer())?;
+    buffer.write(self.bit_writer.flush_buffer())?;
     buffer.flush()?;
 
     // Reset state
@@ -780,9 +844,9 @@ mod tests {
 
   #[test]
   fn test_bool() {
-
     BoolType::test(Encoding::PLAIN, TEST_SET_SIZE, -1);
     BoolType::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, -1);
+    BoolType::test(Encoding::RLE, TEST_SET_SIZE, -1);
   }
 
   #[test]
@@ -927,12 +991,15 @@ mod tests {
   ) -> Box<Encoder<T>> where T: 'static {
     let desc = create_test_col_desc(type_len, T::get_physical_type());
     let mem_tracker = Rc::new(MemTracker::new());
-    let encoder = match enc {
+    let encoder: Box<Encoder<T>> = match enc {
       Encoding::PLAIN => {
         Box::new(PlainEncoder::<T>::new(Rc::new(desc), mem_tracker, vec!()))
       },
       Encoding::PLAIN_DICTIONARY => {
-        Box::new(DictEncoder::<T>::new(Rc::new(desc), mem_tracker)) as Box<Encoder<T>>
+        Box::new(DictEncoder::<T>::new(Rc::new(desc), mem_tracker))
+      },
+      Encoding::RLE => {
+        Box::new(RleValueEncoder::<T>::new())
       },
       Encoding::DELTA_BINARY_PACKED => {
         Box::new(DeltaBitPackEncoder::<T>::new())
@@ -954,12 +1021,15 @@ mod tests {
     type_len: i32, enc: Encoding
   ) -> Box<Decoder<T>> where T: 'static {
     let desc = create_test_col_desc(type_len, T::get_physical_type());
-    let decoder = match enc {
+    let decoder: Box<Decoder<T>> = match enc {
       Encoding::PLAIN => {
         Box::new(PlainDecoder::<T>::new(desc.type_length()))
       },
       Encoding::PLAIN_DICTIONARY => {
-        Box::new(DictDecoder::<T>::new()) as Box<Decoder<T>>
+        Box::new(DictDecoder::<T>::new())
+      },
+      Encoding::RLE => {
+        Box::new(RleValueDecoder::new())
       },
       Encoding::DELTA_BINARY_PACKED => {
         Box::new(DeltaBitPackDecoder::<T>::new())

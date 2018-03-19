@@ -25,7 +25,7 @@ use errors::{Result, ParquetError};
 use schema::types::ColumnDescPtr;
 use util::bit_util::BitReader;
 use util::memory::{ByteBufferPtr, ByteBuffer};
-use super::rle_encoding::RleDecoder;
+use super::rle::RleDecoder;
 
 
 // ----------------------------------------------------------------------
@@ -58,17 +58,25 @@ pub fn get_decoder<T: DataType>(
   descr: ColumnDescPtr,
   encoding: Encoding
 ) -> Result<Box<Decoder<T>>> where T: 'static {
-  let decoder = match encoding {
-    // TODO: why Rust cannot infer result type without the `as Box<...>`?
+  let decoder: Box<Decoder<T>> = match encoding {
     Encoding::PLAIN => {
-      Box::new(PlainDecoder::new(descr.type_length())) as Box<Decoder<T>>
+      Box::new(PlainDecoder::new(descr.type_length()))
     },
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
       return Err(general_err!("Cannot initialize this encoding through this function"))
     },
-    Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackDecoder::new()),
-    Encoding::DELTA_LENGTH_BYTE_ARRAY => Box::new(DeltaLengthByteArrayDecoder::new()),
-    Encoding::DELTA_BYTE_ARRAY => Box::new(DeltaByteArrayDecoder::new()),
+    Encoding::RLE => {
+      Box::new(RleValueDecoder::new())
+    },
+    Encoding::DELTA_BINARY_PACKED => {
+      Box::new(DeltaBitPackDecoder::new())
+    },
+    Encoding::DELTA_LENGTH_BYTE_ARRAY => {
+      Box::new(DeltaLengthByteArrayDecoder::new())
+    },
+    Encoding::DELTA_BYTE_ARRAY => {
+      Box::new(DeltaByteArrayDecoder::new())
+    },
     e => return Err(nyi_err!("Encoding {} is not supported", e))
   };
   Ok(decoder)
@@ -303,6 +311,71 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
   }
 }
 
+// ----------------------------------------------------------------------
+// RLE Decoding
+
+/// RLE/Bit-Packing hybrid decoding for values.
+/// Currently is used only for data pages v2 and supports boolean types.
+pub struct RleValueDecoder<T: DataType> {
+  values_left: usize,
+  decoder: Option<RleDecoder>,
+  _phantom: PhantomData<T>
+}
+
+impl<T: DataType> RleValueDecoder<T> {
+  pub fn new() -> Self {
+    Self { values_left: 0, decoder: None, _phantom: PhantomData }
+  }
+
+  #[inline]
+  fn set_data_internal(
+    &mut self, data: ByteBufferPtr, num_values: usize
+  ) -> Result<()> {
+    // We still need to remove prefix of i32 from the stream.
+    let i32_size = mem::size_of::<i32>();
+    let data_size = read_num_bytes!(i32, i32_size, data.as_ref()) as usize;
+    let rle_decoder = self.decoder.as_mut().expect("RLE decoder is not initialized");
+    rle_decoder.set_data(data.range(i32_size, data_size));
+    self.values_left = num_values;
+    Ok(())
+  }
+}
+
+impl<T: DataType> Decoder<T> for RleValueDecoder<T> {
+  #[inline]
+  default fn set_data(
+    &mut self, _data: ByteBufferPtr, _num_values: usize
+  ) -> Result<()> {
+    panic!("RleValueDecoder only supports BoolType");
+  }
+
+  #[inline]
+  fn values_left(&self) -> usize {
+    self.values_left
+  }
+
+  #[inline]
+  fn encoding(&self) -> Encoding {
+    Encoding::RLE
+  }
+
+  #[inline]
+  fn get(&mut self, buffer: &mut [T::T]) -> Result<usize> {
+    let rle_decoder = self.decoder.as_mut().expect("RLE decoder is not initialized");
+    let values_read = rle_decoder.get_batch(buffer)?;
+    self.values_left -= values_read;
+    Ok(values_read)
+  }
+}
+
+impl Decoder<BoolType> for RleValueDecoder<BoolType> {
+  #[inline]
+  fn set_data(&mut self, data: ByteBufferPtr, num_values: usize) -> Result<()> {
+    // Only support RLE value reader for boolean values with bit width of 1.
+    self.decoder = Some(RleDecoder::new(1));
+    self.set_data_internal(data, num_values)
+  }
+}
 
 // ----------------------------------------------------------------------
 // DELTA_BINARY_PACKED Decoding
@@ -702,12 +775,13 @@ mod tests {
   use schema::types::{ColumnDescriptor, ColumnPath, Type as Tpe};
 
   #[test]
-  fn test_get_decoder_int32() {
+  fn test_get_decoders() {
     // supported encodings
     test_get_decoder::<Int32Type>(Encoding::PLAIN, None);
     test_get_decoder::<Int32Type>(Encoding::DELTA_BINARY_PACKED, None);
     test_get_decoder::<Int32Type>(Encoding::DELTA_LENGTH_BYTE_ARRAY, None);
     test_get_decoder::<Int32Type>(Encoding::DELTA_BYTE_ARRAY, None);
+    test_get_decoder::<BoolType>(Encoding::RLE, None);
 
     // error when initializing
     test_get_decoder::<Int32Type>(Encoding::RLE_DICTIONARY,
@@ -716,8 +790,6 @@ mod tests {
       Some(general_err!("Cannot initialize this encoding through this function")));
 
     // unsupported
-    test_get_decoder::<Int32Type>(Encoding::RLE,
-      Some(nyi_err!("Encoding RLE is not supported")));
     test_get_decoder::<Int32Type>(Encoding::BIT_PACKED,
       Some(nyi_err!("Encoding BIT_PACKED is not supported")));
   }
@@ -813,6 +885,31 @@ mod tests {
     test_plain_decode::<FixedLenByteArrayType>(
       ByteBufferPtr::new(data_bytes), 3, 4, &mut buffer[..], &data[..]
     );
+  }
+
+  #[test]
+  #[should_panic(expected = "RleValueEncoder only supports BoolType")]
+  fn test_rle_value_encode_int32_not_supported() {
+    let mut encoder = RleValueEncoder::<Int32Type>::new();
+    encoder.put(&vec![1, 2, 3, 4]).unwrap();
+  }
+
+  #[test]
+  #[should_panic(expected = "RleValueDecoder only supports BoolType")]
+  fn test_rle_value_decode_int32_not_supported() {
+    let mut decoder = RleValueDecoder::<Int32Type>::new();
+    decoder.set_data(ByteBufferPtr::new(vec![5, 0, 0, 0]), 1).unwrap();
+  }
+
+  #[test]
+  fn test_rle_value_decode_bool_decode() {
+    // Test multiple 'put' calls on the same encoder
+    let data = vec![
+      BoolType::gen_vec(-1, 256),
+      BoolType::gen_vec(-1, 257),
+      BoolType::gen_vec(-1, 126)
+    ];
+    test_rle_value_decode::<BoolType>(data);
   }
 
   #[test]
@@ -941,7 +1038,7 @@ mod tests {
   }
 
   #[test]
-  fn test_delta_bit_packed_decoder_sampl() {
+  fn test_delta_bit_packed_decoder_sample() {
     let data_bytes = vec![
       128, 1, 4, 3, 58, 28, 6, 0,
       0, 0, 0, 8, 0, 0, 0, 0,
@@ -1034,19 +1131,25 @@ mod tests {
     assert_eq!(buffer, expected);
   }
 
+  fn test_rle_value_decode<T: 'static + DataType>(data: Vec<Vec<T::T>>) {
+    test_encode_decode::<T>(data, Encoding::RLE);
+  }
+
   fn test_delta_bit_packed_decode<T: 'static + DataType>(data: Vec<Vec<T::T>>) {
-    test_delta_decode::<T>(data, Encoding::DELTA_BINARY_PACKED);
+    test_encode_decode::<T>(data, Encoding::DELTA_BINARY_PACKED);
   }
 
   fn test_delta_byte_array_decode(data: Vec<Vec<ByteArray>>) {
-    test_delta_decode::<ByteArrayType>(data, Encoding::DELTA_BYTE_ARRAY);
+    test_encode_decode::<ByteArrayType>(data, Encoding::DELTA_BYTE_ARRAY);
   }
 
   // Input data represents vector of data slices to write (test multiple `put()` calls)
   // For example,
   //   vec![vec![1, 2, 3]] invokes `put()` once and writes {1, 2, 3}
   //   vec![vec![1, 2], vec![3]] invokes `put()` twice and writes {1, 2, 3}
-  fn test_delta_decode<T: 'static + DataType>(data: Vec<Vec<T::T>>, encoding: Encoding) {
+  fn test_encode_decode<T: 'static + DataType>(
+    data: Vec<Vec<T::T>>, encoding: Encoding
+  ) {
     // Encode data
     let mut encoder = get_encoder::<T>(get_test_column_desc_ptr(), encoding,
       Rc::new(MemTracker::new())).expect("get encoder");
