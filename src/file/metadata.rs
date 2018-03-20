@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::rc::Rc;
+
 use basic::{Encoding, Type, Compression};
 use errors::{Result, ParquetError};
 use schema::types::{TypePtr, ColumnDescriptor, SchemaDescriptor};
@@ -22,32 +24,39 @@ use schema::types::Type as SchemaType;
 use schema::types::{SchemaDescPtr, ColumnDescPtr, ColumnPath};
 use parquet_thrift::parquet::{ColumnChunk, ColumnMetaData, RowGroup};
 
+pub type ParquetMetaDataPtr = Rc<ParquetMetaData>;
+
 pub struct ParquetMetaData {
-  file_metadata: FileMetaData,
-  row_groups: Vec<RowGroupMetaData>
+  file_metadata: FileMetaDataPtr,
+  row_groups: Vec<RowGroupMetaDataPtr>
 }
 
 impl ParquetMetaData {
   pub fn new(file_metadata: FileMetaData, row_groups: Vec<RowGroupMetaData>) -> Self {
-    ParquetMetaData { file_metadata, row_groups }
+    ParquetMetaData {
+      file_metadata: Rc::new(file_metadata),
+      row_groups: row_groups.into_iter().map(|r| Rc::new(r)).collect()
+    }
   }
 
-  pub fn file_metadata(&self) -> &FileMetaData {
-    &self.file_metadata
+  pub fn file_metadata(&self) -> FileMetaDataPtr {
+    self.file_metadata.clone()
   }
 
   pub fn num_row_groups(&self) -> usize {
     self.row_groups.len()
   }
 
-  pub fn row_group(&self, i: usize) -> &RowGroupMetaData {
-    &self.row_groups[i]
+  pub fn row_group(&self, i: usize) -> RowGroupMetaDataPtr {
+    self.row_groups[i].clone()
   }
 
-  pub fn row_groups(&self) -> &[RowGroupMetaData] {
+  pub fn row_groups(&self) -> &[RowGroupMetaDataPtr] {
     &self.row_groups.as_slice()
   }
 }
+
+pub type FileMetaDataPtr = Rc<FileMetaData>;
 
 /// Metadata for a Parquet file
 pub struct FileMetaData {
@@ -85,9 +94,11 @@ impl FileMetaData {
   }
 }
 
+pub type RowGroupMetaDataPtr = Rc<RowGroupMetaData>;
+
 /// Metadata for a row group
 pub struct RowGroupMetaData {
-  columns: Vec<ColumnChunkMetaData>,
+  columns: Vec<ColumnChunkMetaDataPtr>,
   num_rows: i64,
   total_byte_size: i64,
   schema_descr: SchemaDescPtr
@@ -102,7 +113,7 @@ impl RowGroupMetaData {
     &self.columns[i]
   }
 
-  pub fn columns(&self) -> &[ColumnChunkMetaData] {
+  pub fn columns(&self) -> &[ColumnChunkMetaDataPtr] {
     &self.columns
   }
 
@@ -126,11 +137,14 @@ impl RowGroupMetaData {
     let num_rows = rg.num_rows;
     let mut columns = vec!();
     for (c, d) in rg.columns.drain(0..).zip(schema_descr.columns()) {
-      columns.push(ColumnChunkMetaData::from_thrift(d.clone(), c)?);
+      let cc = ColumnChunkMetaData::from_thrift(d.clone(), c)?;
+      columns.push(Rc::new(cc));
     }
     Ok(RowGroupMetaData{columns, num_rows, total_byte_size, schema_descr})
   }
 }
+
+pub type ColumnChunkMetaDataPtr = Rc<ColumnChunkMetaData>;
 
 /// Metadata for a column chunk
 pub struct ColumnChunkMetaData {

@@ -19,9 +19,9 @@ use std::fs::File;
 use std::io::{self, Read, BufReader, Seek, SeekFrom};
 use std::rc::Rc;
 
+use file::metadata::*;
 use basic::{Type, Compression, Encoding};
 use errors::{Result, ParquetError};
-use file::metadata::{RowGroupMetaData, FileMetaData, ParquetMetaData};
 use byteorder::{LittleEndian, ByteOrder};
 use thrift::protocol::TCompactInputProtocol;
 use parquet_thrift::parquet::FileMetaData as TFileMetaData;
@@ -40,7 +40,7 @@ use util::memory::ByteBufferPtr;
 /// Parquet file, and can get reader for each row group.
 pub trait FileReader {
   /// Get metadata information about this file
-  fn metadata(&self) -> &ParquetMetaData;
+  fn metadata(&self) -> ParquetMetaDataPtr;
 
   /// Get the total number of row groups for this file
   fn num_row_groups(&self) -> usize;
@@ -49,22 +49,20 @@ pub trait FileReader {
   /// N.B.: Box<..> has 'static lifetime in default, but here we need the lifetime to be
   /// the same as this. Otherwise, the row group metadata stored in the row group reader
   /// may outlive the file reader.
-  fn get_row_group<'a>(&'a self, i: usize) -> Result<Box<RowGroupReader<'a> + 'a>>;
+  fn get_row_group(&self, i: usize) -> Result<Box<RowGroupReader>>;
 }
 
 /// Parquet row group reader API. With this, user can get metadata information about the
 /// row group, as well as readers for each individual column chunk.
-/// The lifetime 'a is for the metadata inherited from the parent file reader
-pub trait RowGroupReader<'a> {
+pub trait RowGroupReader {
   /// Get metadata information about this row group.
-  /// The result metadata is owned by the parent file reader.
-  fn metadata(&self) -> &'a RowGroupMetaData;
+  fn metadata(&self) -> RowGroupMetaDataPtr;
 
   /// Get the total number of column chunks in this row group
   fn num_columns(&self) -> usize;
 
   /// Get page reader for the `i`th column chunk
-  fn get_column_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>>;
+  fn get_column_page_reader(&self, i: usize) -> Result<Box<PageReader>>;
 
   /// Get value reader for the `i`th column chunk
   fn get_column_reader(&self, i: usize) -> Result<ColumnReader>;
@@ -95,14 +93,14 @@ const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
 
 pub struct SerializedFileReader {
   buf: BufReader<File>,
-  metadata: ParquetMetaData
+  metadata: ParquetMetaDataPtr
 }
 
 impl SerializedFileReader {
   pub fn new(file: File) -> Result<Self> {
     let mut buf = BufReader::new(file);
     let metadata = Self::parse_metadata(&mut buf)?;
-    Ok(Self { buf: buf, metadata: metadata })
+    Ok(Self { buf: buf, metadata: Rc::new(metadata) })
   }
 
   //
@@ -163,15 +161,15 @@ impl SerializedFileReader {
 }
 
 impl FileReader for SerializedFileReader {
-  fn metadata(&self) -> &ParquetMetaData {
-    &self.metadata
+  fn metadata(&self) -> ParquetMetaDataPtr {
+    self.metadata.clone()
   }
 
   fn num_row_groups(&self) -> usize {
     self.metadata.num_row_groups()
   }
 
-  fn get_row_group<'a>(&'a self, i: usize) -> Result<Box<RowGroupReader + 'a>> {
+  fn get_row_group(&self, i: usize) -> Result<Box<RowGroupReader>> {
     let row_group_metadata = self.metadata.row_group(i);
     let f = self.buf.get_ref().try_clone()?;
     Ok(Box::new(SerializedRowGroupReader::new(f, row_group_metadata)))
@@ -179,23 +177,21 @@ impl FileReader for SerializedFileReader {
 }
 
 /// A serialized impl for row group reader
-/// Here 'a is the lifetime for the row group metadata, which is owned by the parent
-/// Parquet file reader
-pub struct SerializedRowGroupReader<'a> {
+pub struct SerializedRowGroupReader {
   buf: BufReader<File>,
-  metadata: &'a RowGroupMetaData
+  metadata: RowGroupMetaDataPtr
 }
 
-impl<'a, 'm> SerializedRowGroupReader<'a> {
-  pub fn new(file: File, metadata: &'a RowGroupMetaData) -> Self {
+impl SerializedRowGroupReader {
+  pub fn new(file: File, metadata: RowGroupMetaDataPtr ) -> Self {
     let buf = BufReader::new(file);
-    Self { buf: buf, metadata: metadata }
+    Self { buf, metadata }
   }
 }
 
-impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
-  fn metadata(&self) -> &'a RowGroupMetaData {
-    self.metadata
+impl RowGroupReader for SerializedRowGroupReader {
+  fn metadata(&self) -> RowGroupMetaDataPtr {
+    self.metadata.clone()
   }
 
   fn num_columns(&self) -> usize {
@@ -203,7 +199,7 @@ impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
   }
 
   // TODO: fix PARQUET-816
-  fn get_column_page_reader<'b>(&'b self, i: usize) -> Result<Box<PageReader + 'b>> {
+  fn get_column_page_reader(&self, i: usize) -> Result<Box<PageReader>> {
     let col = self.metadata.column(i);
     let mut col_start = col.data_page_offset();
     if col.has_dictionary_page() {
@@ -246,12 +242,11 @@ impl<'a> RowGroupReader<'a> for SerializedRowGroupReader<'a> {
 
 /// A serialized impl for Parquet page reader
 pub struct SerializedPageReader {
-  // The file chunk buffer which references exactly the bytes
-  // for the column trunk to be read by this page reader
+  // The file chunk buffer which references exactly the bytes for the column trunk to be
+  // read by this page reader
   buf: FileChunk,
 
-  // The compression codec for this column chunk. Only set for
-  // non-PLAIN codec.
+  // The compression codec for this column chunk. Only set for non-PLAIN codec.
   decompressor: Option<Box<Codec>>,
 
   // The number of values we have seen so far
@@ -459,11 +454,11 @@ mod tests {
     let reader = reader_result.unwrap();
 
     // Test contents in Parquet metadata
-    let metadata: &ParquetMetaData = reader.metadata();
+    let metadata = reader.metadata();
     assert_eq!(metadata.num_row_groups(), 1);
 
     // Test contents in file metadata
-    let file_metadata: &FileMetaData = metadata.file_metadata();
+    let file_metadata = metadata.file_metadata();
     assert!(file_metadata.created_by().is_some());
     assert_eq!(file_metadata.created_by().as_ref().unwrap(),
       "impala version 1.3.0-INTERNAL (build 8a48ddb1eff84592b3fc06bc6f51ec120e1fffc9)");
@@ -471,7 +466,7 @@ mod tests {
     assert_eq!(file_metadata.version(), 1);
 
     // Test contents in row group metadata
-    let row_group_metadata: &RowGroupMetaData = metadata.row_group(0);
+    let row_group_metadata = metadata.row_group(0);
     assert_eq!(row_group_metadata.num_columns(), 11);
     assert_eq!(row_group_metadata.num_rows(), 8);
     assert_eq!(row_group_metadata.total_byte_size(), 671);
@@ -525,18 +520,18 @@ mod tests {
     let reader = reader_result.unwrap();
 
     // Test contents in Parquet metadata
-    let metadata: &ParquetMetaData = reader.metadata();
+    let metadata = reader.metadata();
     assert_eq!(metadata.num_row_groups(), 1);
 
     // Test contents in file metadata
-    let file_metadata: &FileMetaData = metadata.file_metadata();
+    let file_metadata = metadata.file_metadata();
     assert!(file_metadata.created_by().is_some());
     assert_eq!(file_metadata.created_by().as_ref().unwrap(),
       "parquet-mr version 1.8.1 (build 4aba4dae7bb0d4edbcf7923ae1339f28fd3f7fcf)");
     assert_eq!(file_metadata.num_rows(), 5);
     assert_eq!(file_metadata.version(), 1);
 
-    let row_group_metadata: &RowGroupMetaData = metadata.row_group(0);
+    let row_group_metadata = metadata.row_group(0);
 
     // Test row group reader
     let row_group_reader_result = reader.get_row_group(0);

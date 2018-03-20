@@ -25,7 +25,7 @@ use file::metadata::{ParquetMetaData, FileMetaData, RowGroupMetaData, ColumnChun
 /// Prints Parquet metadata
 #[allow(unused_must_use)]
 pub fn print_parquet_metadata(out: &mut io::Write, metadata: &ParquetMetaData) {
-  print_file_metadata(out, metadata.file_metadata());
+  print_file_metadata(out, &metadata.file_metadata());
   writeln!(out, "");
   writeln!(out, "");
   writeln!(out, "num of row groups: {}", metadata.num_row_groups());
