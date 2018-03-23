@@ -27,23 +27,23 @@ use encodings::levels::LevelDecoder;
 use errors::{Result, ParquetError};
 use super::page::{Page, PageReader};
 
-pub enum ColumnReader<'a> {
-  BoolColumnReader(ColumnReaderImpl<'a, BoolType>),
-  Int32ColumnReader(ColumnReaderImpl<'a, Int32Type>),
-  Int64ColumnReader(ColumnReaderImpl<'a, Int64Type>),
-  Int96ColumnReader(ColumnReaderImpl<'a, Int96Type>),
-  FloatColumnReader(ColumnReaderImpl<'a, FloatType>),
-  DoubleColumnReader(ColumnReaderImpl<'a, DoubleType>),
-  ByteArrayColumnReader(ColumnReaderImpl<'a, ByteArrayType>),
-  FixedLenByteArrayColumnReader(ColumnReaderImpl<'a, FixedLenByteArrayType>),
+pub enum ColumnReader {
+  BoolColumnReader(ColumnReaderImpl<BoolType>),
+  Int32ColumnReader(ColumnReaderImpl<Int32Type>),
+  Int64ColumnReader(ColumnReaderImpl<Int64Type>),
+  Int96ColumnReader(ColumnReaderImpl<Int96Type>),
+  FloatColumnReader(ColumnReaderImpl<FloatType>),
+  DoubleColumnReader(ColumnReaderImpl<DoubleType>),
+  ByteArrayColumnReader(ColumnReaderImpl<ByteArrayType>),
+  FixedLenByteArrayColumnReader(ColumnReaderImpl<FixedLenByteArrayType>),
 }
 
 /// Gets a specific column reader corresponding to column descriptor `col_descr`. The
 /// column reader will read from pages in `col_page_reader`.
-pub fn get_column_reader<'a>(
+pub fn get_column_reader(
   col_descr: ColumnDescPtr,
-  col_page_reader: Box<PageReader + 'a>
-) -> ColumnReader<'a> {
+  col_page_reader: Box<PageReader>
+) -> ColumnReader {
   match col_descr.physical_type() {
     Type::BOOLEAN => ColumnReader::BoolColumnReader(
       ColumnReaderImpl::new(col_descr, col_page_reader)),
@@ -68,9 +68,9 @@ pub fn get_column_reader<'a>(
 /// non-generic type to a generic column reader type `ColumnReaderImpl`.
 /// NOTE: the caller MUST guarantee that the actual enum value for `col_reader` matches
 /// the type `T`. Otherwise, disastrous consequence could happen.
-pub fn get_typed_column_reader<'a, T: DataType>(
-  col_reader: ColumnReader<'a>
-) -> ColumnReaderImpl<'a, T> {
+pub fn get_typed_column_reader<T: DataType>(
+  col_reader: ColumnReader
+) -> ColumnReaderImpl<T> {
   match col_reader {
     ColumnReader::BoolColumnReader(r) => unsafe { mem::transmute(r) },
     ColumnReader::Int32ColumnReader(r) => unsafe { mem::transmute(r) },
@@ -84,12 +84,11 @@ pub fn get_typed_column_reader<'a, T: DataType>(
 }
 
 /// A value reader for a particular primitive column.
-/// The lifetime parameter `'a` denotes the lifetime of the page reader
-pub struct ColumnReaderImpl<'a, T: DataType> {
+pub struct ColumnReaderImpl<T: DataType> {
   descr: ColumnDescPtr,
   def_level_decoder: Option<LevelDecoder>,
   rep_level_decoder: Option<LevelDecoder>,
-  page_reader: Box<PageReader + 'a>,
+  page_reader: Box<PageReader>,
   current_encoding: Option<Encoding>,
 
   // The total number of values stored in the data page.
@@ -103,8 +102,8 @@ pub struct ColumnReaderImpl<'a, T: DataType> {
   decoders: HashMap<Encoding, Box<Decoder<T>>>
 }
 
-impl<'a, T: DataType> ColumnReaderImpl<'a, T> where T: 'static {
-  pub fn new(descr: ColumnDescPtr, page_reader: Box<PageReader + 'a>) -> Self {
+impl<T: DataType> ColumnReaderImpl<T> where T: 'static {
+  pub fn new(descr: ColumnDescPtr, page_reader: Box<PageReader>) -> Self {
     Self {
       descr: descr,
       def_level_decoder: None,
