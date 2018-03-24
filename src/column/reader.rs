@@ -16,6 +16,7 @@
 // under the License.
 
 use std::mem;
+use std::cmp::{max, min};
 use std::collections::HashMap;
 
 use basic::*;
@@ -147,26 +148,41 @@ impl<T: DataType> ColumnReaderImpl<T> where T: 'static {
     let mut levels_read = 0;
 
     // Compute the smallest batch size we can read based on provided slices
-    let mut batch_size = ::std::cmp::min(batch_size, values.len());
+    let mut batch_size = min(batch_size, values.len());
     if let Some(ref levels) = def_levels {
-      batch_size = ::std::cmp::min(batch_size, levels.len());
+      batch_size = min(batch_size, levels.len());
     }
     if let Some(ref levels) = rep_levels {
-      batch_size = ::std::cmp::min(batch_size, levels.len());
+      batch_size = min(batch_size, levels.len());
     }
 
     // Read exhaustively all pages until we read all batch_size values/levels
     // or there are no more values/levels to read.
-    while ::std::cmp::max(values_read, levels_read) < batch_size {
+    while max(values_read, levels_read) < batch_size {
       if !self.has_next()? {
         break;
       }
 
       // Batch size for the current iteration
-      let iter_batch_size = ::std::cmp::min(
-        batch_size,
-        (self.num_buffered_values - self.num_decoded_values) as usize
-      );
+      let iter_batch_size = {
+        // Compute approximate value based on values decoded so far
+        let mut adjusted_size = min(
+          batch_size,
+          (self.num_buffered_values - self.num_decoded_values) as usize
+        );
+
+        // Adjust batch size by taking into account how much space is left in values
+        // slice or levels slices (if available)
+        adjusted_size = min(adjusted_size, values.len() - values_read);
+        if let Some(ref levels) = def_levels {
+          adjusted_size = min(adjusted_size, levels.len() - levels_read);
+        }
+        if let Some(ref levels) = rep_levels {
+          adjusted_size = min(adjusted_size, levels.len() - levels_read);
+        }
+
+        adjusted_size
+      };
 
       let mut values_to_read = 0;
       let mut num_def_levels = 0;
@@ -184,8 +200,8 @@ impl<T: DataType> ColumnReaderImpl<T> where T: 'static {
           }
         }
       } else {
-        // If max def level == 0, then it is REQUIRED field, read all values.
-        // If def levels is not provided, we still read all values.
+        // If max definition level == 0, then it is REQUIRED field, read all values.
+        // If definition levels are not provided, we still read all values.
         values_to_read = iter_batch_size;
       }
 
@@ -219,9 +235,8 @@ impl<T: DataType> ColumnReaderImpl<T> where T: 'static {
       // Update all "return" counters and internal state.
 
       // This is to account for when def or rep levels are not provided
-      let curr_levels_read = ::std::cmp::max(num_def_levels, num_rep_levels);
-      self.num_decoded_values +=
-        ::std::cmp::max(curr_levels_read, curr_values_read) as u32;
+      let curr_levels_read = max(num_def_levels, num_rep_levels);
+      self.num_decoded_values += max(curr_levels_read, curr_values_read) as u32;
       levels_read += curr_levels_read;
       values_read += curr_values_read;
     }
@@ -566,6 +581,42 @@ mod tests {
   fn test_read_batch_values_def_rep_levels() {
     test_read_batch_int32(
       128, &mut vec![0; 128], Some(&mut vec![0; 128]), Some(&mut vec![0; 128]));
+  }
+
+  #[test]
+  fn test_read_batch_adjust_after_buffering_page() {
+    // This test covers scenario when buffering new page results in setting number
+    // of decoded values to 0, resulting on reading `batch_size` of values, but it is
+    // larger than we can insert into slice (affects values and levels).
+    //
+    // Note: values are chosen to reproduce the issue.
+    //
+    let primitive_type = get_test_int32_type();
+    let desc = Rc::new(ColumnDescriptor::new(
+      Rc::new(primitive_type), None, 1, 1,
+      ColumnPath::new(Vec::new())));
+
+    let num_pages = 2;
+    let num_levels = 4;
+    let batch_size = 5;
+    let values = &mut vec![0; 7];
+    let def_levels = &mut vec![0; 7];
+    let rep_levels = &mut vec![0; 7];
+
+    let mut tester = ColumnReaderTester::<Int32Type>::new();
+    tester.test_read_batch(
+      desc,
+      Encoding::RLE_DICTIONARY,
+      num_pages,
+      num_levels,
+      batch_size,
+      ::std::i32::MIN,
+      ::std::i32::MAX,
+      values,
+      Some(def_levels),
+      Some(rep_levels),
+      false
+    );
   }
 
   // == helper methods to make pages and test ==
