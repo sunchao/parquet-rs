@@ -16,7 +16,6 @@ before_script:
   - cd thrift && git checkout -b 0.11.0 origin/0.11.0 && ./bootstrap.sh
   - ./configure --enable-libs=no
   - make && sudo make install
-  - cd $TRAVIS_BUILD_DIR/src/parquet_thrift && thrift --gen rs parquet.thrift
   - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
   - cargo install cargo-travis --force && export PATH=$HOME/.cargo/bin:$PATH
 

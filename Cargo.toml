@@ -10,6 +10,7 @@ authors = [
 homepage = "https://github.com/sunchao/parquet-rs"
 repository = "https://github.com/sunchao/parquet-rs"
 keywords = ["parquet", "hadoop"]
+build = "build.rs"
 
 [dependencies]
 quick-error = "1.2.1"
