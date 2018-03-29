@@ -67,7 +67,7 @@ impl Read for FileChunk {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use std::env;
+  use util::test_common::get_test_file;
 
   #[test]
   fn test_io_read_fully() {
@@ -102,14 +102,5 @@ mod tests {
     let bytes_read = chunk.read(&mut buf[..]).unwrap();
     assert_eq!(bytes_read, 4);
     assert_eq!(buf, vec![b'P', b'A', b'R', b'1']);
-  }
-
-  fn get_test_file(file_name: &str) -> File {
-    let mut path_buf = env::current_dir().unwrap();
-    path_buf.push("data");
-    path_buf.push(file_name);
-    let file = File::open(path_buf.as_path());
-    assert!(file.is_ok());
-    file.unwrap()
   }
 }

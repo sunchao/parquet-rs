@@ -26,10 +26,11 @@ use byteorder::{LittleEndian, ByteOrder};
 use thrift::protocol::TCompactInputProtocol;
 use parquet_thrift::parquet::FileMetaData as TFileMetaData;
 use parquet_thrift::parquet::{PageType, PageHeader};
-use schema::types::{self, SchemaDescriptor};
+use schema::types::{self, Type as SchemaType, SchemaDescriptor};
 use column::page::{Page, PageReader};
 use column::reader::{ColumnReader, ColumnReaderImpl};
 use compression::{Codec, create_codec};
+use record::reader::RowIter;
 use util::io::FileChunk;
 use util::memory::ByteBufferPtr;
 
@@ -50,6 +51,12 @@ pub trait FileReader {
   /// the same as this. Otherwise, the row group metadata stored in the row group reader
   /// may outlive the file reader.
   fn get_row_group(&self, i: usize) -> Result<Box<RowGroupReader>>;
+
+  /// Get full iterator of `Row` from a file (over all row groups).
+  /// Iterator will automatically load the next row group to advance.
+  /// Projected schema can be a subset of or equal to the file schema, when it is None,
+  /// full file schema is assumed.
+  fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter>;
 }
 
 /// Parquet row group reader API. With this, user can get metadata information about the
@@ -66,6 +73,11 @@ pub trait RowGroupReader {
 
   /// Get value reader for the `i`th column chunk
   fn get_column_reader(&self, i: usize) -> Result<ColumnReader>;
+
+  /// Get iterator of `Row` from this row group.
+  /// Projected schema can be a subset of or equal to the file schema, when it is None,
+  /// full file schema is assumed.
+  fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter>;
 }
 
 
@@ -174,6 +186,10 @@ impl FileReader for SerializedFileReader {
     let f = self.buf.get_ref().try_clone()?;
     Ok(Box::new(SerializedRowGroupReader::new(f, row_group_metadata)))
   }
+
+  fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter> {
+    RowIter::from_file(projection, self)
+  }
 }
 
 /// A serialized impl for row group reader
@@ -183,7 +199,7 @@ pub struct SerializedRowGroupReader {
 }
 
 impl SerializedRowGroupReader {
-  pub fn new(file: File, metadata: RowGroupMetaDataPtr ) -> Self {
+  pub fn new(file: File, metadata: RowGroupMetaDataPtr) -> Self {
     let buf = BufReader::new(file);
     Self { buf, metadata }
   }
@@ -236,6 +252,10 @@ impl RowGroupReader for SerializedRowGroupReader {
         ColumnReaderImpl::new(col_descr, col_page_reader)),
     };
     Ok(col_reader)
+  }
+
+  fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter> {
+    RowIter::from_row_group(projection, self)
   }
 }
 
@@ -382,9 +402,7 @@ impl PageReader for SerializedPageReader {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use std::fs;
-  use std::env;
-  use std::io::Write;
+  use util::test_common::{get_temp_file, get_test_file};
 
   #[test]
   fn test_file_reader_metadata_size_smaller_than_footer() {
@@ -576,34 +594,5 @@ mod tests {
       page_count += 1;
     }
     assert_eq!(page_count, 2);
-  }
-
-  fn get_test_file(file_name: &str) -> fs::File {
-    let mut path_buf = env::current_dir().unwrap();
-    path_buf.push("data");
-    path_buf.push(file_name);
-    let file = File::open(path_buf.as_path());
-    assert!(file.is_ok());
-    file.unwrap()
-  }
-
-  fn get_temp_file(file_name: &str, content: &[u8]) -> fs::File {
-    // build tmp path to a file in "target/debug/testdata"
-    let mut path_buf = env::current_dir().unwrap();
-    path_buf.push("target");
-    path_buf.push("debug");
-    path_buf.push("testdata");
-    fs::create_dir_all(&path_buf).unwrap();
-    path_buf.push(file_name);
-
-    // write file content
-    let mut tmp_file = File::create(path_buf.as_path()).unwrap();
-    tmp_file.write_all(content).unwrap();
-    tmp_file.sync_all().unwrap();
-
-    // read file and return file handle
-    let file = File::open(path_buf.as_path());
-    assert!(file.is_ok());
-    file.unwrap()
   }
 }

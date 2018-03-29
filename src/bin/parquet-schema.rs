@@ -26,7 +26,7 @@ use parquet::file::reader::{FileReader, SerializedFileReader};
 use parquet::schema::printer::{print_parquet_metadata, print_file_metadata};
 
 fn main() {
-  let args: Vec<_> = env::args().collect();
+  let args: Vec<String> = env::args().collect();
   if args.len() != 2 && args.len() != 3 {
     println!("Usage: dump-schema <file-path> <verbose>");
     process::exit(1);

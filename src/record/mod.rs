@@ -15,41 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![feature(type_ascription)]
-#![feature(rustc_private)]
-#![feature(specialization)]
-#![feature(cfg_target_feature)]
-#![feature(match_default_bindings)]
-
-#![allow(dead_code)]
-#![allow(non_camel_case_types)]
-
-#[macro_use]
-extern crate quick_error;
-extern crate byteorder;
-extern crate thrift;
-extern crate ordered_float;
-extern crate try_from;
-extern crate arena;
-extern crate snap;
-extern crate brotli;
-extern crate flate2;
-extern crate rand;
-extern crate x86intrin;
-
-// TODO: don't expose everything!
-#[macro_use]
-pub mod errors;
-pub mod basic;
-pub mod data_type;
-mod parquet_thrift;
-
-#[macro_use]
-pub mod util;
-pub mod column;
-pub mod record;
-pub mod compression;
-
-pub mod schema;
-pub mod file;
-pub mod encodings;
+pub mod api;
+pub mod reader;
+mod triplet;

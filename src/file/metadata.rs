@@ -92,6 +92,10 @@ impl FileMetaData {
   pub fn schema_descr(&self) -> &SchemaDescriptor {
     &self.schema_descr
   }
+
+  pub fn schema_descr_ptr(&self) -> SchemaDescPtr {
+    self.schema_descr.clone()
+  }
 }
 
 pub type RowGroupMetaDataPtr = Rc<RowGroupMetaData>;
@@ -127,6 +131,10 @@ impl RowGroupMetaData {
 
   pub fn schema_descr(&self) -> &SchemaDescriptor {
     self.schema_descr.as_ref()
+  }
+
+  pub fn schema_descr_ptr(&self) -> SchemaDescPtr {
+    self.schema_descr.clone()
   }
 
   pub fn from_thrift(
@@ -190,6 +198,11 @@ impl ColumnChunkMetaData {
   /// Descriptor for this column
   pub fn column_descr(&self) -> &ColumnDescriptor {
     self.column_descr.as_ref()
+  }
+
+  /// Reference counted clone of descriptor for this column
+  pub fn column_descr_ptr(&self) -> ColumnDescPtr {
+    self.column_descr.clone()
   }
 
   /// All encodings used for this column

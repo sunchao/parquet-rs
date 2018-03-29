@@ -78,7 +78,7 @@ impl Type {
   }
 
   /// Get physical type or panic if current type is not primitive
-  fn get_physical_type(&self) -> PhysicalType {
+  pub fn get_physical_type(&self) -> PhysicalType {
     match *self {
       Type::PrimitiveType { basic_info: _, physical_type, .. } => physical_type,
       _ => panic!("Cannot call get_physical_type() on a non-primitive type"),
@@ -117,14 +117,16 @@ impl Type {
     }
   }
 
-  fn is_primitive(&self) -> bool {
+  /// Whether this is a primitive type.
+  pub fn is_primitive(&self) -> bool {
     match *self {
       Type::PrimitiveType{ .. } => true,
       _ => false
     }
   }
 
-  fn is_group(&self) -> bool {
+  /// Whether this is a group type.
+  pub fn is_group(&self) -> bool {
     match *self {
       Type::GroupType{ .. } => true,
       _ => false
@@ -132,7 +134,7 @@ impl Type {
   }
 
   /// Whether this is the top-level schema type (message type).
-  fn is_schema(&self) -> bool {
+  pub fn is_schema(&self) -> bool {
     match *self {
       Type::GroupType{ ref basic_info, .. } => !basic_info.has_repetition(),
       _ => false
@@ -375,7 +377,7 @@ impl BasicTypeInfo {
 // Parquet descriptor definitions
 
 /// Represents a path in a nested schema
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Eq, Hash)]
 pub struct ColumnPath {
   parts: Vec<String>
 }
@@ -869,6 +871,8 @@ mod tests {
 
     let tp = result.unwrap();
     let basic_info = tp.get_basic_info();
+    assert!(tp.is_group());
+    assert!(!tp.is_primitive());
     assert_eq!(basic_info.repetition(), Repetition::REPEATED);
     assert_eq!(basic_info.logical_type(), LogicalType::NONE);
     assert_eq!(basic_info.id(), 1);
