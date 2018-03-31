@@ -28,7 +28,7 @@ use parquet::schema::printer::{print_parquet_metadata, print_file_metadata};
 fn main() {
   let args: Vec<String> = env::args().collect();
   if args.len() != 2 && args.len() != 3 {
-    println!("Usage: dump-schema <file-path> <verbose>");
+    println!("Usage: parquet-schema <file-path> [verbose]");
     process::exit(1);
   }
   let path = Path::new(&args[1]);
@@ -36,7 +36,7 @@ fn main() {
   if args.len() == 3 {
     match args[2].parse() {
       Ok(b) => verbose = b,
-      Err(e) => panic!("Error when reading value for <verbose> \
+      Err(e) => panic!("Error when reading value for [verbose] \
                         (expected either 'true' or 'false'): {}", e)
     }
   }

@@ -59,7 +59,7 @@ pub fn print_schema(out: &mut io::Write, tp: &Type) {
     let mut printer = Printer::new(&mut s);
     printer.print(tp);
   }
-  write!(out, "{}", s);
+  writeln!(out, "{}", s);
 }
 
 #[allow(unused_must_use)]

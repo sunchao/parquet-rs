@@ -10,7 +10,7 @@ use parquet::file::reader::{FileReader, SerializedFileReader};
 fn main() {
   let args: Vec<String> = env::args().collect();
   if args.len() != 2 && args.len() != 3 {
-    println!("Usage: read-file <file-path> [num-records]");
+    println!("Usage: parquet-read <file-path> [num-records]");
     process::exit(1);
   }
 
