@@ -9,7 +9,7 @@ addons:
       - binutils-dev
 
 rust:
-  - nightly-2018-03-26
+  - nightly
 
 before_script:
   - git clone https://github.com/apache/thrift.git
