@@ -17,16 +17,16 @@
 
 use data_type::AsBytes;
 
-#[cfg(target_feature="sse4.2")]
+#[cfg(target_feature = "sse4.2")]
 use x86intrin::sse42;
 
 /// Computes hash value for `data`, with a seed value `seed`.
 /// The data type `T` must implement the `AsBytes` trait.
 pub fn hash<T: AsBytes>(data: &T, seed: u32) -> u32 {
-  #[cfg(target_feature="sse4.2")] {
+  #[cfg(target_feature = "sse4.2")] {
     crc32_hash(data, seed)
   }
-  #[cfg(not(target_feature="sse4.2"))] {
+  #[cfg(not(target_feature = "sse4.2"))] {
     murmur_hash2_64a(data, seed as u64) as u32
   }
 }
@@ -42,7 +42,8 @@ fn murmur_hash2_64a<T: AsBytes>(data: &T, seed: u64) -> u64 {
   let data_bytes_64 = unsafe {
     ::std::slice::from_raw_parts(
       &data_bytes[0..len_64] as *const [u8] as *const u64,
-      len / 8)
+      len / 8
+    )
   };
 
   let mut h = seed ^ (MURMUR_PRIME.wrapping_mul(data_bytes.len() as u64));
@@ -74,7 +75,7 @@ fn murmur_hash2_64a<T: AsBytes>(data: &T, seed: u64) -> u64 {
 }
 
 /// CRC32 hash implementation using SSE4 instructions. Borrowed from Impala.
-#[cfg(target_feature="sse4.2")]
+#[cfg(target_feature = "sse4.2")]
 pub fn crc32_hash<T: AsBytes>(data: &T, seed: u32) -> u32 {
   let bytes: &[u8] = data.as_bytes();
   let u32_num_bytes = ::std::mem::size_of::<u32>();
@@ -86,7 +87,8 @@ pub fn crc32_hash<T: AsBytes>(data: &T, seed: u32) -> u32 {
     ::std::slice::from_raw_parts(
       &bytes[0..num_words * u32_num_bytes]
         as *const [u8] as *const u32,
-      num_words)
+      num_words
+    )
   };
 
   let mut offset = 0;
@@ -126,7 +128,7 @@ mod tests {
   }
 
   #[test]
-  #[cfg(target_feature="sse4.2")]
+  #[cfg(target_feature = "sse4.2")]
   fn test_crc32() {
     let result = crc32_hash(&"hello", 123);
     assert_eq!(result, 2927487359);

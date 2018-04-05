@@ -16,13 +16,13 @@
 // under the License.
 
 #![feature(test)]
-extern crate test;
-extern crate rand;
 extern crate parquet;
+extern crate rand;
+extern crate test;
 use test::Bencher;
 
 #[allow(dead_code)]
-#[path="common.rs"]
+#[path = "common.rs"]
 mod common;
 use common::*;
 
@@ -31,9 +31,7 @@ use std::rc::Rc;
 use parquet::basic::*;
 use parquet::data_type::*;
 use parquet::encodings::encoding::*;
-
 use parquet::util::memory::MemTracker;
-
 
 macro_rules! plain {
   ($fname:ident, $batch_size:expr, $ty:ident, $pty:expr, $gen_data_fn:expr) => {
@@ -41,7 +39,7 @@ macro_rules! plain {
     fn $fname(bench: &mut Bencher) {
       let mem_tracker = Rc::new(MemTracker::new());
       let encoder = PlainEncoder::<$ty>::new(
-        Rc::new(col_desc(0, $pty)), mem_tracker, vec!());
+        Rc::new(col_desc(0, $pty)), mem_tracker, vec![]);
       let (bytes, values) = $gen_data_fn($batch_size);
       bench_encoding(bench, bytes, values, Box::new(encoder));
     }
@@ -84,7 +82,6 @@ fn bench_encoding<T: DataType>(
     encoder.flush_buffer().expect("flush_buffer() should be OK");
   })
 }
-
 
 plain!(plain_i32_1k_10, 1024, Int32Type, Type::INT32, gen_10);
 plain!(plain_i32_1k_100, 1024, Int32Type, Type::INT32, gen_100);

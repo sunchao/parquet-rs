@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::mem;
 use std::cell::Cell;
-use std::fmt::{Display, Result as FmtResult, Formatter, Debug};
+use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::io::{Result as IoResult, Write};
+use std::mem;
 use std::ops::{Index, IndexMut};
 use std::rc::{Rc, Weak};
 
@@ -59,7 +59,9 @@ impl MemTracker {
   pub fn alloc(&self, num_bytes: i64) {
     let (current, mut maximum) = self.memory_usage.get();
     let new_current = current + num_bytes;
-    if new_current > maximum { maximum = new_current }
+    if new_current > maximum {
+      maximum = new_current
+    }
     self.memory_usage.set((new_current, maximum));
   }
 }
@@ -87,7 +89,11 @@ pub struct Buffer<T: Clone> {
 
 impl<T: Clone> Buffer<T> {
   pub fn new() -> Self {
-    Buffer { data: vec!(), mem_tracker: None, type_length: ::std::mem::size_of::<T>() }
+    Buffer {
+      data: vec![],
+      mem_tracker: None,
+      type_length: ::std::mem::size_of::<T>()
+    }
   }
 
   #[inline]
@@ -140,7 +146,7 @@ impl<T: Clone> Buffer<T> {
 
   #[inline]
   pub fn consume(&mut self) -> BufferPtr<T> {
-    let old_data = mem::replace(&mut self.data, vec!());
+    let old_data = mem::replace(&mut self.data, vec![]);
     let mut result = BufferPtr::new(old_data);
     if let Some(ref mc) = self.mem_tracker {
       result = result.with_mem_tracker(mc.clone());
@@ -170,7 +176,7 @@ impl<T: Clone> Buffer<T> {
 
   #[inline]
   pub fn mem_tracker(&self) -> &MemTrackerPtr {
-   self.mem_tracker.as_ref().unwrap()
+    self.mem_tracker.as_ref().unwrap()
   }
 }
 
@@ -241,7 +247,12 @@ pub struct BufferPtr<T> {
 impl<T> BufferPtr<T> {
   pub fn new(v: Vec<T>) -> Self {
     let len = v.len();
-    Self { data: Rc::new(v), start: 0, len: len, mem_tracker: None }
+    Self {
+      data: Rc::new(v),
+      start: 0,
+      len: len,
+      mem_tracker: None
+    }
   }
 
   pub fn data(&self) -> &[T] {
@@ -275,24 +286,30 @@ impl<T> BufferPtr<T> {
 
   pub fn all(&self) -> BufferPtr<T> {
     BufferPtr {
-      data: self.data.clone(), start: self.start,
-      len: self.len, mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
+      data: self.data.clone(),
+      start: self.start,
+      len: self.len,
+      mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
     }
   }
 
   pub fn start_from(&self, start: usize) -> BufferPtr<T> {
     assert!(start <= self.len);
     BufferPtr {
-      data: self.data.clone(), start: self.start + start,
-      len: self.len - start, mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
+      data: self.data.clone(),
+      start: self.start + start,
+      len: self.len - start,
+      mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
     }
   }
 
   pub fn range(&self, start: usize, len: usize) -> BufferPtr<T> {
     assert!(start + len <= self.len);
     BufferPtr {
-      data: self.data.clone(), start: self.start + start,
-      len: len, mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
+      data: self.data.clone(),
+      start: self.start + start,
+      len: len,
+      mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
     }
   }
 }

@@ -16,17 +16,17 @@
 // under the License.
 
 use std::cmp;
-use std::mem;
 use std::marker::PhantomData;
+use std::mem;
 use std::slice::from_raw_parts_mut;
+
+use super::rle::RleDecoder;
 use basic::*;
 use data_type::*;
-use errors::{Result, ParquetError};
+use errors::{ParquetError, Result};
 use schema::types::ColumnDescPtr;
 use util::bit_util::BitReader;
-use util::memory::{ByteBufferPtr, ByteBuffer};
-use super::rle::RleDecoder;
-
+use util::memory::{ByteBuffer, ByteBufferPtr};
 
 // ----------------------------------------------------------------------
 // Decoders
@@ -109,8 +109,12 @@ pub struct PlainDecoder<T: DataType> {
 impl<T: DataType> PlainDecoder<T> {
   pub fn new(type_length: i32) -> Self {
     PlainDecoder {
-      data: None, bit_reader: None, type_length: type_length,
-      num_values: 0, start: 0, _phantom: PhantomData
+      data: None,
+      bit_reader: None,
+      type_length: type_length,
+      num_values: 0,
+      start: 0,
+      _phantom: PhantomData
     }
   }
 }
@@ -264,12 +268,17 @@ pub struct DictDecoder<T: DataType> {
   rle_decoder: Option<RleDecoder>,
 
   // Number of values left in the data stream
-  num_values: usize,
+  num_values: usize
 }
 
 impl<T: DataType> DictDecoder<T> {
   pub fn new() -> Self {
-    Self { dictionary: vec!(), has_dictionary: false, rle_decoder: None, num_values: 0 }
+    Self {
+      dictionary: vec![],
+      has_dictionary: false,
+      rle_decoder: None,
+      num_values: 0
+    }
   }
 
   pub fn set_dict(&mut self, mut decoder: Box<Decoder<T>>) -> Result<()> {
@@ -324,12 +333,17 @@ pub struct RleValueDecoder<T: DataType> {
 
 impl<T: DataType> RleValueDecoder<T> {
   pub fn new() -> Self {
-    Self { values_left: 0, decoder: None, _phantom: PhantomData }
+    Self {
+      values_left: 0,
+      decoder: None,
+      _phantom: PhantomData
+    }
   }
 
   #[inline]
   fn set_data_internal(
-    &mut self, data: ByteBufferPtr, num_values: usize
+    &mut self, data: ByteBufferPtr,
+    num_values: usize
   ) -> Result<()> {
     // We still need to remove prefix of i32 from the stream.
     let i32_size = mem::size_of::<i32>();
@@ -344,7 +358,9 @@ impl<T: DataType> RleValueDecoder<T> {
 impl<T: DataType> Decoder<T> for RleValueDecoder<T> {
   #[inline]
   default fn set_data(
-    &mut self, _data: ByteBufferPtr, _num_values: usize
+    &mut self,
+    _data: ByteBufferPtr,
+    _num_values: usize
   ) -> Result<()> {
     panic!("RleValueDecoder only supports BoolType");
   }
@@ -432,12 +448,14 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
 
   #[inline]
   fn init_block(&mut self) -> Result<()> {
-    self.min_delta = self.bit_reader.get_zigzag_vlq_int()
+    self.min_delta = self.bit_reader
+      .get_zigzag_vlq_int()
       .ok_or(eof_err!("Not enough data to decode 'min_delta'"))?;
 
-    let mut widths = vec!();
+    let mut widths = vec![];
     for _ in 0..self.num_mini_blocks {
-      let w = self.bit_reader.get_aligned::<u8>(1)
+      let w = self.bit_reader
+        .get_aligned::<u8>(1)
         .ok_or(eof_err!("Not enough data to decode 'width'"))?;
       widths.push(w);
     }
@@ -456,7 +474,8 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
     for _ in 0..self.values_current_mini_block {
       // TODO: use SIMD to optimize this?
       // TODO: we should be loading data eagerly like same decoder in parquet-mr
-      let delta = self.bit_reader.get_value::<u64>(self.delta_bit_width as usize)
+      let delta = self.bit_reader
+        .get_value::<u64>(self.delta_bit_width as usize)
         .ok_or(eof_err!("Not enough data to decode 'delta'"))?;
       self.deltas_in_mini_block.push(delta);
     }
@@ -472,13 +491,17 @@ impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
     self.bit_reader = BitReader::new(data);
     self.initialized = true;
 
-    let block_size = self.bit_reader.get_vlq_int()
+    let block_size = self.bit_reader
+      .get_vlq_int()
       .ok_or(eof_err!("Not enough data to decode 'block_size'"))?;
-    self.num_mini_blocks = self.bit_reader.get_vlq_int()
+    self.num_mini_blocks = self.bit_reader
+      .get_vlq_int()
       .ok_or(eof_err!("Not enough data to decode 'num_mini_blocks'"))?;
-    self.num_values = self.bit_reader.get_vlq_int()
+    self.num_values = self.bit_reader
+      .get_vlq_int()
       .ok_or(eof_err!("Not enough data to decode 'num_values'"))? as usize;
-    self.first_value = self.bit_reader.get_zigzag_vlq_int()
+    self.first_value = self.bit_reader
+      .get_zigzag_vlq_int()
       .ok_or(eof_err!("Not enough data to decode 'first_value'"))?;
 
     // Reset decoding state
@@ -545,13 +568,20 @@ impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
 trait DeltaBitPackDecoderConversion<T: DataType> {
   #[inline]
   fn set_decoded_value(
-    &self, buffer: &mut [T::T], index: usize, value: i64
+    &self, buffer:
+    &mut [T::T],
+    index: usize,
+    value: i64
   ) -> Result<()>;
 }
 
 impl<T: DataType> DeltaBitPackDecoderConversion<T> for DeltaBitPackDecoder<T> {
   #[inline]
-  default fn set_decoded_value(&self, _: &mut [T::T], _: usize, _: i64) -> Result<()> {
+  default fn set_decoded_value(
+    &self,
+    _: &mut [T::T],
+    _: usize,
+    _: i64) -> Result<()> {
     Err(general_err!("DeltaBitPackDecoder only supports Int32Type and Int64Type"))
   }
 }
@@ -559,7 +589,10 @@ impl<T: DataType> DeltaBitPackDecoderConversion<T> for DeltaBitPackDecoder<T> {
 impl DeltaBitPackDecoderConversion<Int32Type> for DeltaBitPackDecoder<Int32Type> {
   #[inline]
   fn set_decoded_value(
-    &self, buffer: &mut [i32], index: usize, value: i64
+    &self,
+    buffer: &mut [i32],
+    index: usize,
+    value: i64
   ) -> Result<()> {
     buffer[index] = value as i32;
     Ok(())
@@ -569,7 +602,10 @@ impl DeltaBitPackDecoderConversion<Int32Type> for DeltaBitPackDecoder<Int32Type>
 impl DeltaBitPackDecoderConversion<Int64Type> for DeltaBitPackDecoder<Int64Type> {
   #[inline]
   fn set_decoded_value(
-    &self, buffer: &mut [i64], index: usize, value: i64
+    &self,
+    buffer: &mut [i64],
+    index: usize,
+    value: i64
   ) -> Result<()> {
     buffer[index] = value;
     Ok(())
@@ -604,7 +640,7 @@ pub struct DeltaLengthByteArrayDecoder<T: DataType> {
 impl<T: DataType> DeltaLengthByteArrayDecoder<T> {
   pub fn new() -> Self {
     Self {
-      lengths: vec!(),
+      lengths: vec![],
       current_idx: 0,
       data: None,
       offset: 0,
@@ -690,8 +726,14 @@ pub struct DeltaByteArrayDecoder<T: DataType> {
 
 impl<T: DataType> DeltaByteArrayDecoder<T> {
   pub fn new() -> Self {
-    Self { prefix_lengths: vec!(), current_idx: 0, suffix_decoder: None,
-           previous_value: vec!(), num_values: 0, _phantom: PhantomData }
+    Self {
+      prefix_lengths: vec![],
+      current_idx: 0,
+      suffix_decoder: None,
+      previous_value: vec![],
+      num_values: 0,
+      _phantom: PhantomData
+    }
   }
 }
 
@@ -765,14 +807,14 @@ impl<> Decoder<ByteArrayType> for DeltaByteArrayDecoder<ByteArrayType> {
 
 #[cfg(test)]
 mod tests {
+  use super::super::encoding::*;
   use super::*;
+  use schema::types::{ColumnDescriptor, ColumnPath, Type as Tpe};
   use std::mem;
   use std::rc::Rc;
   use util::bit_util::set_array_bit;
   use util::memory::MemTracker;
   use util::test_common::RandGen;
-  use super::super::encoding::*;
-  use schema::types::{ColumnDescriptor, ColumnPath, Type as Tpe};
 
   #[test]
   fn test_get_decoders() {
@@ -784,14 +826,20 @@ mod tests {
     test_get_decoder::<BoolType>(Encoding::RLE, None);
 
     // error when initializing
-    test_get_decoder::<Int32Type>(Encoding::RLE_DICTIONARY,
-      Some(general_err!("Cannot initialize this encoding through this function")));
-    test_get_decoder::<Int32Type>(Encoding::PLAIN_DICTIONARY,
-      Some(general_err!("Cannot initialize this encoding through this function")));
+    test_get_decoder::<Int32Type>(
+      Encoding::RLE_DICTIONARY,
+      Some(general_err!("Cannot initialize this encoding through this function"))
+    );
+    test_get_decoder::<Int32Type>(
+      Encoding::PLAIN_DICTIONARY,
+      Some(general_err!("Cannot initialize this encoding through this function"))
+    );
 
     // unsupported
-    test_get_decoder::<Int32Type>(Encoding::BIT_PACKED,
-      Some(nyi_err!("Encoding BIT_PACKED is not supported")));
+    test_get_decoder::<Int32Type>(
+      Encoding::BIT_PACKED,
+      Some(nyi_err!("Encoding BIT_PACKED is not supported"))
+    );
   }
 
   #[test]
@@ -864,7 +912,7 @@ mod tests {
 
   #[test]
   fn test_plain_decode_byte_array() {
-    let mut data = vec!(ByteArray::new(); 2);
+    let mut data = vec![ByteArray::new(); 2];
     data[0].set_data(ByteBufferPtr::new(String::from("hello").into_bytes()));
     data[1].set_data(ByteBufferPtr::new(String::from("parquet").into_bytes()));
     let data_bytes = ByteArrayType::to_byte_array(&data[..]);
@@ -876,7 +924,7 @@ mod tests {
 
   #[test]
   fn test_plain_decode_fixed_len_byte_array() {
-    let mut data = vec!(ByteArray::default(); 3);
+    let mut data = vec![ByteArray::default(); 3];
     data[0].set_data(ByteBufferPtr::new(String::from("bird").into_bytes()));
     data[1].set_data(ByteBufferPtr::new(String::from("come").into_bytes()));
     data[2].set_data(ByteBufferPtr::new(String::from("flow").into_bytes()));
@@ -925,7 +973,7 @@ mod tests {
   fn test_delta_bit_packed_not_initialized_get() {
     // Fail if set_data() is not called before get()
     let mut decoder = DeltaBitPackDecoder::<Int32Type>::new();
-    let mut buffer = vec!();
+    let mut buffer = vec![];
     decoder.get(&mut buffer).unwrap();
   }
 
@@ -1117,11 +1165,13 @@ mod tests {
     }
   }
 
-  fn test_plain_decode<T: DataType>(data: ByteBufferPtr,
-                                    num_values: usize,
-                                    type_length: i32,
-                                    buffer: &mut [T::T],
-                                    expected: &[T::T]) {
+  fn test_plain_decode<T: DataType>(
+    data: ByteBufferPtr,
+    num_values: usize,
+    type_length: i32,
+    buffer: &mut [T::T],
+    expected: &[T::T]
+  ) {
     let mut decoder: PlainDecoder<T> = PlainDecoder::new(type_length);
     let result = decoder.set_data(data, num_values);
     assert!(result.is_ok());
@@ -1148,7 +1198,8 @@ mod tests {
   //   vec![vec![1, 2, 3]] invokes `put()` once and writes {1, 2, 3}
   //   vec![vec![1, 2], vec![3]] invokes `put()` twice and writes {1, 2, 3}
   fn test_encode_decode<T: 'static + DataType>(
-    data: Vec<Vec<T::T>>, encoding: Encoding
+    data: Vec<Vec<T::T>>,
+    encoding: Encoding
   ) {
     // Encode data
     let mut encoder = get_encoder::<T>(get_test_column_desc_ptr(), encoding,
@@ -1188,7 +1239,7 @@ mod tests {
 
   impl<T> ToByteArray<T> for T where T: DataType {
     default fn to_byte_array(data: &[T::T]) -> Vec<u8> {
-      let mut v = vec!();
+      let mut v = vec![];
       let type_len = ::std::mem::size_of::<T::T>();
       v.extend_from_slice(
         unsafe {
@@ -1201,7 +1252,7 @@ mod tests {
 
   impl ToByteArray<BoolType> for BoolType {
     fn to_byte_array(data: &[bool]) -> Vec<u8> {
-      let mut v = vec!();
+      let mut v = vec![];
       for i in 0..data.len() {
         if i % 8 == 0 {
           v.push(0);
@@ -1216,7 +1267,7 @@ mod tests {
 
   impl ToByteArray<Int96Type> for Int96Type {
     fn to_byte_array(data: &[Int96]) -> Vec<u8> {
-      let mut v = vec!();
+      let mut v = vec![];
       for d in data {
         unsafe {
           let copy = ::std::slice::from_raw_parts(d.data().as_ptr() as *const u8, 12);
@@ -1229,7 +1280,7 @@ mod tests {
 
   impl ToByteArray<ByteArrayType> for ByteArrayType {
     fn to_byte_array(data: &[ByteArray]) -> Vec<u8> {
-      let mut v = vec!();
+      let mut v = vec![];
       for d in data {
         let buf = d.data();
         let len = &usize_to_bytes(buf.len());
@@ -1242,7 +1293,7 @@ mod tests {
 
   impl ToByteArray<FixedLenByteArrayType> for FixedLenByteArrayType {
     fn to_byte_array(data: &[ByteArray]) -> Vec<u8> {
-      let mut v = vec!();
+      let mut v = vec![];
       for d in data {
         let buf = d.data();
         v.extend(buf);

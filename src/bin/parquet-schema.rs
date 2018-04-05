@@ -18,12 +18,12 @@
 extern crate parquet;
 
 use std::env;
-use std::process;
 use std::fs::File;
 use std::path::Path;
+use std::process;
 
 use parquet::file::reader::{FileReader, SerializedFileReader};
-use parquet::schema::printer::{print_parquet_metadata, print_file_metadata};
+use parquet::schema::printer::{print_file_metadata, print_parquet_metadata};
 
 fn main() {
   let args: Vec<String> = env::args().collect();
@@ -36,20 +36,19 @@ fn main() {
   if args.len() == 3 {
     match args[2].parse() {
       Ok(b) => verbose = b,
-      Err(e) => panic!("Error when reading value for [verbose] \
-                        (expected either 'true' or 'false'): {}", e)
+      Err(e) => panic!(
+        "Error when reading value for [verbose] \
+         (expected either 'true' or 'false'): {}",
+        e
+      )
     }
   }
   let file = match File::open(&path) {
-    Err(e) => {
-      panic!("Error when opening file {}: {}", path.display(), e);
-    },
+    Err(e) => panic!("Error when opening file {}: {}", path.display(), e),
     Ok(f) => f
   };
   match SerializedFileReader::new(file) {
-    Err(e) => {
-      panic!("Error when parsing Parquet file: {}", e)
-    },
+    Err(e) => panic!("Error when parsing Parquet file: {}", e),
     Ok(parquet_reader) => {
       let metadata = parquet_reader.metadata();
       println!("Metadata for file: {}", &args[1]);

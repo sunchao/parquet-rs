@@ -15,18 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use rand::{thread_rng, Rng, Rand};
+use rand::distributions::range::SampleRange;
 use std::env;
 use std::fs;
 use std::io::Write;
-use rand::{thread_rng, Rng, Rand};
-use rand::distributions::range::SampleRange;
-use data_type::{FixedLenByteArrayType, DataType, ByteArray};
+
+use data_type::{ByteArray, DataType, FixedLenByteArrayType};
 
 pub trait RandGen<T: DataType> {
   fn gen(len: i32) -> T::T;
 
   fn gen_vec(len: i32, total: usize) -> Vec<T::T> {
-    let mut result = vec!();
+    let mut result = vec![];
     for _ in 0..total {
       result.push(Self::gen(len))
     }
@@ -56,7 +57,7 @@ impl RandGen<FixedLenByteArrayType> for FixedLenByteArrayType {
 }
 
 pub fn random_bytes(n: usize) -> Vec<u8> {
-  let mut result = vec!();
+  let mut result = vec![];
   let mut rng = thread_rng();
   for _ in 0..n {
     result.push(rng.gen_range(0, 255) & 0xFF);
@@ -65,7 +66,7 @@ pub fn random_bytes(n: usize) -> Vec<u8> {
 }
 
 pub fn random_bools(n: usize) -> Vec<bool> {
-  let mut result = vec!();
+  let mut result = vec![];
   let mut rng = thread_rng();
   for _ in 0..n {
     result.push(rng.gen::<bool>());
@@ -74,7 +75,7 @@ pub fn random_bools(n: usize) -> Vec<bool> {
 }
 
 pub fn random_numbers<T: Rand>(n: usize) -> Vec<T> {
-  let mut result = vec!();
+  let mut result = vec![];
   let mut rng = thread_rng();
   for _ in 0..n {
     result.push(rng.gen::<T>());

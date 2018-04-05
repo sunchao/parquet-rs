@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-extern crate rand;
 extern crate parquet;
+extern crate rand;
 
-use std::rc::Rc;
 use rand::{thread_rng, Rng};
+use std::rc::Rc;
 
 use parquet::basic::*;
 use parquet::data_type::*;
@@ -71,5 +71,5 @@ pub fn col_desc(type_length: i32, primitive_ty: Type) -> ColumnDescriptor {
     .with_length(type_length)
     .build()
     .unwrap();
-  ColumnDescriptor::new(Rc::new(ty), None, 0, 0, ColumnPath::new(vec!()))
+  ColumnDescriptor::new(Rc::new(ty), None, 0, 0, ColumnPath::new(vec![]))
 }

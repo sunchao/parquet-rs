@@ -17,8 +17,9 @@
 
 use std::collections::HashMap;
 use std::rc::Rc;
+
 use basic::{LogicalType, Repetition};
-use errors::{Result, ParquetError};
+use errors::{ParquetError, Result};
 use file::reader::{FileReader, RowGroupReader};
 use schema::types::{ColumnPath, SchemaDescriptor, SchemaDescPtr, Type, TypePtr};
 use record::api::Row;
@@ -37,7 +38,9 @@ pub struct TreeBuilder {
 impl TreeBuilder {
   /// Creates new tree builder with default parameters.
   pub fn new() -> Self {
-    Self { batch_size: DEFAULT_BATCH_SIZE }
+    Self {
+      batch_size: DEFAULT_BATCH_SIZE
+    }
   }
 
   /// Sets batch size for this tree builder.
@@ -109,7 +112,7 @@ impl TreeBuilder {
         curr_def_level += 1;
         curr_rep_level += 1;
       },
-      _ => { }
+      _ => {}
     }
 
     path.push(String::from(field.name()));
@@ -127,8 +130,12 @@ impl TreeBuilder {
           assert_eq!(field.get_fields().len(), 1, "Invalid list type {:?}", field);
 
           let repeated_field = field.get_fields()[0].clone();
-          assert_eq!(repeated_field.get_basic_info().repetition(),
-            Repetition::REPEATED, "Invalid list type {:?}", field);
+          assert_eq!(
+            repeated_field.get_basic_info().repetition(),
+            Repetition::REPEATED,
+            "Invalid list type {:?}",
+            field
+          );
 
           if Reader::is_element_type(&repeated_field) {
             // Support for backward compatible lists
@@ -157,16 +164,27 @@ impl TreeBuilder {
           assert!(!field.get_fields()[0].is_primitive(), "Invalid map type: {:?}", field);
 
           let key_value_type = field.get_fields()[0].clone();
-          assert_eq!(key_value_type.get_basic_info().repetition(), Repetition::REPEATED,
-            "Invalid map type: {:?}", field);
-          assert_eq!(key_value_type.get_fields().len(), 2,
-            "Invalid map type: {:?}", field);
+          assert_eq!(
+            key_value_type.get_basic_info().repetition(),
+            Repetition::REPEATED,
+            "Invalid map type: {:?}",
+            field
+          );
+          assert_eq!(
+            key_value_type.get_fields().len(),
+            2,
+            "Invalid map type: {:?}",
+            field
+          );
 
           path.push(String::from(key_value_type.name()));
 
           let key_type = &key_value_type.get_fields()[0];
-          assert!(key_type.is_primitive(),
-            "Map key type is expected to be a primitive type, but found {:?}", key_type);
+          assert!(
+            key_type.is_primitive(),
+            "Map key type is expected to be a primitive type, but found {:?}",
+            key_type
+          );
           let key_reader = self.reader_tree(key_type.clone(), &mut path,
             curr_def_level + 1, curr_rep_level + 1, paths, row_group_reader);
 
@@ -359,10 +377,10 @@ impl Reader {
       Reader::OptionReader(_, ref reader) => reader.field_name(),
       Reader::GroupReader(ref opt, _, _) => match opt {
         &Some(ref field) => field.name(),
-        &None => panic!("Field is None for group reader"),
+        &None => panic!("Field is None for group reader")
       },
       Reader::RepeatedReader(ref field, _, _, _) => field.name(),
-      Reader::KeyValueReader(ref field, _, _, _, _) => field.name(),
+      Reader::KeyValueReader(ref field, _, _, _, _) => field.name()
     }
   }
 
@@ -377,7 +395,7 @@ impl Reader {
       },
       Reader::GroupReader(ref opt, _, _) => match opt {
         &Some(ref field) => field.get_basic_info().repetition(),
-        &None => panic!("Field is None for group reader"),
+        &None => panic!("Field is None for group reader")
       },
       Reader::RepeatedReader(ref field, _, _, _) => {
         field.get_basic_info().repetition()
@@ -396,7 +414,7 @@ impl Reader {
       Reader::OptionReader(_, ref reader) => reader.has_next(),
       Reader::GroupReader(_, _, ref readers) => readers.first().unwrap().has_next(),
       Reader::RepeatedReader(_, _, _, ref reader) => reader.has_next(),
-      Reader::KeyValueReader(_, _, _, ref keys, _) => keys.has_next(),
+      Reader::KeyValueReader(_, _, _, ref keys, _) => keys.has_next()
     }
   }
 
@@ -411,7 +429,7 @@ impl Reader {
         None => panic!("Current definition level: empty group reader")
       },
       Reader::RepeatedReader(_, _, _, ref reader) => reader.current_def_level(),
-      Reader::KeyValueReader(_, _, _, ref keys, _) => keys.current_def_level(),
+      Reader::KeyValueReader(_, _, _, ref keys, _) => keys.current_def_level()
     }
   }
 
@@ -426,7 +444,7 @@ impl Reader {
         None => panic!("Current repetition level: empty group reader")
       },
       Reader::RepeatedReader(_, _, _, ref reader) => reader.current_rep_level(),
-      Reader::KeyValueReader(_, _, _, ref keys, _) => keys.current_rep_level(),
+      Reader::KeyValueReader(_, _, _, ref keys, _) => keys.current_rep_level()
     }
   }
 
@@ -450,7 +468,7 @@ impl Reader {
       Reader::KeyValueReader(_, _, _, ref mut keys, ref mut values) => {
         keys.advance_columns();
         values.advance_columns();
-      },
+      }
     }
   }
 }
@@ -571,7 +589,10 @@ impl ReaderIter {
   fn new(mut root_reader: Reader, num_records: usize) -> Self {
     // Prepare root reader by advancing all column vectors
     root_reader.advance_columns();
-    Self { root_reader: root_reader, records_left: num_records }
+    Self {
+      root_reader: root_reader,
+      records_left: num_records
+    }
   }
 }
 
@@ -592,7 +613,7 @@ impl Iterator for ReaderIter {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use errors::{Result, ParquetError};
+  use errors::{ParquetError, Result};
   use file::reader::{FileReader, SerializedFileReader};
   use record::api::Row;
   use schema::parser::parse_message_type;

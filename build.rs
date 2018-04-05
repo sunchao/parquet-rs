@@ -10,14 +10,10 @@ fn main() {
   // Check if thrift is installed
   match run(Command::new("thrift").arg("--version")) {
     Ok(ref version_str) if check_thrift_version(version_str) => {
-      println!("Version {}", version_str);
+      println!("Version {}", version_str)
     },
-    Ok(ref version_str) => {
-      thrift_error(&format!("Invalid version: {}", version_str));
-    },
-    Err(error) => {
-      thrift_error(&error);
-    }
+    Ok(ref version_str) => thrift_error(&format!("Invalid version: {}", version_str)),
+    Err(error) => thrift_error(&error)
   }
 
   // List all thrift files in the directory
@@ -60,7 +56,8 @@ fn run(command: &mut Command) -> Result<String, String> {
 
 /// Panics and displays thrift error.
 fn thrift_error(error: &str) {
-  panic!("
+  panic!(
+    "
     ========================
     Thrift is not installed!
     ========================
@@ -70,7 +67,9 @@ fn thrift_error(error: &str) {
     Or follow the steps in 'before_script' section of '.travis.yml'.
 
     Error: {}
-  ", error);
+    ",
+    error
+  );
 }
 
 /// Checks thrift version and returns true if version is sufficient, and false otherwise.

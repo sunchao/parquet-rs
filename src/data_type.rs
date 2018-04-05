@@ -18,7 +18,7 @@
 use std::mem;
 
 use basic::Type;
-use rand::{Rng, Rand};
+use rand::{Rand, Rng};
 use util::memory::{ByteBuffer, ByteBufferPtr};
 
 // ----------------------------------------------------------------------
@@ -29,7 +29,7 @@ use util::memory::{ByteBuffer, ByteBufferPtr};
 //   to convert [u32] to [u32; 3] in decoding.
 #[derive(Clone, Debug)]
 pub struct Int96 {
-  value: Option<Vec<u32>>,
+  value: Option<Vec<u32>>
 }
 
 impl Int96 {
@@ -49,7 +49,9 @@ impl Int96 {
 }
 
 impl Default for Int96 {
-  fn default() -> Self { Int96 { value: None } }
+  fn default() -> Self {
+    Int96 { value: None }
+  }
 }
 
 impl PartialEq for Int96 {
@@ -68,7 +70,7 @@ impl From<Vec<u32>> for Int96 {
 impl Rand for Int96 {
   fn rand<R: Rng>(rng: &mut R) -> Self {
     let mut result = Int96::new();
-    let mut value = vec!();
+    let mut value = vec![];
     for _ in 0..3 {
       value.push(rng.gen::<u32>());
     }
@@ -80,7 +82,7 @@ impl Rand for Int96 {
 
 #[derive(Clone, Debug)]
 pub struct ByteArray {
-  data: Option<ByteBufferPtr>,
+  data: Option<ByteBufferPtr>
 }
 
 impl ByteArray {
@@ -135,7 +137,9 @@ impl From<ByteBuffer> for ByteArray {
 }
 
 impl Default for ByteArray {
-  fn default() -> Self { ByteArray { data: None } }
+  fn default() -> Self {
+    ByteArray { data: None }
+  }
 }
 
 
@@ -148,7 +152,7 @@ impl PartialEq for ByteArray {
 impl Rand for ByteArray {
   fn rand<R: Rng>(rng: &mut R) -> Self {
     let mut result = ByteArray::new();
-    let mut value = vec!();
+    let mut value = vec![];
     let len = rng.gen_range::<usize>(0, 128);
     for _ in 0..len {
       value.push(rng.gen_range(0, 255) & 0xFF);
@@ -172,7 +176,9 @@ macro_rules! gen_as_bytes {
       fn as_bytes(&self) -> &[u8] {
         unsafe {
           ::std::slice::from_raw_parts(
-            self as *const $source_ty as *const u8, ::std::mem::size_of::<$source_ty>())
+            self as *const $source_ty as *const u8,
+            ::std::mem::size_of::<$source_ty>()
+          )
         }
       }
     }
@@ -259,8 +265,12 @@ make_type!(Int96Type, Type::INT96, Int96, mem::size_of::<Int96>());
 make_type!(FloatType, Type::FLOAT, f32, 4);
 make_type!(DoubleType, Type::DOUBLE, f64, 8);
 make_type!(ByteArrayType, Type::BYTE_ARRAY, ByteArray, mem::size_of::<ByteArray>());
-make_type!(FixedLenByteArrayType, Type::FIXED_LEN_BYTE_ARRAY,
-           ByteArray, mem::size_of::<ByteArray>());
+make_type!(
+  FixedLenByteArrayType,
+  Type::FIXED_LEN_BYTE_ARRAY,
+  ByteArray,
+  mem::size_of::<ByteArray>()
+);
 
 
 #[cfg(test)]

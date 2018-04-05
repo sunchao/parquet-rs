@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+use std::convert::From;
 use std::fmt;
 use std::rc::Rc;
-use std::convert::From;
-use std::collections::HashMap;
-use basic::{Type as PhysicalType, Repetition, LogicalType};
-use errors::Result;
-use errors::ParquetError;
+
+use basic::{LogicalType, Repetition, Type as PhysicalType};
+use errors::{ParquetError, Result};
 use parquet_thrift::parquet::SchemaElement;
 
 // ----------------------------------------------------------------------
@@ -37,17 +37,22 @@ pub type ColumnDescPtr = Rc<ColumnDescriptor>;
 #[derive(Debug, PartialEq)]
 pub enum Type {
   PrimitiveType {
-    basic_info: BasicTypeInfo, physical_type: PhysicalType,
-    type_length: i32, scale: i32, precision: i32
+    basic_info: BasicTypeInfo,
+    physical_type: PhysicalType,
+    type_length: i32,
+    scale: i32,
+    precision: i32
   },
   GroupType {
-    basic_info: BasicTypeInfo, fields: Vec<TypePtr>
+    basic_info: BasicTypeInfo,
+    fields: Vec<TypePtr>
   }
 }
 
 impl Type {
   pub fn primitive_type_builder(
-    name: &str, physical_type: PhysicalType
+    name: &str,
+    physical_type: PhysicalType
   ) -> PrimitiveTypeBuilder {
     PrimitiveTypeBuilder::new(name, physical_type)
   }
@@ -81,7 +86,7 @@ impl Type {
   pub fn get_physical_type(&self) -> PhysicalType {
     match *self {
       Type::PrimitiveType { basic_info: _, physical_type, .. } => physical_type,
-      _ => panic!("Cannot call get_physical_type() on a non-primitive type"),
+      _ => panic!("Cannot call get_physical_type() on a non-primitive type")
     }
   }
 
@@ -113,14 +118,14 @@ impl Type {
         }
         true
       },
-      _ => false,
+      _ => false
     }
   }
 
   /// Whether this is a primitive type.
   pub fn is_primitive(&self) -> bool {
     match *self {
-      Type::PrimitiveType{ .. } => true,
+      Type::PrimitiveType { .. } => true,
       _ => false
     }
   }
@@ -128,7 +133,7 @@ impl Type {
   /// Whether this is a group type.
   pub fn is_group(&self) -> bool {
     match *self {
-      Type::GroupType{ .. } => true,
+      Type::GroupType { .. } => true,
       _ => false
     }
   }
@@ -136,7 +141,7 @@ impl Type {
   /// Whether this is the top-level schema type (message type).
   pub fn is_schema(&self) -> bool {
     match *self {
-      Type::GroupType{ ref basic_info, .. } => !basic_info.has_repetition(),
+      Type::GroupType { ref basic_info, .. } => !basic_info.has_repetition(),
       _ => false
     }
   }
@@ -211,12 +216,13 @@ impl<'a> PrimitiveTypeBuilder<'a> {
     };
 
     match self.logical_type {
-      LogicalType::NONE => {
-      },
+      LogicalType::NONE => {},
       LogicalType::UTF8 | LogicalType::BSON | LogicalType::JSON => {
         if self.physical_type != PhysicalType::BYTE_ARRAY {
           return Err(general_err!(
-            "{} can only annotate BYTE_ARRAY fields", self.logical_type))
+            "{} can only annotate BYTE_ARRAY fields",
+            self.logical_type
+          ));
         }
       },
       LogicalType::DECIMAL => {
@@ -225,52 +231,57 @@ impl<'a> PrimitiveTypeBuilder<'a> {
           PhysicalType::FIXED_LEN_BYTE_ARRAY => (),
           _ => {
             return Err(general_err!(
-              "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED"))
+              "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED"));
           }
         };
         if self.precision < 0 {
-          return Err(general_err!("Invalid DECIMAL precision: {}", self.precision))
+          return Err(general_err!("Invalid DECIMAL precision: {}", self.precision));
         }
         if self.scale < 0 {
-          return Err(general_err!("Invalid DECIMAL scale: {}", self.scale))
+          return Err(general_err!("Invalid DECIMAL scale: {}", self.scale));
         }
         if self.scale > self.precision {
           return Err(general_err!(
             "Invalid DECIMAL: scale ({}) cannot be greater than precision ({})",
-            self.scale, self.precision))
+            self.scale,
+            self.precision
+          ));
         }
       }
       LogicalType::DATE | LogicalType::TIME_MILLIS | LogicalType::UINT_8 |
       LogicalType::UINT_16 | LogicalType::UINT_32 |
       LogicalType::INT_8 | LogicalType::INT_16 | LogicalType::INT_32 => {
         if self.physical_type != PhysicalType::INT32 {
-          return Err(general_err!("{} can only annotate INT32", self.logical_type))
+          return Err(general_err!("{} can only annotate INT32", self.logical_type));
         }
       }
       LogicalType::TIME_MICROS | LogicalType::TIMESTAMP_MILLIS |
       LogicalType::TIMESTAMP_MICROS | LogicalType::UINT_64 | LogicalType::INT_64 => {
         if self.physical_type != PhysicalType::INT64 {
-          return Err(general_err!("{} can only annotate INT64", self.logical_type))
+          return Err(general_err!("{} can only annotate INT64", self.logical_type));
         }
       }
       LogicalType::INTERVAL => {
         if self.physical_type != PhysicalType::FIXED_LEN_BYTE_ARRAY || self.length != 12 {
-          return Err(general_err!("INTERVAL can only annotate FIXED(12)"))
+          return Err(general_err!("INTERVAL can only annotate FIXED(12)"));
         }
       }
       LogicalType::ENUM => {
         if self.physical_type != PhysicalType::BYTE_ARRAY {
-          return Err(general_err!("ENUM can only annotate BYTE_ARRAY fields"))
+          return Err(general_err!("ENUM can only annotate BYTE_ARRAY fields"));
         }
       }
       _ => {
         return Err(general_err!(
-          "{} cannot be applied to a primitive type", self.logical_type))
+          "{} cannot be applied to a primitive type",
+          self.logical_type
+        ));
       }
     };
     if self.physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY && self.length < 0 {
-      return Err(general_err!("Invalid FIXED_LEN_BYTE_ARRAY length: {}", self.length))
+      return Err(general_err!("Invalid FIXED_LEN_BYTE_ARRAY length: {}", self.length));
     }
+
     Ok(Type::PrimitiveType {
       basic_info: basic_info,
       physical_type: self.physical_type,
@@ -326,10 +337,14 @@ impl<'a> GroupTypeBuilder<'a> {
   // Create a new `GroupType` instance from the gathered attributes.
   pub fn build(self) -> Result<Type> {
     let basic_info = BasicTypeInfo {
-      name: String::from(self.name), repetition: self.repetition,
-      logical_type: self.logical_type, id: self.id };
+      name: String::from(self.name),
+      repetition: self.repetition,
+      logical_type: self.logical_type,
+      id: self.id
+    };
     Ok(Type::GroupType {
-      basic_info: basic_info, fields: self.fields
+      basic_info: basic_info,
+      fields: self.fields
     })
   }
 }
@@ -341,7 +356,7 @@ pub struct BasicTypeInfo {
   name: String,
   repetition: Option<Repetition>,
   logical_type: LogicalType,
-  id: Option<i32>,
+  id: Option<i32>
 }
 
 impl BasicTypeInfo {
@@ -413,7 +428,7 @@ impl<'a> From<&'a str> for ColumnPath {
 
 impl From<String> for ColumnPath {
   fn from(single_path: String) -> Self {
-    let mut v = vec!();
+    let mut v = vec![];
     v.push(single_path);
     ColumnPath { parts: v }
   }
@@ -539,20 +554,37 @@ pub struct SchemaDescriptor {
 impl SchemaDescriptor {
   pub fn new(tp: TypePtr) -> Self {
     assert!(tp.is_group(), "SchemaDescriptor should take a GroupType");
-    let mut leaves = vec!();
+    let mut leaves = vec![];
     let mut leaf_to_base = HashMap::new();
     for f in tp.get_fields() {
-      let mut path = vec!();
+      let mut path = vec![];
       build_tree(
-        f.clone(), tp.clone(), f.clone(), 0, 0, &mut leaves,
-        &mut leaf_to_base, &mut path);
+        f.clone(),
+        tp.clone(),
+        f.clone(),
+        0,
+        0,
+        &mut leaves,
+        &mut leaf_to_base,
+        &mut path
+      );
     }
-    Self { schema: tp, leaves: leaves, leaf_to_base: leaf_to_base }
+
+    Self {
+      schema: tp,
+      leaves: leaves,
+      leaf_to_base:
+      leaf_to_base
+    }
   }
 
   pub fn column(&self, i: usize) -> ColumnDescPtr {
-    assert!(i < self.leaves.len(),
-            "Index out of bound: {} not in [0, {})", i, self.leaves.len());
+    assert!(
+      i < self.leaves.len(),
+      "Index out of bound: {} not in [0, {})",
+      i,
+      self.leaves.len()
+    );
     self.leaves[i].clone()
   }
 
@@ -567,7 +599,10 @@ impl SchemaDescriptor {
   pub fn get_column_root(&self, i: usize) -> &Type {
     assert!(
       i < self.leaves.len(),
-      "Index out of bound: {} not in [0, {})", i, self.leaves.len());
+      "Index out of bound: {} not in [0, {})",
+      i,
+      self.leaves.len()
+    );
     let result = self.leaf_to_base.get(&i);
     assert!(result.is_some(), "Expected a value for index {} but found None", i);
     result.unwrap().as_ref()
@@ -603,22 +638,30 @@ fn build_tree(
       max_def_level += 1;
       max_rep_level += 1;
     },
-    _ => { }
+    _ => {}
   }
 
   match tp.as_ref() {
-    &Type::PrimitiveType{ .. } => {
-      let mut path: Vec<String> = vec!();
+    &Type::PrimitiveType { .. } => {
+      let mut path: Vec<String> = vec![];
       path.extend_from_slice(&path_so_far[..]);
       leaves.push(Rc::new(ColumnDescriptor::new(
-        tp.clone(), Some(root_tp), max_def_level, max_rep_level, ColumnPath::new(path))));
+        tp.clone(), Some(root_tp), max_def_level, max_rep_level, ColumnPath::new(path)
+      )));
       leaf_to_base.insert(leaves.len() - 1, base_tp);
     },
-    &Type::GroupType{ ref fields, .. } => {
+    &Type::GroupType { ref fields, .. } => {
       for f in fields {
-        build_tree(f.clone(), root_tp.clone(), base_tp.clone(),
-                   max_rep_level, max_def_level, leaves,
-                   leaf_to_base, path_so_far);
+        build_tree(
+          f.clone(),
+          root_tp.clone(),
+          base_tp.clone(),
+          max_rep_level,
+          max_def_level,
+          leaves,
+          leaf_to_base,
+          path_so_far
+        );
         let idx = path_so_far.len() - 1;
         path_so_far.remove(idx);
       }
@@ -638,7 +681,9 @@ pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<TypePtr> {
   }
   if schema_nodes.len() != 1 {
     return Err(general_err!(
-      "Expected exactly one root node, but found {}", schema_nodes.len()))
+      "Expected exactly one root node, but found {}",
+      schema_nodes.len()
+    ));
   }
 
   Ok(schema_nodes.remove(0))
@@ -654,7 +699,9 @@ fn from_thrift_helper(
 ) -> Result<(usize, TypePtr)> {
   if index > elements.len() {
     return Err(general_err!(
-      "Index out of bound, index = {}, len = {}", index, elements.len()))
+      "Index out of bound, index = {}, len = {}",
+      index, elements.len()
+    ));
   }
   let logical_type = LogicalType::from(elements[index].converted_type);
   let field_id = elements[index].field_id;
@@ -662,7 +709,8 @@ fn from_thrift_helper(
     None => {
       // primitive type
       if elements[index].repetition_type.is_none() {
-        return Err(general_err!("Repetition level must be defined for a primitive type"));
+        return Err(general_err!(
+          "Repetition level must be defined for a primitive type"));
       }
       let repetition = Repetition::from(elements[index].repetition_type.unwrap());
       let physical_type = PhysicalType::from(elements[index].type_.unwrap());
@@ -683,7 +731,7 @@ fn from_thrift_helper(
     },
     Some(n) => {
       let repetition = elements[index].repetition_type.map(|r| Repetition::from(r));
-      let mut fields = vec!();
+      let mut fields = vec![];
       let mut next_index = index + 1;
       for _ in 0..n {
         let child_result = from_thrift_helper(elements, next_index as usize)?;
@@ -704,6 +752,7 @@ fn from_thrift_helper(
     }
   }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -858,7 +907,7 @@ mod tests {
       .build();
     assert!(f2.is_ok());
 
-    let mut fields = vec!();
+    let mut fields = vec![];
     fields.push(Rc::new(f1.unwrap()));
     fields.push(Rc::new(f2.unwrap()));
 
@@ -885,7 +934,10 @@ mod tests {
   fn test_column_descriptor() {
     let result = test_column_descriptor_helper();
     assert!(
-      result.is_ok(), "Expected result to be OK but got err:\n {}", result.unwrap_err());
+      result.is_ok(),
+      "Expected result to be OK but got err:\n {}",
+      result.unwrap_err()
+    );
   }
 
   fn test_column_descriptor_helper() -> Result<()> {
@@ -919,12 +971,15 @@ mod tests {
   fn test_schema_descriptor() {
     let result = test_schema_descriptor_helper();
     assert!(
-      result.is_ok(), "Expected result to be OK but got err:\n {}", result.unwrap_err());
+      result.is_ok(),
+      "Expected result to be OK but got err:\n {}",
+      result.unwrap_err()
+    );
   }
 
   // A helper fn to avoid handling the results from type creation
   fn test_schema_descriptor_helper() -> Result<()> {
-    let mut fields = vec!();
+    let mut fields = vec![];
 
     let inta = Type::primitive_type_builder("a", PhysicalType::INT32)
       .with_repetition(Repetition::REQUIRED)
@@ -955,11 +1010,11 @@ mod tests {
     let list = Type::group_type_builder("records")
       .with_repetition(Repetition::REPEATED)
       .with_logical_type(LogicalType::LIST)
-      .with_fields(&mut vec!(Rc::new(item1), Rc::new(item2), Rc::new(item3)))
+      .with_fields(&mut vec![Rc::new(item1), Rc::new(item2), Rc::new(item3)])
       .build()?;
     let bag = Type::group_type_builder("bag")
       .with_repetition(Repetition::OPTIONAL)
-      .with_fields(&mut vec!(Rc::new(list)))
+      .with_fields(&mut vec![Rc::new(list)])
       .build()?;
     fields.push(Rc::new(bag));
 
@@ -981,8 +1036,8 @@ mod tests {
     //     required int64 item1    2    1
     //     optional boolean item2  3    1
     //     repeated int32 item3    3    2
-    let ex_max_def_levels = vec!(0, 1, 1, 2, 3, 3);
-    let ex_max_rep_levels = vec!(0, 0, 1, 1, 1, 2);
+    let ex_max_def_levels = vec![0, 1, 1, 2, 3, 3];
+    let ex_max_rep_levels = vec![0, 0, 1, 1, 1, 2];
 
     for i in 0..nleaves {
       let col = descr.column(i);

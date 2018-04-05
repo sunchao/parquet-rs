@@ -19,11 +19,11 @@ use std::io::{Read, Write};
 
 use basic::Compression as CodecType;
 use errors::{Result, ParquetError};
-use snap::{Decoder, Encoder, decompress_len};
 use brotli;
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
+use snap::{decompress_len, Decoder, Encoder};
 
 pub trait Codec {
   /// Compresses data stored in slice `input_buf` and returns a new vector with the
@@ -58,7 +58,10 @@ pub struct SnappyCodec {
 
 impl SnappyCodec {
   fn new() -> Self {
-    Self { decoder: Decoder::new(), encoder: Encoder::new() }
+    Self {
+      decoder: Decoder::new(),
+      encoder: Encoder::new()
+    }
   }
 }
 
@@ -76,27 +79,28 @@ impl Codec for SnappyCodec {
   }
 }
 
-pub struct GZipCodec {
-}
+pub struct GZipCodec {}
 
 impl GZipCodec {
   fn new() -> Self {
-    Self { }
+    Self {}
   }
 }
 
 impl Codec for GZipCodec {
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
     let mut decoder = GzDecoder::new(input_buf)?;
-    decoder.read_to_end(output_buf).map_err(
-      |e| general_err!("Error when decompressing using GZip: {}", e))
+    decoder
+      .read_to_end(output_buf)
+      .map_err(|e| general_err!("Error when decompressing using GZip: {}", e))
   }
 
   fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::Default);
     encoder.write_all(input_buf)?;
-    encoder.finish().map_err(
-      |e| general_err!("Error when compressing using GZip: {}", e))
+    encoder
+      .finish()
+      .map_err(|e| general_err!("Error when compressing using GZip: {}", e))
   }
 }
 
@@ -104,12 +108,11 @@ const BROTLI_DEFAULT_BUFFER_SIZE: usize = 4096;
 const BROTLI_DEFAULT_COMPRESSION_QUALITY: u32 = 9; // supported levels 0-9
 const BROTLI_DEFAULT_LG_WINDOW_SIZE: u32 = 22; // recommended between 20-22
 
-pub struct BrotliCodec {
-}
+pub struct BrotliCodec {}
 
 impl BrotliCodec {
   fn new() -> Self {
-    Self { }
+    Self {}
   }
 }
 
@@ -132,6 +135,7 @@ impl Codec for BrotliCodec {
     Ok(buffer)
   }
 }
+
 
 #[cfg(test)]
 mod tests {

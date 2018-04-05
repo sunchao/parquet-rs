@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io;
 use std::cell;
 use std::convert;
+use std::io;
 use std::result;
 
-use thrift;
 use snap;
+use thrift;
 
 quick_error! {
   #[derive(Debug, PartialEq)]
@@ -47,7 +47,6 @@ quick_error! {
 
 pub type Result<T> = result::Result<T, ParquetError>;
 
-
 /// Conversion from `ParquetError` TO other types of `Error`s
 
 impl convert::From<ParquetError> for io::Error {
@@ -65,7 +64,6 @@ macro_rules! general_err {
   ($e:ident, $fmt:expr, $($args:tt),*) => (
     ParquetError::General(&format!($fmt, $($args),*), $e));
 }
-
 
 macro_rules! nyi_err {
   ($fmt:expr) => (ParquetError::NYI($fmt.to_owned()));

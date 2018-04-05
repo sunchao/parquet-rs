@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use record::api::Row;
-use basic::{Type as PhysicalType, LogicalType};
-use column::reader::{ColumnReader, ColumnReaderImpl, get_typed_column_reader};
+use basic::{LogicalType, Type as PhysicalType};
+use column::reader::{get_typed_column_reader, ColumnReader, ColumnReaderImpl};
 use data_type::*;
-use errors::{Result, ParquetError};
+use errors::{ParquetError, Result};
+use record::api::Row;
 use schema::types::ColumnDescPtr;
 
 /// Macro to generate simple functions that cover all types of triplet iterator.
@@ -265,7 +265,8 @@ impl<T: DataType> TypedTripletIter<T> where T: 'static {
     assert!(
       self.current_def_level() == self.max_def_level(),
       "Cannot extract value, max definition level: {}, current level: {}",
-      self.max_def_level(), self.current_def_level()
+      self.max_def_level(),
+      self.current_def_level()
     );
     &self.values[self.curr_triplet_index]
   }
@@ -357,7 +358,8 @@ impl<T: DataType> TypedTripletIter<T> where T: 'static {
       } else {
         return Err(general_err!(
           "Spacing of values/levels is wrong, values_read: {}, levels_read: {}",
-          values_read, levels_read
+          values_read,
+          levels_read
         ));
       }
     }

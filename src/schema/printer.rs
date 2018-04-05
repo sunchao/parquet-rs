@@ -19,8 +19,13 @@ use std::fmt;
 use std::io;
 
 use basic::{LogicalType, Type as PhysicalType};
+use file::metadata::{
+  ColumnChunkMetaData,
+  FileMetaData,
+  ParquetMetaData,
+  RowGroupMetaData
+};
 use schema::types::Type;
-use file::metadata::{ParquetMetaData, FileMetaData, RowGroupMetaData, ColumnChunkMetaData};
 
 /// Prints Parquet metadata
 #[allow(unused_must_use)]
@@ -126,7 +131,10 @@ pub struct Printer<'a> {
 #[allow(unused_must_use)]
 impl <'a> Printer<'a> {
   fn new(output: &'a mut fmt::Write) -> Self {
-    Printer { output: output, indent: 0 }
+    Printer {
+      output: output,
+      indent: 0
+    }
   }
 
   fn print_indent(&mut self) {
@@ -142,14 +150,18 @@ impl<'a> Printer<'a> {
     self.print_indent();
     match tp {
       &Type::PrimitiveType {
-        ref basic_info, physical_type, type_length, scale, precision
+        ref basic_info,
+        physical_type,
+        type_length,
+        scale,
+        precision
       } => {
         let phys_type_str = match physical_type {
           PhysicalType::FIXED_LEN_BYTE_ARRAY => {
             // We need to include length for fixed byte array
             format!("{} ({})", physical_type, type_length)
           },
-          _ => format!("{}", physical_type),
+          _ => format!("{}", physical_type)
         };
         // Also print logical type if it is available
         let logical_type_str = match basic_info.logical_type() {
@@ -164,13 +176,17 @@ impl<'a> Printer<'a> {
             };
             format!(" ({}{})", decimal, precision_scale)
           },
-          other_logical_type => format!(" ({})", other_logical_type),
+          other_logical_type => format!(" ({})", other_logical_type)
         };
         write!(
           self.output, "{} {} {}{};",
-          basic_info.repetition(), phys_type_str, basic_info.name(), logical_type_str);
+          basic_info.repetition(),
+          phys_type_str,
+          basic_info.name(),
+          logical_type_str
+        );
       },
-      &Type::GroupType{ ref basic_info, ref fields } => {
+      &Type::GroupType { ref basic_info, ref fields } => {
         if basic_info.has_repetition() {
           let r = basic_info.repetition();
           write!(self.output, "{} group {} ", r, basic_info.name());
@@ -195,13 +211,15 @@ impl<'a> Printer<'a> {
   }
 }
 
+
 #[cfg(test)]
 mod tests {
-  use super::*;
   use std::rc::Rc;
-  use schema::types::Type;
+
+  use super::*;
+  use basic::{Repetition, Type as PhysicalType};
   use schema::parser::parse_message_type;
-  use basic::{Type as PhysicalType, Repetition};
+  use schema::types::Type;
 
   fn assert_print_parse_message(message: Type) {
     let mut s = String::new();

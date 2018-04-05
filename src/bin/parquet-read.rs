@@ -36,7 +36,7 @@ fn main() {
   while all_records || start < end {
     match iter.next() {
       Some(row) => println!("{}", row),
-      None => break,
+      None => break
     }
     start += 1;
   }

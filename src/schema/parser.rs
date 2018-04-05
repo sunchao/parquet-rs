@@ -17,7 +17,7 @@
 
 use std::rc::Rc;
 
-use basic::{Repetition, Type as PhysicalType, LogicalType};
+use basic::{LogicalType, Repetition, Type as PhysicalType};
 use errors::{ParquetError, Result};
 use schema::types::{Type, TypePtr};
 
@@ -42,7 +42,10 @@ impl<'a> Tokenizer<'a> {
   // Create tokenizer from message type string
   pub fn from_str(string: &'a str) -> Self {
     let vec = string.split_whitespace().flat_map(|t| Self::split_token(t)).collect();
-    Tokenizer { tokens: vec, index: 0 }
+    Tokenizer {
+      tokens: vec,
+      index: 0
+    }
   }
 
   // List of all special characters in schema
@@ -101,17 +104,20 @@ fn assert_token(token: Option<&str>, expected: &str) -> Result<()> {
   match token {
     Some(value) if value == expected => Ok(()),
     Some(other) => Err(general_err!("Expected '{}', found token '{}'", expected, other)),
-    None => Err(general_err!("Expected '{}', but no token found (None)", expected)),
+    None => Err(general_err!("Expected '{}', but no token found (None)", expected))
   }
 }
 
 // Utility function to parse i32 or return general error
 fn parse_i32(
-  value: Option<&str>, not_found_msg: &str, parse_fail_msg: &str
+  value: Option<&str>,
+  not_found_msg: &str,
+  parse_fail_msg: &str
 ) -> Result<i32> {
-  value.ok_or(general_err!(not_found_msg)).
-    and_then(|v| v.parse::<i32>().
-      map_err(|_| general_err!(parse_fail_msg)))
+  value
+    .ok_or(general_err!(not_found_msg))
+    .and_then(|v| v.parse::<i32>()
+    .map_err(|_| general_err!(parse_fail_msg)))
 }
 
 impl<'a> Parser<'a> {
@@ -129,7 +135,7 @@ impl<'a> Parser<'a> {
       },
       _ => {
         Err(general_err!("Message type does not start with 'message'"))
-      },
+      }
     }
   }
 
@@ -151,9 +157,9 @@ impl<'a> Parser<'a> {
 
   fn add_type(&mut self) -> Result<Type> {
     // Parse repetition
-    let repetition = self.tokenizer.next().
-      ok_or(general_err!("Expected repetition, found None")).
-      and_then(|v| v.to_uppercase().parse::<Repetition>())?;
+    let repetition = self.tokenizer.next()
+      .ok_or(general_err!("Expected repetition, found None"))
+      .and_then(|v| v.to_uppercase().parse::<Repetition>())?;
 
     match self.tokenizer.next() {
       Some(group) if group.to_uppercase() == "GROUP" => {
@@ -165,7 +171,7 @@ impl<'a> Parser<'a> {
       },
       None => {
         Err(general_err!("Invalid type, could not extract next token"))
-      },
+      }
     }
   }
 
@@ -175,9 +181,9 @@ impl<'a> Parser<'a> {
 
     // Parse logical type if exists
     let logical_type = if let Some("(") = self.tokenizer.next() {
-      let tpe = self.tokenizer.next().
-        ok_or(general_err!("Expected logical type, found None")).
-        and_then(|v| v.to_uppercase().parse::<LogicalType>())?;
+      let tpe = self.tokenizer.next()
+        .ok_or(general_err!("Expected logical type, found None"))
+        .and_then(|v| v.to_uppercase().parse::<LogicalType>())?;
       assert_token(self.tokenizer.next(), ")")?;
       tpe
     } else {
@@ -206,8 +212,11 @@ impl<'a> Parser<'a> {
     builder.build()
   }
 
-  fn add_primitive_type(&mut self,
-      repetition: Repetition, physical_type: PhysicalType) -> Result<Type> {
+  fn add_primitive_type(
+    &mut self,
+    repetition: Repetition,
+    physical_type: PhysicalType
+  ) -> Result<Type> {
     let mut length = 0;
     // Read type length if the type is FIXED_LEN_BYTE_ARRAY.
     if physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY {
@@ -223,9 +232,9 @@ impl<'a> Parser<'a> {
 
     // Parse logical type
     let (logical_type, precision, scale) = if let Some("(") = self.tokenizer.next() {
-      let tpe = self.tokenizer.next().
-        ok_or(general_err!("Expected logical type, found None")).
-        and_then(|v| v.to_uppercase().parse::<LogicalType>())?;
+      let tpe = self.tokenizer.next()
+        .ok_or(general_err!("Expected logical type, found None"))
+        .and_then(|v| v.to_uppercase().parse::<LogicalType>())?;
 
       // Parse precision and scale for decimals
       let mut precision: i32 = 0;
@@ -236,13 +245,15 @@ impl<'a> Parser<'a> {
           // Parse precision
           precision = parse_i32(self.tokenizer.next(),
             "Expected precision, found None",
-            "Failed to parse precision for DECIMAL type")?;
+            "Failed to parse precision for DECIMAL type"
+          )?;
 
           // Parse scale
           scale = if let Some(",") = self.tokenizer.next() {
             parse_i32(self.tokenizer.next(),
               "Expected scale, found None",
-              "Failed to parse scale for DECIMAL type")?
+              "Failed to parse scale for DECIMAL type"
+            )?
           } else {
             self.tokenizer.backtrack();
             0
@@ -282,6 +293,7 @@ impl<'a> Parser<'a> {
     Ok(builder.build()?)
   }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -361,21 +373,24 @@ mod tests {
     while let Some(token) = iter.next() {
       res.push(token);
     }
-    assert_eq!(res, vec![
-      "message", "schema", "{",
-        "required", "int32", "a", ";",
-        "optional", "binary", "c", "(", "UTF8", ")", ";",
-        "required", "group", "d", "{",
+    assert_eq!(
+      res,
+      vec![
+        "message", "schema", "{",
           "required", "int32", "a", ";",
           "optional", "binary", "c", "(", "UTF8", ")", ";",
-        "}",
-        "required", "group", "e", "(", "LIST", ")", "{",
-          "repeated", "group", "list", "{",
-            "required", "int32", "element", ";",
+          "required", "group", "d", "{",
+            "required", "int32", "a", ";",
+            "optional", "binary", "c", "(", "UTF8", ")", ";",
           "}",
-        "}",
-      "}"
-    ]);
+          "required", "group", "e", "(", "LIST", ")", "{",
+            "repeated", "group", "list", "{",
+              "required", "int32", "element", ";",
+            "}",
+          "}",
+        "}"
+      ]
+    );
   }
 
   #[test]
@@ -390,8 +405,10 @@ mod tests {
     let mut iter = Tokenizer::from_str("test");
     let result = Parser { tokenizer: &mut iter }.parse_message_type();
     assert!(result.is_err());
-    assert_eq!(result.unwrap_err().to_string(),
-      "Parquet error: Message type does not start with 'message'");
+    assert_eq!(
+      result.unwrap_err().to_string(),
+      "Parquet error: Message type does not start with 'message'"
+    );
   }
 
   #[test]
@@ -401,7 +418,8 @@ mod tests {
     assert!(result.is_err());
     assert_eq!(
       result.unwrap_err().to_string(),
-      "Parquet error: Expected name, found None");
+      "Parquet error: Expected name, found None"
+    );
   }
 
   #[test]

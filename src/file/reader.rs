@@ -16,21 +16,21 @@
 // under the License.
 
 use std::fs::File;
-use std::io::{self, Read, BufReader, Seek, SeekFrom};
+use std::io::{self, BufReader, Read, Seek, SeekFrom};
 use std::rc::Rc;
 
-use file::metadata::*;
 use basic::{Type, Compression, Encoding};
-use errors::{Result, ParquetError};
 use byteorder::{LittleEndian, ByteOrder};
-use thrift::protocol::TCompactInputProtocol;
-use parquet_thrift::parquet::FileMetaData as TFileMetaData;
-use parquet_thrift::parquet::{PageType, PageHeader};
-use schema::types::{self, Type as SchemaType, SchemaDescriptor};
 use column::page::{Page, PageReader};
 use column::reader::{ColumnReader, ColumnReaderImpl};
-use compression::{Codec, create_codec};
+use compression::{create_codec, Codec};
+use errors::{ParquetError, Result};
+use file::metadata::*;
+use parquet_thrift::parquet::FileMetaData as TFileMetaData;
+use parquet_thrift::parquet::{PageType, PageHeader};
 use record::reader::RowIter;
+use schema::types::{self, SchemaDescriptor, Type as SchemaType};
+use thrift::protocol::TCompactInputProtocol;
 use util::io::FileChunk;
 use util::memory::ByteBufferPtr;
 
@@ -115,7 +115,6 @@ impl SerializedFileReader {
     Ok(Self { buf: buf, metadata: Rc::new(metadata) })
   }
 
-  //
   // Layout of Parquet file
   // +---------------------------+---+-----+
   // |      Rest of file         | B |  A  |
@@ -138,13 +137,15 @@ impl SerializedFileReader {
     if metadata_len < 0 {
       return Err(general_err!(
         "Invalid parquet file. Metadata length is less than zero ({})",
-        metadata_len));
+        metadata_len
+      ));
     }
     let metadata_start: i64 = file_size as i64 - FOOTER_SIZE as i64 - metadata_len;
     if metadata_start < 0 {
       return Err(general_err!(
         "Invalid parquet file. Metadata start is less than zero ({})",
-        metadata_start))
+        metadata_start
+      ));
     }
     buf.seek(SeekFrom::Start(metadata_start as u64))?;
     let metadata_buf = buf.take(metadata_len as u64).into_inner();
@@ -154,7 +155,7 @@ impl SerializedFileReader {
     let mut prot = TCompactInputProtocol::new(transport);
     let mut t_file_metadata: TFileMetaData =
       TFileMetaData::read_from_in_protocol(&mut prot)
-      .map_err(|e| ParquetError::General(format!("Could not parse metadata: {}", e)))?;
+        .map_err(|e| ParquetError::General(format!("Could not parse metadata: {}", e)))?;
     let schema = types::from_thrift(&mut t_file_metadata.schema)?;
     let schema_descr = Rc::new(SchemaDescriptor::new(schema.clone()));
     let mut row_groups = Vec::new();
@@ -167,7 +168,8 @@ impl SerializedFileReader {
       t_file_metadata.num_rows,
       t_file_metadata.created_by,
       schema,
-      schema_descr);
+      schema_descr
+    );
     Ok(ParquetMetaData::new(file_metadata, row_groups))
   }
 }
@@ -273,7 +275,7 @@ pub struct SerializedPageReader {
   seen_num_values: i64,
 
   // The number of total values in this column chunk
-  total_num_values: i64,
+  total_num_values: i64
 }
 
 impl SerializedPageReader {
@@ -283,13 +285,12 @@ impl SerializedPageReader {
     compression: Compression
   ) -> Result<Self> {
     let decompressor = create_codec(compression)?;
-    let result =
-      Self {
-        buf: buf,
-        total_num_values: total_num_values,
-        seen_num_values: 0,
-        decompressor: decompressor
-      };
+    let result = Self {
+      buf: buf,
+      total_num_values: total_num_values,
+      seen_num_values: 0,
+      decompressor: decompressor
+    };
     Ok(result)
   }
 
@@ -332,12 +333,16 @@ impl PageReader for SerializedPageReader {
       // page header size and abort if that is exceeded.
       if let Some(decompressor) = self.decompressor.as_mut() {
         if can_decompress {
-          let mut decompressed_buffer = vec!();
+          let mut decompressed_buffer = vec![];
           let decompressed_size =
             decompressor.decompress(&buffer[offset..], &mut decompressed_buffer)?;
           if decompressed_size != uncompressed_len {
-            return Err(general_err!("Actual decompressed size doesn't \
-              match the expected one ({} vs {})", decompressed_size, uncompressed_len));
+            return Err(general_err!(
+              "Actual decompressed size doesn't \
+               match the expected one ({} vs {})",
+              decompressed_size,
+              uncompressed_len
+            ));
           }
           if offset == 0 {
             buffer = decompressed_buffer;
@@ -356,8 +361,10 @@ impl PageReader for SerializedPageReader {
           let dict_header = page_header.dictionary_page_header.as_ref().unwrap();
           let is_sorted = dict_header.is_sorted.unwrap_or(false);
           Page::DictionaryPage {
-            buf: ByteBufferPtr::new(buffer), num_values: dict_header.num_values as u32,
-            encoding: Encoding::from(dict_header.encoding), is_sorted: is_sorted
+            buf: ByteBufferPtr::new(buffer),
+            num_values: dict_header.num_values as u32,
+            encoding: Encoding::from(dict_header.encoding),
+            is_sorted: is_sorted
           }
         },
         PageType::DATA_PAGE => {
@@ -365,7 +372,8 @@ impl PageReader for SerializedPageReader {
           let header = page_header.data_page_header.as_ref().unwrap();
           self.seen_num_values += header.num_values as i64;
           Page::DataPage {
-            buf: ByteBufferPtr::new(buffer), num_values: header.num_values as u32,
+            buf: ByteBufferPtr::new(buffer),
+            num_values: header.num_values as u32,
             encoding: Encoding::from(header.encoding),
             def_level_encoding: Encoding::from(header.definition_level_encoding),
             rep_level_encoding: Encoding::from(header.repetition_level_encoding)
@@ -377,9 +385,11 @@ impl PageReader for SerializedPageReader {
           let is_compressed = header.is_compressed.unwrap_or(true);
           self.seen_num_values += header.num_values as i64;
           Page::DataPageV2 {
-            buf: ByteBufferPtr::new(buffer), num_values: header.num_values as u32,
+            buf: ByteBufferPtr::new(buffer),
+            num_values: header.num_values as u32,
             encoding: Encoding::from(header.encoding),
-            num_nulls: header.num_nulls as u32, num_rows: header.num_rows as u32,
+            num_nulls: header.num_nulls as u32,
+            num_rows: header.num_rows as u32,
             def_levels_byte_len: header.definition_levels_byte_length as u32,
             rep_levels_byte_len: header.repetition_levels_byte_length as u32,
             is_compressed: is_compressed
@@ -390,7 +400,7 @@ impl PageReader for SerializedPageReader {
           continue;
         }
       };
-      return Ok(Some(result))
+      return Ok(Some(result));
     }
 
     // We are at the end of this column chunk and no more page left. Return None.
@@ -409,8 +419,10 @@ mod tests {
     let test_file = get_temp_file("corrupt-1.parquet", &[]);
     let reader_result = SerializedFileReader::new(test_file);
     assert!(reader_result.is_err());
-    assert_eq!(reader_result.err().unwrap(),
-      general_err!("Invalid parquet file. Size is smaller than footer"));
+    assert_eq!(
+      reader_result.err().unwrap(),
+      general_err!("Invalid parquet file. Size is smaller than footer")
+    );
   }
 
   #[test]
@@ -418,8 +430,10 @@ mod tests {
     let test_file = get_temp_file("corrupt-2.parquet", &[1, 2, 3, 4, 5, 6, 7, 8]);
     let reader_result = SerializedFileReader::new(test_file);
     assert!(reader_result.is_err());
-    assert_eq!(reader_result.err().unwrap(),
-      general_err!("Invalid parquet file. Corrupt footer"));
+    assert_eq!(
+      reader_result.err().unwrap(),
+      general_err!("Invalid parquet file. Corrupt footer")
+    );
   }
 
   #[test]
@@ -428,9 +442,10 @@ mod tests {
       get_temp_file("corrupt-3.parquet", &[0, 0, 0, 255, b'P', b'A', b'R', b'1']);
     let reader_result = SerializedFileReader::new(test_file);
     assert!(reader_result.is_err());
-    assert_eq!(reader_result.err().unwrap(),
-      general_err!(
-        "Invalid parquet file. Metadata length is less than zero (-16777216)"));
+    assert_eq!(
+      reader_result.err().unwrap(),
+      general_err!("Invalid parquet file. Metadata length is less than zero (-16777216)")
+    );
   }
 
   #[test]
@@ -439,8 +454,10 @@ mod tests {
       get_temp_file("corrupt-4.parquet", &[255, 0, 0, 0, b'P', b'A', b'R', b'1']);
     let reader_result = SerializedFileReader::new(test_file);
     assert!(reader_result.is_err());
-    assert_eq!(reader_result.err().unwrap(),
-      general_err!("Invalid parquet file. Metadata start is less than zero (-255)"));
+    assert_eq!(
+      reader_result.err().unwrap(),
+      general_err!("Invalid parquet file. Metadata start is less than zero (-255)")
+    );
   }
 
   #[test]
@@ -478,8 +495,10 @@ mod tests {
     // Test contents in file metadata
     let file_metadata = metadata.file_metadata();
     assert!(file_metadata.created_by().is_some());
-    assert_eq!(file_metadata.created_by().as_ref().unwrap(),
-      "impala version 1.3.0-INTERNAL (build 8a48ddb1eff84592b3fc06bc6f51ec120e1fffc9)");
+    assert_eq!(
+      file_metadata.created_by().as_ref().unwrap(),
+      "impala version 1.3.0-INTERNAL (build 8a48ddb1eff84592b3fc06bc6f51ec120e1fffc9)"
+    );
     assert_eq!(file_metadata.num_rows(), 8);
     assert_eq!(file_metadata.version(), 1);
 
@@ -494,8 +513,10 @@ mod tests {
     assert!(row_group_reader_result.is_ok());
     let row_group_reader: Box<RowGroupReader> = row_group_reader_result.unwrap();
     assert_eq!(row_group_reader.num_columns(), row_group_metadata.num_columns());
-    assert_eq!(row_group_reader.metadata().total_byte_size(),
-      row_group_metadata.total_byte_size());
+    assert_eq!(
+      row_group_reader.metadata().total_byte_size(),
+      row_group_metadata.total_byte_size()
+    );
 
     // Test page readers
     // TODO: test for every column
@@ -505,7 +526,12 @@ mod tests {
     let mut page_count = 0;
     while let Ok(Some(page)) = page_reader_0.get_next_page() {
       let is_expected_page = match page {
-        Page::DictionaryPage{ buf, num_values, encoding, is_sorted } => {
+        Page::DictionaryPage {
+          buf,
+          num_values,
+          encoding,
+          is_sorted
+        } => {
           assert_eq!(buf.len(), 32);
           assert_eq!(num_values, 8);
           assert_eq!(encoding, Encoding::PLAIN_DICTIONARY);
@@ -513,7 +539,11 @@ mod tests {
           true
         },
         Page::DataPage {
-          buf, num_values, encoding, def_level_encoding, rep_level_encoding
+          buf,
+          num_values,
+          encoding,
+          def_level_encoding,
+          rep_level_encoding
         } => {
           assert_eq!(buf.len(), 11);
           assert_eq!(num_values, 8);
@@ -544,8 +574,10 @@ mod tests {
     // Test contents in file metadata
     let file_metadata = metadata.file_metadata();
     assert!(file_metadata.created_by().is_some());
-    assert_eq!(file_metadata.created_by().as_ref().unwrap(),
-      "parquet-mr version 1.8.1 (build 4aba4dae7bb0d4edbcf7923ae1339f28fd3f7fcf)");
+    assert_eq!(
+      file_metadata.created_by().as_ref().unwrap(),
+      "parquet-mr version 1.8.1 (build 4aba4dae7bb0d4edbcf7923ae1339f28fd3f7fcf)"
+    );
     assert_eq!(file_metadata.num_rows(), 5);
     assert_eq!(file_metadata.version(), 1);
 
@@ -556,8 +588,10 @@ mod tests {
     assert!(row_group_reader_result.is_ok());
     let row_group_reader: Box<RowGroupReader> = row_group_reader_result.unwrap();
     assert_eq!(row_group_reader.num_columns(), row_group_metadata.num_columns());
-    assert_eq!(row_group_reader.metadata().total_byte_size(),
-      row_group_metadata.total_byte_size());
+    assert_eq!(
+      row_group_reader.metadata().total_byte_size(),
+      row_group_metadata.total_byte_size()
+    );
 
     // Test page readers
     // TODO: test for every column
@@ -567,7 +601,12 @@ mod tests {
     let mut page_count = 0;
     while let Ok(Some(page)) = page_reader_0.get_next_page() {
       let is_expected_page = match page {
-        Page::DictionaryPage { buf, num_values, encoding, is_sorted } => {
+        Page::DictionaryPage {
+          buf,
+          num_values,
+          encoding,
+          is_sorted
+        } => {
           assert_eq!(buf.len(), 7);
           assert_eq!(num_values, 1);
           assert_eq!(encoding, Encoding::PLAIN);
@@ -575,8 +614,14 @@ mod tests {
           true
         },
         Page::DataPageV2 {
-          buf, num_values, encoding, num_nulls, num_rows, def_levels_byte_len,
-          rep_levels_byte_len, is_compressed
+          buf,
+          num_values,
+          encoding,
+          num_nulls,
+          num_rows,
+          def_levels_byte_len,
+          rep_levels_byte_len,
+          is_compressed
         } => {
           assert_eq!(buf.len(), 4);
           assert_eq!(num_values, 5);

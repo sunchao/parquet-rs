@@ -18,28 +18,28 @@
 use std::cmp;
 use std::mem;
 
+use super::rle::{RleDecoder, RleEncoder};
 use basic::Encoding;
 use data_type::AsBytes;
-use errors::{Result, ParquetError};
-use util::bit_util::{BitReader, BitWriter, ceil, log2};
+use errors::{ParquetError, Result};
+use util::bit_util::{ceil, log2, BitReader, BitWriter};
 use util::memory::ByteBufferPtr;
-use super::rle::{RleEncoder, RleDecoder};
 
 enum InternalEncoder {
   RLE(RleEncoder),
-  BIT_PACKED(BitWriter),
+  BIT_PACKED(BitWriter)
 }
 
 enum InternalDecoder {
   RLE(RleDecoder),
-  BIT_PACKED(BitReader),
+  BIT_PACKED(BitReader)
 }
 
 /// A encoder for definition/repetition levels.
 /// Currently only supports RLE and BIT_PACKED (dev/null) encoding.
 pub struct LevelEncoder {
   bit_width: u8,
-  encoder: InternalEncoder,
+  encoder: InternalEncoder
 }
 
 impl LevelEncoder {
@@ -108,7 +108,9 @@ impl LevelEncoder {
   /// values).
   #[inline]
   pub fn max_buffer_size(
-    encoding: Encoding, max_level: i16, num_buffered_values: usize
+    encoding: Encoding,
+    max_level: i16,
+    num_buffered_values: usize
   ) -> usize {
     let bit_width = log2(max_level as u64 + 1) as u8;
     match encoding {
@@ -200,15 +202,20 @@ impl LevelDecoder {
   /// advance. Only supported by RLE level decoder.
   /// Returns number of total bytes set for this decoder (len)
   #[inline]
-  pub fn set_data_range(&mut self, num_buffered_values: usize, data: &ByteBufferPtr,
-      start: usize, len: usize) -> usize {
+  pub fn set_data_range(
+    &mut self,
+    num_buffered_values: usize,
+    data: &ByteBufferPtr,
+    start: usize,
+    len: usize
+  ) -> usize {
     match self.decoder {
       InternalDecoder::RLE(ref mut rle_decoder) => {
         rle_decoder.set_data(data.range(start, len));
         self.num_values = Some(num_buffered_values);
         len
       },
-      _ => panic!("set_data_range() method is only supported by RLE encoding type"),
+      _ => panic!("set_data_range() method is only supported by RLE encoding type")
     }
   }
 
@@ -241,13 +248,14 @@ impl LevelDecoder {
           }
         }
         values_read
-      },
+      }
     };
     // Update current num_values
     self.num_values = self.num_values.map(|len| len - values_read);
     Ok(values_read)
   }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -283,7 +291,8 @@ mod tests {
     let mut safe_stop = levels.len() * 2; // still terminate in case of issues in the code
     while safe_stop > 0 {
       safe_stop -= 1;
-      let num_decoded = decoder.get(&mut buffer[total_decoded..total_decoded + 1])
+      let num_decoded = decoder
+        .get(&mut buffer[total_decoded..total_decoded + 1])
         .expect("get() should be OK");
       if num_decoded == 0 {
         break;
@@ -327,7 +336,7 @@ mod tests {
           found_err = true;
           break;
         },
-        Ok(_) => { },
+        Ok(_) => {},
       }
     }
     if !found_err {

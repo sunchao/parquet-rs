@@ -17,11 +17,10 @@
 
 use std::rc::Rc;
 
-use basic::{Encoding, Type, Compression};
-use errors::{Result, ParquetError};
-use schema::types::{TypePtr, ColumnDescriptor, SchemaDescriptor};
-use schema::types::Type as SchemaType;
-use schema::types::{SchemaDescPtr, ColumnDescPtr, ColumnPath};
+use basic::{Compression, Encoding, Type};
+use errors::{ParquetError, Result};
+use schema::types::{ColumnDescriptor, ColumnDescPtr, ColumnPath};
+use schema::types::{SchemaDescriptor, SchemaDescPtr, Type as SchemaType, TypePtr};
 use parquet_thrift::parquet::{ColumnChunk, ColumnMetaData, RowGroup};
 
 pub type ParquetMetaDataPtr = Rc<ParquetMetaData>;
@@ -68,9 +67,20 @@ pub struct FileMetaData {
 }
 
 impl FileMetaData {
-  pub fn new(version: i32, num_rows: i64, created_by: Option<String>,
-             schema: TypePtr, schema_descr: SchemaDescPtr) -> Self {
-    FileMetaData { version, num_rows, created_by, schema, schema_descr }
+  pub fn new(
+    version: i32,
+    num_rows: i64,
+    created_by: Option<String>,
+    schema: TypePtr,
+    schema_descr: SchemaDescPtr
+  ) -> Self {
+    FileMetaData {
+      version,
+      num_rows,
+      created_by,
+      schema,
+      schema_descr
+    }
   }
 
   pub fn version(&self) -> i32 {
@@ -138,17 +148,23 @@ impl RowGroupMetaData {
   }
 
   pub fn from_thrift(
-    schema_descr: SchemaDescPtr, mut rg: RowGroup
+    schema_descr: SchemaDescPtr,
+    mut rg: RowGroup
   ) -> Result<RowGroupMetaData> {
     assert_eq!(schema_descr.num_columns(), rg.columns.len());
     let total_byte_size = rg.total_byte_size;
     let num_rows = rg.num_rows;
-    let mut columns = vec!();
+    let mut columns = vec![];
     for (c, d) in rg.columns.drain(0..).zip(schema_descr.columns()) {
       let cc = ColumnChunkMetaData::from_thrift(d.clone(), c)?;
       columns.push(Rc::new(cc));
     }
-    Ok(RowGroupMetaData{columns, num_rows, total_byte_size, schema_descr})
+    Ok(RowGroupMetaData {
+      columns,
+      num_rows,
+      total_byte_size,
+      schema_descr
+    })
   }
 }
 
@@ -275,9 +291,18 @@ impl ColumnChunkMetaData {
     let index_page_offset = col_metadata.index_page_offset;
     let dictionary_page_offset = col_metadata.dictionary_page_offset;
     let result = ColumnChunkMetaData {
-      column_type, column_path, column_descr, encodings, file_path,
-      file_offset, num_values, compression, total_compressed_size,
-      total_uncompressed_size, data_page_offset, index_page_offset,
+      column_type,
+      column_path,
+      column_descr,
+      encodings,
+      file_path,
+      file_offset,
+      num_values,
+      compression,
+      total_compressed_size,
+      total_uncompressed_size,
+      data_page_offset,
+      index_page_offset,
       dictionary_page_offset
     };
     Ok(result)

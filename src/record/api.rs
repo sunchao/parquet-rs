@@ -16,14 +16,19 @@
 // under the License.
 
 use std::fmt;
-use basic::{Type as PhysicalType, LogicalType};
+
+use basic::{LogicalType, Type as PhysicalType};
 use data_type::{ByteArray, Int96};
 
 /// Macro as a shortcut to generate 'not yet implemented' panic error.
 macro_rules! nyi {
   ($physical_type:ident, $logical_type:ident, $value:ident) => ({
-    unimplemented!("Conversion for physical type {}, logical type {}, value {:?}",
-      $physical_type, $logical_type, $value);
+    unimplemented!(
+      "Conversion for physical type {}, logical type {}, value {:?}",
+      $physical_type,
+      $logical_type,
+      $value
+    );
   });
 }
 
@@ -52,14 +57,18 @@ pub enum Row {
 impl Row {
   /// Converts BOOLEAN into boolean value.
   pub fn convert_bool(
-    _physical_type: PhysicalType, _logical_type: LogicalType, value: bool
+    _physical_type: PhysicalType,
+    _logical_type: LogicalType,
+    value: bool
   ) -> Self {
     Row::Bool(value)
   }
 
   // Converts INT32 into integer value.
   pub fn convert_int32(
-    physical_type: PhysicalType, logical_type: LogicalType, value: i32
+    physical_type: PhysicalType,
+    logical_type: LogicalType,
+    value: i32
   ) -> Self {
     match logical_type {
       LogicalType::INT_8 => Row::Byte(value as i8),
@@ -71,7 +80,9 @@ impl Row {
 
   /// Converts INT64 into long value.
   pub fn convert_int64(
-    physical_type: PhysicalType, logical_type: LogicalType, value: i64
+    physical_type: PhysicalType,
+    logical_type: LogicalType,
+    value: i64
   ) -> Self {
     match logical_type {
       LogicalType::INT_64 | LogicalType::NONE => Row::Long(value),
@@ -81,7 +92,9 @@ impl Row {
 
   /// Converts nanosecond timestamps stored as INT96 into milliseconds
   pub fn convert_int96(
-    _physical_type: PhysicalType, _logical_type: LogicalType, value: Int96
+    _physical_type: PhysicalType,
+    _logical_type: LogicalType,
+    value: Int96
   ) -> Self {
     let julian_to_unix_epoch_days: u64 = 2_440_588;
     let milli_seconds_in_a_day: u64 = 86_400_000;
@@ -97,21 +110,27 @@ impl Row {
 
   /// Converts FLOAT into float value.
   pub fn convert_float(
-    _physical_type: PhysicalType, _logical_type: LogicalType, value: f32
+    _physical_type: PhysicalType,
+    _logical_type: LogicalType,
+    value: f32
   ) -> Self {
     Row::Float(value)
   }
 
   /// Converts DOUBLE into double value.
   pub fn convert_double(
-    _physical_type: PhysicalType, _logical_type: LogicalType, value: f64
+    _physical_type: PhysicalType,
+    _logical_type: LogicalType,
+    value: f64
   ) -> Self {
     Row::Double(value)
   }
 
   /// Converts BYTE_ARRAY into either UTF8 string or array of bytes.
   pub fn convert_byte_array(
-    physical_type: PhysicalType, logical_type: LogicalType, value: ByteArray
+    physical_type: PhysicalType,
+    logical_type: LogicalType,
+    value: ByteArray
   ) -> Self {
     match physical_type {
       PhysicalType::BYTE_ARRAY => {

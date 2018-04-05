@@ -23,12 +23,15 @@ use std::slice;
 
 use basic::*;
 use data_type::*;
-use errors::{Result, ParquetError};
-use schema::types::ColumnDescPtr;
-use util::memory::{ByteBufferPtr, ByteBuffer, Buffer, MemTrackerPtr};
-use util::bit_util::{BitWriter, log2, num_required_bits};
-use util::hash_util;
 use encodings::rle::RleEncoder;
+use errors::{ParquetError, Result};
+use schema::types::ColumnDescPtr;
+use util::bit_util::{log2, num_required_bits, BitWriter};
+use util::memory::{Buffer, ByteBuffer, ByteBufferPtr, MemTrackerPtr};
+use util::hash_util;
+
+// ----------------------------------------------------------------------
+// Encoders
 
 /// An Parquet encoder for the data type `T`.
 ///
@@ -56,7 +59,7 @@ pub fn get_encoder<T: DataType>(
 ) -> Result<Box<Encoder<T>>> where T: 'static {
   let encoder: Box<Encoder<T>> = match encoding {
     Encoding::PLAIN => {
-      Box::new(PlainEncoder::new(desc, mem_tracker, vec!()))
+      Box::new(PlainEncoder::new(desc, mem_tracker, vec![]))
     },
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
       Box::new(DictEncoder::new(desc, mem_tracker))
@@ -107,7 +110,8 @@ impl<T: DataType> Encoder<T> for PlainEncoder<T> {
     let bytes = unsafe {
       slice::from_raw_parts(
         values as *const [T::T] as *const u8,
-        mem::size_of::<T::T>() * values.len())
+        mem::size_of::<T::T>() * values.len()
+      )
     };
     self.buffer.write(bytes)?;
     Ok(())
@@ -229,7 +233,7 @@ impl<T: DataType> DictEncoder<T> {
   #[inline]
   pub fn write_dict(&self) -> Result<ByteBufferPtr> {
     let mut plain_encoder = PlainEncoder::<T>::new(
-      self.desc.clone(), self.mem_tracker.clone(), vec!());
+      self.desc.clone(), self.mem_tracker.clone(), vec![]);
     plain_encoder.put(self.uniques.data())?;
     plain_encoder.flush_buffer()
   }
@@ -240,8 +244,8 @@ impl<T: DataType> DictEncoder<T> {
   pub fn write_indices(&mut self) -> Result<ByteBufferPtr> {
     let bit_width = self.bit_width();
     // TODO: the caller should allocate the buffer
-    let buffer_len = 1 + RleEncoder::min_buffer_size(bit_width)
-      + RleEncoder::max_buffer_size(bit_width, self.buffered_indices.size());
+    let buffer_len = 1 + RleEncoder::min_buffer_size(bit_width) +
+      RleEncoder::max_buffer_size(bit_width, self.buffered_indices.size());
     let mut buffer: Vec<u8> = vec![0; buffer_len as usize];
     buffer[0] = bit_width as u8;
     self.mem_tracker.alloc(buffer.capacity() as i64);
@@ -365,7 +369,10 @@ pub struct RleValueEncoder<T: DataType> {
 
 impl<T: DataType> RleValueEncoder<T> {
   pub fn new() -> Self {
-    Self { encoder: None, _phantom: PhantomData }
+    Self {
+      encoder: None,
+      _phantom: PhantomData
+    }
   }
 }
 
@@ -554,7 +561,9 @@ impl<T: DataType> DeltaBitPackEncoder<T> {
 
     assert!(
       self.values_in_block == 0,
-      "Expected 0 values in block, found {}", self.values_in_block);
+      "Expected 0 values in block, found {}",
+      self.values_in_block
+    );
     Ok(())
   }
 }
@@ -564,7 +573,7 @@ impl<T: DataType> DeltaBitPackEncoder<T> {
 impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
   fn put(&mut self, values: &[T::T]) -> Result<()> {
     if values.is_empty() {
-      return Ok(())
+      return Ok(());
     }
 
     let mut idx;
@@ -715,7 +724,7 @@ impl<T: DataType> DeltaLengthByteArrayEncoder<T> {
   pub fn new() -> Self {
     Self {
       len_encoder: DeltaBitPackEncoder::new(),
-      data: vec!(),
+      data: vec![],
       _phantom: PhantomData
     }
   }
@@ -747,7 +756,7 @@ impl Encoder<ByteArrayType> for DeltaLengthByteArrayEncoder<ByteArrayType> {
   }
 
   fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
-    let mut total_bytes = vec!();
+    let mut total_bytes = vec![];
     let lengths = self.len_encoder.flush_buffer()?;
     total_bytes.extend_from_slice(lengths.data());
     self.data.iter().for_each(|byte_array| {
@@ -772,7 +781,7 @@ impl<T: DataType> DeltaByteArrayEncoder<T> {
     Self {
       prefix_len_encoder: DeltaBitPackEncoder::<Int32Type>::new(),
       suffix_writer: DeltaLengthByteArrayEncoder::<T>::new(),
-      previous: vec!(),
+      previous: vec![],
       _phantom: PhantomData
     }
   }
@@ -794,8 +803,8 @@ impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
 
 impl Encoder<ByteArrayType> for DeltaByteArrayEncoder<ByteArrayType> {
   fn put(&mut self, values: &[ByteArray]) -> Result<()> {
-    let mut prefix_lengths: Vec<i32> = vec!();
-    let mut suffixes: Vec<ByteArray> = vec!();
+    let mut prefix_lengths: Vec<i32> = vec![];
+    let mut suffixes: Vec<ByteArray> = vec![];
 
     for byte_array in values {
       let current = byte_array.data();
@@ -819,7 +828,7 @@ impl Encoder<ByteArrayType> for DeltaByteArrayEncoder<ByteArrayType> {
   fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
     // TODO: investigate if we can merge lengths and suffixes
     // without copying data into new vector.
-    let mut total_bytes = vec!();
+    let mut total_bytes = vec![];
     // Insert lengths ...
     let lengths = self.prefix_len_encoder.flush_buffer()?;
     total_bytes.extend_from_slice(lengths.data());
@@ -831,12 +840,13 @@ impl Encoder<ByteArrayType> for DeltaByteArrayEncoder<ByteArrayType> {
   }
 }
 
+
 #[cfg(test)]
 mod tests {
-  use super::*;
   use super::super::decoding::*;
+  use super::*;
+  use schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
   use std::rc::Rc;
-  use schema::types::{Type as SchemaType, ColumnDescriptor, ColumnPath};
   use util::memory::MemTracker;
   use util::test_common::RandGen;
 
@@ -904,7 +914,9 @@ mod tests {
 
       assert!(
         result.is_ok(),
-        "Expected result to be OK but got err:\n {}", result.unwrap_err());
+        "Expected result to be OK but got err:\n {}",
+        result.unwrap_err()
+      );
     }
 
     fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()>;
@@ -983,7 +995,7 @@ mod tests {
       .with_length(type_len)
       .build()
       .unwrap();
-    ColumnDescriptor::new(Rc::new(ty), None, 0, 0, ColumnPath::new(vec!()))
+    ColumnDescriptor::new(Rc::new(ty), None, 0, 0, ColumnPath::new(vec![]))
   }
 
   fn create_test_encoder<T: DataType>(
@@ -993,7 +1005,7 @@ mod tests {
     let mem_tracker = Rc::new(MemTracker::new());
     let encoder: Box<Encoder<T>> = match enc {
       Encoding::PLAIN => {
-        Box::new(PlainEncoder::<T>::new(Rc::new(desc), mem_tracker, vec!()))
+        Box::new(PlainEncoder::<T>::new(Rc::new(desc), mem_tracker, vec![]))
       },
       Encoding::PLAIN_DICTIONARY => {
         Box::new(DictEncoder::<T>::new(Rc::new(desc), mem_tracker))

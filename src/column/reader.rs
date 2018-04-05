@@ -15,18 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::mem;
 use std::cmp::{max, min};
 use std::collections::HashMap;
+use std::mem;
 
+use super::page::{Page, PageReader};
 use basic::*;
 use data_type::*;
-use schema::types::ColumnDescPtr;
-use util::memory::ByteBufferPtr;
 use encodings::decoding::{get_decoder, Decoder, PlainDecoder, DictDecoder};
 use encodings::levels::LevelDecoder;
 use errors::{Result, ParquetError};
-use super::page::{Page, PageReader};
+use schema::types::ColumnDescPtr;
+use util::memory::ByteBufferPtr;
 
 pub enum ColumnReader {
   BoolColumnReader(ColumnReaderImpl<BoolType>),
@@ -36,7 +36,7 @@ pub enum ColumnReader {
   FloatColumnReader(ColumnReaderImpl<FloatType>),
   DoubleColumnReader(ColumnReaderImpl<DoubleType>),
   ByteArrayColumnReader(ColumnReaderImpl<ByteArrayType>),
-  FixedLenByteArrayColumnReader(ColumnReaderImpl<FixedLenByteArrayType>),
+  FixedLenByteArrayColumnReader(ColumnReaderImpl<FixedLenByteArrayType>)
 }
 
 /// Gets a specific column reader corresponding to column descriptor `col_descr`. The
@@ -432,16 +432,16 @@ impl<T: DataType> ColumnReaderImpl<T> where T: 'static {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use std::rc::Rc;
-  use std::collections::VecDeque;
-  use std::vec::IntoIter;
   use rand::distributions::range::SampleRange;
+  use std::collections::VecDeque;
+  use std::rc::Rc;
+  use std::vec::IntoIter;
 
   use basic::Type as PhysicalType;
   use column::page::Page;
-  use encodings::encoding::{get_encoder, Encoder, DictEncoder};
+  use encodings::encoding::{get_encoder, DictEncoder, Encoder};
   use encodings::levels::LevelEncoder;
-  use schema::types::{Type as SchemaType, ColumnDescriptor, ColumnPath};
+  use schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
   use util::memory::{ByteBufferPtr, MemTracker, MemTrackerPtr};
   use util::test_common::random_numbers_range;
 
@@ -456,13 +456,13 @@ mod tests {
     ($test_func:ident, i32, $func:ident, $def_level:expr, $rep_level:expr,
      $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
       test_internal!($test_func, Int32Type, get_test_int32_type, $func, $def_level,
-                     $rep_level, $num_pages, $num_levels, $batch_size, $min, $max);
+        $rep_level, $num_pages, $num_levels, $batch_size, $min, $max);
     };
     // branch for generating i64 cases
     ($test_func:ident, i64, $func:ident, $def_level:expr, $rep_level:expr,
      $num_pages:expr, $num_levels:expr, $batch_size:expr, $min:expr, $max:expr) => {
       test_internal!($test_func, Int64Type, get_test_int64_type, $func, $def_level,
-                     $rep_level, $num_pages, $num_levels, $batch_size, $min, $max);
+        $rep_level, $num_pages, $num_levels, $batch_size, $min, $max);
     };
   }
 
@@ -693,8 +693,16 @@ mod tests {
       min: T::T,
       max: T::T
     ) {
-      self.test_read_batch_general(desc, Encoding::PLAIN, num_pages, num_levels,
-                                   batch_size, min, max, false);
+      self.test_read_batch_general(
+        desc,
+        Encoding::PLAIN,
+        num_pages,
+        num_levels,
+        batch_size,
+        min,
+        max,
+        false
+      );
     }
 
     // method to generate and test data pages v2
@@ -707,8 +715,16 @@ mod tests {
       min: T::T,
       max: T::T
     ) {
-      self.test_read_batch_general(desc, Encoding::PLAIN, num_pages, num_levels,
-                                   batch_size, min, max, true);
+      self.test_read_batch_general(
+        desc,
+        Encoding::PLAIN,
+        num_pages,
+        num_levels,
+        batch_size,
+        min,
+        max,
+        true
+      );
     }
 
     fn dict_v1(
@@ -720,8 +736,16 @@ mod tests {
       min: T::T,
       max: T::T
     ) {
-      self.test_read_batch_general(desc, Encoding::RLE_DICTIONARY, num_pages, num_levels,
-                                   batch_size, min, max, false);
+      self.test_read_batch_general(
+        desc,
+        Encoding::RLE_DICTIONARY,
+        num_pages,
+        num_levels,
+        batch_size,
+        min,
+        max,
+        false
+      );
     }
 
     fn dict_v2(
@@ -733,8 +757,16 @@ mod tests {
       min: T::T,
       max: T::T
     ) {
-      self.test_read_batch_general(desc, Encoding::RLE_DICTIONARY, num_pages, num_levels,
-                                   batch_size, min, max, true);
+      self.test_read_batch_general(
+        desc,
+        Encoding::RLE_DICTIONARY,
+        num_pages,
+        num_levels,
+        batch_size,
+        min,
+        max,
+        true
+      );
     }
 
     // Helper function for the general case of `read_batch()` where `values`,
@@ -753,9 +785,19 @@ mod tests {
       let mut def_levels = vec![0; num_levels * num_pages];
       let mut rep_levels = vec![0; num_levels * num_pages];
       let mut values = vec![T::T::default(); num_levels * num_pages];
-      self.test_read_batch(desc, encoding, num_pages, num_levels, batch_size, min, max,
-                           &mut values, Some(&mut def_levels), Some(&mut rep_levels),
-                           use_v2);
+      self.test_read_batch(
+        desc,
+        encoding,
+        num_pages,
+        num_levels,
+        batch_size,
+        min,
+        max,
+        &mut values,
+        Some(&mut def_levels),
+        Some(&mut rep_levels),
+        use_v2
+      );
     }
 
     // Helper function to test `read_batch()` method with custom buffers for values,
@@ -812,33 +854,47 @@ mod tests {
       }
 
       assert!(values.len() >= curr_values_read, "values.len() >= values_read");
-      assert_eq!(&values[0..curr_values_read], &self.values[0..curr_values_read],
-                 "values content doesn't match");
+      assert_eq!(
+        &values[0..curr_values_read],
+        &self.values[0..curr_values_read],
+        "values content doesn't match"
+      );
 
       if let Some(ref levels) = def_levels {
         assert!(levels.len() >= curr_levels_read, "def_levels.len() >= levels_read");
-        assert_eq!(&levels[0..curr_levels_read], &self.def_levels[0..curr_levels_read],
-                   "definition levels content doesn't match");
+        assert_eq!(
+          &levels[0..curr_levels_read],
+          &self.def_levels[0..curr_levels_read],
+          "definition levels content doesn't match"
+        );
       }
 
       if let Some(ref levels) = rep_levels {
         assert!(levels.len() >= curr_levels_read, "rep_levels.len() >= levels_read");
-        assert_eq!(&levels[0..curr_levels_read], &self.rep_levels[0..curr_levels_read],
-                   "repetition levels content doesn't match");
+        assert_eq!(
+          &levels[0..curr_levels_read],
+          &self.rep_levels[0..curr_levels_read],
+          "repetition levels content doesn't match"
+        );
       }
 
       if def_levels.is_none() && rep_levels.is_none() {
-        assert!(curr_levels_read == 0, "expected to read 0 levels, found {}",
-                curr_levels_read);
+        assert!(
+          curr_levels_read == 0,
+          "expected to read 0 levels, found {}",
+          curr_levels_read
+        );
       } else if def_levels.is_some() && max_def_level > 0 {
-        assert!(curr_levels_read >= curr_values_read,
-                "expected levels read to be greater than values read");
+        assert!(
+          curr_levels_read >= curr_values_read,
+          "expected levels read to be greater than values read"
+        );
       }
     }
   }
 
   struct TestPageReader {
-    pages: IntoIter<Page>,
+    pages: IntoIter<Page>
   }
 
   impl TestPageReader {
@@ -893,7 +949,7 @@ mod tests {
         encoding: None,
         mem_tracker: Rc::new(MemTracker::new()),
         num_values: num_values,
-        buffer: vec!(),
+        buffer: vec![],
         rep_levels_byte_len: 0,
         def_levels_byte_len: 0,
         datapage_v2: datapage_v2
@@ -1002,7 +1058,7 @@ mod tests {
 
     for i in 0..num_pages {
       let mut num_values_cur_page = 0;
-      let level_range = i * levels_per_page .. (i+1) * levels_per_page;
+      let level_range = i * levels_per_page..(i+1) * levels_per_page;
 
       if max_def_level > 0 {
         random_numbers_range(levels_per_page, 0, max_def_level + 1, def_levels);
@@ -1030,7 +1086,7 @@ mod tests {
         pb.add_def_levels(max_def_level, &def_levels[level_range]);
       }
 
-      let value_range = num_values .. num_values + num_values_cur_page;
+      let value_range = num_values..num_values + num_values_cur_page;
       match encoding {
         Encoding::PLAIN_DICTIONARY | Encoding::RLE_DICTIONARY => {
           let _ = dict_encoder.put(&values[value_range.clone()]);
@@ -1039,11 +1095,9 @@ mod tests {
             .expect("write_indices() should be OK");
           pb.add_indices(indices);
         },
-
         Encoding::PLAIN => {
           pb.add_values::<T>(encoding, &values[value_range]);
         },
-
         enc @ _ => panic!("Unexpected encoding {}", enc)
       }
 
