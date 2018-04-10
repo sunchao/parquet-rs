@@ -199,14 +199,10 @@ impl Decoder<BoolType> for PlainDecoder<BoolType> {
     assert!(self.bit_reader.is_some());
 
     let bit_reader = self.bit_reader.as_mut().unwrap();
-    let num_values = cmp::min(buffer.len(), self.num_values);
-    for i in 0..num_values {
-      buffer[i] = bit_reader.get_value::<bool>(1)
-        .ok_or(eof_err!("Not enough bytes to decode"))?;
-    }
-    self.num_values -= num_values;
+    let values_read = bit_reader.get_batch::<bool>(buffer, 1);
+    self.num_values -= values_read;
 
-    Ok(num_values)
+    Ok(values_read)
   }
 }
 
@@ -413,7 +409,8 @@ pub struct DeltaBitPackDecoder<T: DataType> {
   mini_block_idx: usize,
   delta_bit_width: u8,
   delta_bit_widths: ByteBuffer,
-  deltas_in_mini_block: Vec<u64>, // eagerly loaded deltas for a mini block
+  deltas_in_mini_block: Vec<T::T>, // eagerly loaded deltas for a mini block
+  use_batch: bool,
 
   current_value: i64,
 
@@ -436,6 +433,7 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
       delta_bit_width: 0,
       delta_bit_widths: ByteBuffer::new(),
       deltas_in_mini_block: vec![],
+      use_batch: mem::size_of::<T::T>() == 4,
       current_value: 0,
       _phantom: PhantomData
     }
@@ -470,14 +468,20 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
   #[inline]
   fn load_deltas_in_mini_block(&mut self) -> Result<()> {
     self.deltas_in_mini_block.clear();
-
-    for _ in 0..self.values_current_mini_block {
-      // TODO: use SIMD to optimize this?
-      // TODO: we should be loading data eagerly like same decoder in parquet-mr
-      let delta = self.bit_reader
-        .get_value::<u64>(self.delta_bit_width as usize)
-        .ok_or(eof_err!("Not enough data to decode 'delta'"))?;
-      self.deltas_in_mini_block.push(delta);
+    if self.use_batch {
+      self.deltas_in_mini_block.resize(self.values_current_mini_block, T::T::default());
+      let loaded = self.bit_reader.get_batch::<T::T>(
+        &mut self.deltas_in_mini_block[..], self.delta_bit_width as usize
+      );
+      assert!(loaded == self.values_current_mini_block);
+    } else {
+      for _ in 0..self.values_current_mini_block {
+        // TODO: load one batch at a time similar to int32
+        let delta = self.bit_reader
+          .get_value::<T::T>(self.delta_bit_width as usize)
+          .ok_or(eof_err!("Not enough data to decode 'delta'"))?;
+        self.deltas_in_mini_block.push(delta);
+      }
     }
 
     Ok(())
@@ -522,7 +526,7 @@ impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
     let num_values = cmp::min(buffer.len(), self.num_values);
     for i in 0..num_values {
       if !self.first_value_read {
-        self.set_decoded_value(buffer, i, self.first_value)?;
+        self.set_decoded_value(buffer, i, self.first_value);
         self.current_value = self.first_value;
         self.first_value_read = true;
         continue;
@@ -540,14 +544,15 @@ impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
       }
 
       // we decrement values in current mini block, so we need to invert index for delta
-      let delta = self.deltas_in_mini_block[
-        self.deltas_in_mini_block.len() - self.values_current_mini_block];
+      let delta = self.get_delta(
+        self.deltas_in_mini_block.len() - self.values_current_mini_block
+      );
       // It is OK for deltas to contain "overflowed" values after encoding,
       // e.g. i64::MAX - i64::MIN, so we use `wrapping_add` to "overflow" again and
       // restore original value.
       self.current_value = self.current_value.wrapping_add(self.min_delta);
       self.current_value = self.current_value.wrapping_add(delta as i64);
-      self.set_decoded_value(buffer, i, self.current_value)?;
+      self.set_decoded_value(buffer, i, self.current_value);
       self.values_current_mini_block -= 1;
     }
 
@@ -567,48 +572,45 @@ impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
 // Helper trait to define specific conversions when decoding values
 trait DeltaBitPackDecoderConversion<T: DataType> {
   #[inline]
-  fn set_decoded_value(
-    &self, buffer:
-    &mut [T::T],
-    index: usize,
-    value: i64
-  ) -> Result<()>;
+  fn get_delta(&self, index: usize) -> i64;
+
+  #[inline]
+  fn set_decoded_value(&self, buffer: &mut [T::T], index: usize, value: i64);
 }
 
 impl<T: DataType> DeltaBitPackDecoderConversion<T> for DeltaBitPackDecoder<T> {
   #[inline]
-  default fn set_decoded_value(
-    &self,
-    _: &mut [T::T],
-    _: usize,
-    _: i64) -> Result<()> {
-    Err(general_err!("DeltaBitPackDecoder only supports Int32Type and Int64Type"))
+  default fn get_delta(&self, _: usize) -> i64 {
+    panic!("DeltaBitPackDecoder only supports Int32Type and Int64Type")
+  }
+
+  #[inline]
+  default fn set_decoded_value(&self, _: &mut [T::T], _: usize, _: i64) {
+    panic!("DeltaBitPackDecoder only supports Int32Type and Int64Type")
   }
 }
 
 impl DeltaBitPackDecoderConversion<Int32Type> for DeltaBitPackDecoder<Int32Type> {
   #[inline]
-  fn set_decoded_value(
-    &self,
-    buffer: &mut [i32],
-    index: usize,
-    value: i64
-  ) -> Result<()> {
+  fn get_delta(&self, index: usize) -> i64 {
+    self.deltas_in_mini_block[index] as i64
+  }
+
+  #[inline]
+  fn set_decoded_value(&self, buffer: &mut [i32], index: usize, value: i64) {
     buffer[index] = value as i32;
-    Ok(())
   }
 }
 
 impl DeltaBitPackDecoderConversion<Int64Type> for DeltaBitPackDecoder<Int64Type> {
   #[inline]
-  fn set_decoded_value(
-    &self,
-    buffer: &mut [i64],
-    index: usize,
-    value: i64
-  ) -> Result<()> {
+  fn get_delta(&self, index: usize) -> i64 {
+    self.deltas_in_mini_block[index]
+  }
+
+  #[inline]
+  fn set_decoded_value(&self, buffer: &mut [i64], index: usize, value: i64) {
     buffer[index] = value;
-    Ok(())
   }
 }
 

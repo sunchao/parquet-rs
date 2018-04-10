@@ -305,7 +305,6 @@ impl RleEncoder {
   }
 }
 
-
 /// A RLE/Bit-Packing hybrid decoder.
 pub struct RleDecoder {
   // Number of bits used to encode the value. Must be between [0, 64].
@@ -313,6 +312,9 @@ pub struct RleDecoder {
 
   // Bit reader loaded with input buffer.
   bit_reader: Option<BitReader>,
+
+  // Buffer used when `bit_reader` is not `None`, for batch reading.
+  index_buf: Option<[i32; 1024]>,
 
   // The remaining number of values in RLE for this run
   rle_left: u32,
@@ -331,6 +333,7 @@ impl RleDecoder {
       rle_left: 0,
       bit_packed_left: 0,
       bit_reader: None,
+      index_buf: None,
       current_value: None
     }
   }
@@ -340,6 +343,7 @@ impl RleDecoder {
       bit_reader.reset(data);
     } else {
       self.bit_reader = Some(BitReader::new(data));
+      self.index_buf = Some([0; 1024]);
     }
 
     let _ = self.reload();
@@ -395,15 +399,13 @@ impl RleDecoder {
         values_read += num_values;
       } else if self.bit_packed_left > 0 {
         assert!(self.bit_reader.is_some());
-        let num_values = cmp::min(
-          buffer.len() - values_read, self.bit_packed_left as usize);
+        let mut num_values = cmp::min(
+          buffer.len() - values_read, self.bit_packed_left as usize
+        );
         if let Some(ref mut bit_reader) = self.bit_reader {
-          for i in 0..num_values {
-            bit_reader
-              .get_value(self.bit_width as usize)
-              .map(|v| { buffer[values_read + i] = v; })
-              .ok_or(eof_err!("Not enough data left"))?;
-          }
+          num_values = bit_reader.get_batch::<T>(
+            &mut buffer[values_read..values_read + num_values], self.bit_width as usize
+          );
           self.bit_packed_left -= num_values as u32;
           values_read += num_values;
         }
@@ -439,17 +441,25 @@ impl RleDecoder {
         values_read += num_values;
       } else if self.bit_packed_left > 0 {
         assert!(self.bit_reader.is_some());
-        let num_values = cmp::min(
-          max_values - values_read, self.bit_packed_left as usize);
+        let mut num_values = cmp::min(
+          max_values - values_read, self.bit_packed_left as usize
+        );
         if let Some(ref mut bit_reader) = self.bit_reader {
-          for i in 0..num_values {
-            bit_reader
-              .get_value::<i32>(self.bit_width as usize)
-              .map(|v| { buffer[values_read + i] = dict[v as usize].clone(); })
-              .ok_or(eof_err!("Not enough data left"))?;
+          let mut index_buf = self.index_buf.unwrap();
+          num_values = cmp::min(num_values, index_buf.len());
+          loop {
+            num_values = bit_reader.get_batch::<i32>(
+              &mut index_buf[..num_values], self.bit_width as usize
+            );
+            for i in 0..num_values {
+              buffer[values_read + i] = dict[index_buf[i] as usize].clone();
+            }
+            self.bit_packed_left -= num_values as u32;
+            values_read += num_values;
+            if num_values < index_buf.len() {
+              break;
+            }
           }
-          self.bit_packed_left -= num_values as u32;
-          values_read += num_values;
         }
       } else {
         if !self.reload() {

@@ -235,18 +235,10 @@ impl LevelDecoder {
         // When extracting values from bit reader, it might return more values than left
         // because of padding to a full byte, we use num_values to track precise number
         // of values.
-        // TODO: Use get_batch() for bit packed decoder
-        let mut values_read = 0;
         let len = cmp::min(self.num_values.unwrap(), buffer.len());
-        while values_read < len {
-          if let Some(value) = bit_packed_decoder.get_value::<i16>(
-            self.bit_width as usize) {
-            buffer[values_read] = value;
-            values_read += 1;
-          } else {
-            break;
-          }
-        }
+        let values_read = bit_packed_decoder.get_batch::<i16>(
+          &mut buffer[..len], self.bit_width as usize
+        );
         values_read
       }
     };

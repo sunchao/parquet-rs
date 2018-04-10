@@ -21,3 +21,4 @@ pub mod test_common;
 #[macro_use]
 pub mod bit_util;
 pub mod hash_util;
+mod bit_packing;
