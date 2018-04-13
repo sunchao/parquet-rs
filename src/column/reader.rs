@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Contains column reader API.
+
 use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::mem;
@@ -28,6 +30,7 @@ use errors::{Result, ParquetError};
 use schema::types::ColumnDescPtr;
 use util::memory::ByteBufferPtr;
 
+/// Column reader for a Parquet type.
 pub enum ColumnReader {
   BoolColumnReader(ColumnReaderImpl<BoolType>),
   Int32ColumnReader(ColumnReaderImpl<Int32Type>),
@@ -67,6 +70,7 @@ pub fn get_column_reader(
 
 /// Gets a typed column reader for the specific type `T`, by "up-casting" `col_reader` of
 /// non-generic type to a generic column reader type `ColumnReaderImpl`.
+///
 /// NOTE: the caller MUST guarantee that the actual enum value for `col_reader` matches
 /// the type `T`. Otherwise, disastrous consequence could happen.
 pub fn get_typed_column_reader<T: DataType>(
@@ -84,7 +88,7 @@ pub fn get_typed_column_reader<T: DataType>(
   }
 }
 
-/// A value reader for a particular primitive column.
+/// Typed value reader for a particular primitive column.
 pub struct ColumnReaderImpl<T: DataType> {
   descr: ColumnDescPtr,
   def_level_decoder: Option<LevelDecoder>,
@@ -104,6 +108,7 @@ pub struct ColumnReaderImpl<T: DataType> {
 }
 
 impl<T: DataType> ColumnReaderImpl<T> where T: 'static {
+  /// Creates new column reader based on column descriptor and page reader.
   pub fn new(descr: ColumnDescPtr, page_reader: Box<PageReader>) -> Self {
     Self {
       descr: descr,
@@ -335,7 +340,7 @@ impl<T: DataType> ColumnReaderImpl<T> where T: 'static {
     Ok(true)
   }
 
-  // Resolves and updates encoding and set decoder for the current page
+  /// Resolves and updates encoding and set decoder for the current page
   fn set_current_page_encoding(
     &mut self,
     mut encoding: Encoding,
@@ -619,8 +624,51 @@ mod tests {
     );
   }
 
-  // == helper methods to make pages and test ==
+  // ----------------------------------------------------------------------
+  // Helper methods to make pages and test
+  //
+  // # Overview
+  //
+  // Most of the test functionality is implemented in `ColumnReaderTester`, which
+  // provides some general data page test methods:
+  // - `test_read_batch_general`
+  // - `test_read_batch`
+  //
+  // There are also some high level wrappers that are part of `ColumnReaderTester`:
+  // - `plain_v1` -> call `test_read_batch_general` with data page v1 and plain encoding
+  // - `plain_v2` -> call `test_read_batch_general` with data page v2 and plain encoding
+  // - `dict_v1` -> call `test_read_batch_general` with data page v1 + dictionary page
+  // - `dict_v2` -> call `test_read_batch_general` with data page v2 + dictionary page
+  //
+  // And even higher level wrappers that simplify testing of almost the same test cases:
+  // - `get_test_int32_type`, provides dummy schema type
+  // - `get_test_int64_type`, provides dummy schema type
+  // - `test_read_batch_int32`, wrapper for `read_batch` tests, since they are basically
+  //   the same, just different def/rep levels and batch size.
+  //
+  // # Page assembly
+  //
+  // Page construction and generation of values, definition and repetition levels happens
+  // in `make_pages` function.
+  // All values are randomly generated based on provided min/max, levels are calculated
+  // based on provided max level for column descriptor (which is basically either int32
+  // or int64 type in tests) and `levels_per_page` variable.
+  //
+  // We use `DataPageBuilder` and its implementation `DataPageBuilderImpl` to actually
+  // turn values, definition and repetition levels into data pages (either v1 or v2).
+  //
+  // Those data pages are then stored as part of `TestPageReader` (we just pass vector
+  // of generated pages directly), which implements `PageReader` interface.
+  //
+  // # Comparison
+  //
+  // This allows us to pass test page reader into column reader, so we can test
+  // functionality of column reader - see `test_read_batch`, where we create column
+  // reader -> typed column reader, buffer values in `read_batch` method and compare
+  // output with generated data.
 
+  // Returns dummy Parquet `Type` for primitive field, because most of our tests use
+  // INT32 physical type.
   fn get_test_int32_type() -> SchemaType {
     SchemaType::primitive_type_builder("a", PhysicalType::INT32)
       .with_repetition(Repetition::REQUIRED)
@@ -630,6 +678,7 @@ mod tests {
       .expect("build() should be OK")
   }
 
+  // Returns dummy Parquet `Type` for INT64 physical type.
   fn get_test_int64_type() -> SchemaType {
     SchemaType::primitive_type_builder("a", PhysicalType::INT64)
       .with_repetition(Repetition::REQUIRED)
@@ -639,7 +688,10 @@ mod tests {
       .expect("build() should be OK")
   }
 
-  // Tests `read_batch()` functionality for Int32Type.
+  // Tests `read_batch()` functionality for INT32.
+  //
+  // This is a high level wrapper on `ColumnReaderTester` that allows us to specify some
+  // boilerplate code for setting up definition/repetition levels and column descriptor.
   fn test_read_batch_int32(
     batch_size: usize,
     values: &mut[i32],
@@ -683,7 +735,7 @@ mod tests {
       Self { rep_levels: Vec::new(), def_levels: Vec::new(), values: Vec::new() }
     }
 
-    // method to generate and test data pages v1
+    // Method to generate and test data pages v1
     fn plain_v1(
       &mut self,
       desc: ColumnDescPtr,
@@ -705,7 +757,7 @@ mod tests {
       );
     }
 
-    // method to generate and test data pages v2
+    // Method to generate and test data pages v2
     fn plain_v2(
       &mut self,
       desc: ColumnDescPtr,
@@ -727,6 +779,7 @@ mod tests {
       );
     }
 
+    // Method to generate and test dictionary page + data pages v1
     fn dict_v1(
       &mut self,
       desc: ColumnDescPtr,
@@ -748,6 +801,7 @@ mod tests {
       );
     }
 
+    // Method to generate and test dictionary page + data pages v2
     fn dict_v2(
       &mut self,
       desc: ColumnDescPtr,
@@ -995,7 +1049,10 @@ mod tests {
     ) where T: 'static {
       assert!(
         self.num_values >= values.len() as u32,
-        "num_values: {}, values.len(): {}", self.num_values, values.len());
+        "num_values: {}, values.len(): {}",
+        self.num_values,
+        values.len()
+      );
       self.encoding = Some(encoding);
       let mut encoder: Box<Encoder<T>> = get_encoder::<T>(
         self.desc.clone(), encoding, self.mem_tracker.clone()
@@ -1032,7 +1089,6 @@ mod tests {
         }
       }
     }
-
   }
 
   fn make_pages<T: DataType>(

@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Contains all supported encoders for Parquet.
+
 use std::cmp;
 use std::io::Write;
 use std::marker::PhantomData;
@@ -49,7 +51,6 @@ pub trait Encoder<T: DataType> {
   fn flush_buffer(&mut self) -> Result<ByteBufferPtr>;
 }
 
-
 /// Gets a encoder for the particular data type `T` and encoding `encoding`. Memory usage
 /// for the encoder instance is tracked by `mem_tracker`.
 pub fn get_encoder<T: DataType>(
@@ -81,10 +82,20 @@ pub fn get_encoder<T: DataType>(
   Ok(encoder)
 }
 
-
 // ----------------------------------------------------------------------
 // Plain encoding
 
+/// Plain encoding that supports all types.
+/// Values are encoded back to back.
+/// The plain encoding is used whenever a more efficient encoding can not be used.
+/// It stores the data in the following format:
+/// - BOOLEAN - 1 bit per value, 0 is false; 1 is true.
+/// - INT32 - 4 bytes per value, stored as little-endian.
+/// - INT64 - 8 bytes per value, stored as little-endian.
+/// - FLOAT - 4 bytes per value, stored as IEEE little-endian.
+/// - DOUBLE - 8 bytes per value, stored as IEEE little-endian.
+/// - BYTE_ARRAY - 4 byte length stored as little endian, followed by bytes.
+/// - FIXED_LEN_BYTE_ARRAY - just the bytes are stored.
 pub struct PlainEncoder<T: DataType> {
   buffer: ByteBuffer,
   bit_writer: BitWriter,
@@ -93,6 +104,7 @@ pub struct PlainEncoder<T: DataType> {
 }
 
 impl<T: DataType> PlainEncoder<T> {
+  /// Creates new plain encoder.
   pub fn new(desc: ColumnDescPtr, mem_tracker: MemTrackerPtr, vec: Vec<u8>) -> Self {
     let mut byte_buffer = ByteBuffer::new().with_mem_tracker(mem_tracker);
     byte_buffer.set_data(vec);
@@ -171,7 +183,6 @@ impl Encoder<FixedLenByteArrayType> for PlainEncoder<FixedLenByteArrayType> {
   }
 }
 
-
 // ----------------------------------------------------------------------
 // Dictionary encoding
 
@@ -179,6 +190,16 @@ const INITIAL_HASH_TABLE_SIZE: usize = 1024;
 const MAX_HASH_LOAD: f32 = 0.7;
 const HASH_SLOT_EMPTY: i32 = -1;
 
+/// Dictionary encoder.
+/// The dictionary encoding builds a dictionary of values encountered in a given column.
+/// The dictionary page is written first, before the data pages of the column chunk.
+///
+/// Dictionary page format: the entries in the dictionary - in dictionary order -
+/// using the plain encoding.
+///
+/// Data page format: the bit width used to encode the entry ids stored as 1 byte
+/// (max bit width = 32), followed by the values encoded using RLE/Bit packed described
+/// above (with the given bit width).
 pub struct DictEncoder<T: DataType> {
   // Descriptor for the column to be encoded.
   desc: ColumnDescPtr,
@@ -209,6 +230,7 @@ pub struct DictEncoder<T: DataType> {
 }
 
 impl<T: DataType> DictEncoder<T> {
+  /// Creates new dictionary encoder.
   pub fn new(desc: ColumnDescPtr, mem_tracker: MemTrackerPtr) -> Self {
     let mut slots = Buffer::new().with_mem_tracker(mem_tracker.clone());
     slots.resize(INITIAL_HASH_TABLE_SIZE, -1);
@@ -224,6 +246,7 @@ impl<T: DataType> DictEncoder<T> {
     }
   }
 
+  /// Returns number of unique entries in the dictionary.
   pub fn num_entries(&self) -> usize {
     self.uniques.size()
   }
@@ -368,6 +391,7 @@ pub struct RleValueEncoder<T: DataType> {
 }
 
 impl<T: DataType> RleValueEncoder<T> {
+  /// Creates new rle value encoder.
   pub fn new() -> Self {
     Self {
       encoder: None,
@@ -439,19 +463,29 @@ const MAX_BIT_WRITER_SIZE: usize = 10 * 1024 * 1024;
 const DEFAULT_BLOCK_SIZE: usize = 128;
 const DEFAULT_NUM_MINI_BLOCKS: usize = 4;
 
+/// Delta bit packed encoder.
+/// Consists of a header followed by blocks of delta encoded values binary packed.
+///
 /// Delta-binary-packing:
+/// ```shell
 ///   [page-header] [block 1], [block 2], ... [block N]
+/// ```
+///
 /// Each page header consists of:
+/// ```shell
 ///   [block size] [number of miniblocks in a block] [total value count] [first value]
+/// ```
+///
 /// Each block consists of:
+/// ```shell
 ///   [min delta] [list of bitwidths of miniblocks] [miniblocks]
+/// ```
 ///
 /// Current implementation writes values in `put` method, multiple calls to `put` to
 /// existing block or start new block if block size is exceeded. Calling `flush_buffer`
 /// writes out all data and resets internal state, including page header.
 ///
-/// Supports only Int32Type and Int64Type.
-///
+/// Supports only INT32 and INT64.
 pub struct DeltaBitPackEncoder<T: DataType> {
   page_header_writer: BitWriter,
   bit_writer: BitWriter,
@@ -467,6 +501,7 @@ pub struct DeltaBitPackEncoder<T: DataType> {
 }
 
 impl<T: DataType> DeltaBitPackEncoder<T> {
+  /// Creates new delta bit packed encoder.
   pub fn new() -> Self {
     let block_size = DEFAULT_BLOCK_SIZE;
     let num_mini_blocks = DEFAULT_NUM_MINI_BLOCKS;
@@ -489,8 +524,8 @@ impl<T: DataType> DeltaBitPackEncoder<T> {
     }
   }
 
-  // Writes page header for blocks, this method is invoked when we are done encoding
-  // values. It is also okay to encode when no values have been provided
+  /// Writes page header for blocks, this method is invoked when we are done encoding
+  /// values. It is also okay to encode when no values have been provided
   fn write_page_header(&mut self) {
     // We ignore the result of each 'put' operation, because MAX_PAGE_HEADER_WRITER_SIZE
     // is chosen to fit all header values and guarantees that writes will not fail.
@@ -629,7 +664,7 @@ impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
   }
 }
 
-// Helper trait to define specific conversions and subtractions when computing deltas
+/// Helper trait to define specific conversions and subtractions when computing deltas
 trait DeltaBitPackEncoderConversion<T: DataType> {
   // Method should panic if type is not supported, otherwise no-op
   #[inline]
@@ -709,6 +744,9 @@ impl DeltaBitPackEncoderConversion<Int64Type> for DeltaBitPackEncoder<Int64Type>
   }
 }
 
+// ----------------------------------------------------------------------
+// DELTA_LENGTH_BYTE_ARRAY encoding
+
 /// Encoding for byte arrays to separate the length values and the data.
 /// The lengths are encoded using DELTA_BINARY_PACKED encoding, data is
 /// stored as raw bytes.
@@ -721,6 +759,7 @@ pub struct DeltaLengthByteArrayEncoder<T: DataType> {
 }
 
 impl<T: DataType> DeltaLengthByteArrayEncoder<T> {
+  /// Creates new delta length byte array encoder.
   pub fn new() -> Self {
     Self {
       len_encoder: DeltaBitPackEncoder::new(),
@@ -767,6 +806,9 @@ impl Encoder<ByteArrayType> for DeltaLengthByteArrayEncoder<ByteArrayType> {
   }
 }
 
+// ----------------------------------------------------------------------
+// DELTA_BYTE_ARRAY encoding
+
 /// Encoding for byte arrays, prefix lengths are encoded using DELTA_BINARY_PACKED
 /// encoding, followed by suffixes with DELTA_LENGTH_BYTE_ARRAY encoding.
 pub struct DeltaByteArrayEncoder<T: DataType> {
@@ -777,6 +819,7 @@ pub struct DeltaByteArrayEncoder<T: DataType> {
 }
 
 impl<T: DataType> DeltaByteArrayEncoder<T> {
+  /// Creates new delta byte array encoder.
   pub fn new() -> Self {
     Self {
       prefix_len_encoder: DeltaBitPackEncoder::<Int32Type>::new(),

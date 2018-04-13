@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Contains Rust mappings for Thrift definition.
+//! Refer to `parquet.thrift` file to see raw definitions.
+
 use std::convert;
 use std::fmt;
 use std::result;
@@ -23,11 +26,17 @@ use std::str;
 use errors::ParquetError;
 use parquet_thrift::parquet;
 
-
 // ----------------------------------------------------------------------
 // Types from the Thrift definition
 
-/// Mirrors `parquet::Type`
+// ----------------------------------------------------------------------
+// Mirrors `parquet::Type`
+
+/// Types supported by Parquet.
+/// These physical types are intended to be used in combination with the encodings to
+/// control the on disk storage format.
+/// For example INT16 is not included as a type since a good encoding of INT32
+/// would handle this.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Type {
   BOOLEAN,
@@ -40,56 +49,181 @@ pub enum Type {
   FIXED_LEN_BYTE_ARRAY
 }
 
-/// Mirrors `parquet::ConvertedType`
+// ----------------------------------------------------------------------
+// Mirrors `parquet::ConvertedType`
+
+/// Common types (logical types) used by frameworks when using Parquet.
+/// This helps map between types in those frameworks to the base types in Parquet.
+/// This is only metadata and not needed to read or write the data.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LogicalType {
   NONE,
+  /// A BYTE_ARRAY actually contains UTF8 encoded chars.
   UTF8,
+
+  /// A map is converted as an optional field containing a repeated key/value pair.
   MAP,
+
+  /// A key/value pair is converted into a group of two fields.
   MAP_KEY_VALUE,
+
+  /// A list is converted into an optional field containing a repeated field for its
+  /// values.
   LIST,
+
+  /// An enum is converted into a binary field
   ENUM,
+
+  /// A decimal value.
+  /// This may be used to annotate binary or fixed primitive types. The
+  /// underlying byte array stores the unscaled value encoded as two's
+  /// complement using big-endian byte order (the most significant byte is the
+  /// zeroth element).
+  ///
+  /// This must be accompanied by a (maximum) precision and a scale in the
+  /// SchemaElement. The precision specifies the number of digits in the decimal
+  /// and the scale stores the location of the decimal point. For example 1.23
+  /// would have precision 3 (3 total digits) and scale 2 (the decimal point is
+  /// 2 digits over).
   DECIMAL,
+
+  /// A date stored as days since Unix epoch, encoded as the INT32 physical type.
   DATE,
+
+  /// The total number of milliseconds since midnight. The value is stored as an INT32
+  /// physical type.
   TIME_MILLIS,
+
+  /// The total number of microseconds since midnight. The value is stored as an INT64
+  /// physical type.
   TIME_MICROS,
+
+  /// Date and time recorded as milliseconds since the Unix epoch.
+  /// Recorded as a physical type of INT64.
   TIMESTAMP_MILLIS,
+
+  /// Date and time recorded as microseconds since the Unix epoch.
+  /// The value is stored as an INT64 physical type.
   TIMESTAMP_MICROS,
+
+  /// An unsigned 8 bit integer value stored as INT32 physical type.
   UINT_8,
+
+  /// An unsigned 16 bit integer value stored as INT32 physical type.
   UINT_16,
+
+  /// An unsigned 32 bit integer value stored as INT32 physical type.
   UINT_32,
+
+  /// An unsigned 64 bit integer value stored as INT64 physical type.
   UINT_64,
+
+  /// A signed 8 bit integer value stored as INT32 physical type.
   INT_8,
+
+  /// A signed 16 bit integer value stored as INT32 physical type.
   INT_16,
+
+  /// A signed 32 bit integer value stored as INT32 physical type.
   INT_32,
+
+  /// A signed 64 bit integer value stored as INT64 physical type.
   INT_64,
+
+  /// A JSON document embedded within a single UTF8 column.
   JSON,
+
+  /// A BSON document embedded within a single BINARY column.
   BSON,
+
+  /// An interval of time.
+  ///
+  /// This type annotates data stored as a FIXED_LEN_BYTE_ARRAY of length 12.
+  /// This data is composed of three separate little endian unsigned integers.
+  /// Each stores a component of a duration of time. The first integer identifies
+  /// the number of months associated with the duration, the second identifies
+  /// the number of days associated with the duration and the third identifies
+  /// the number of milliseconds associated with the provided duration.
+  /// This duration of time is independent of any particular timezone or date.
   INTERVAL
 }
 
-/// Mirrors `parquet::FieldRepetitionType`
+// ----------------------------------------------------------------------
+// Mirrors `parquet::FieldRepetitionType`
+
+/// Representation of field types in schema.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Repetition {
+  /// Field is required (can not be null) and each record has exactly 1 value.
   REQUIRED,
+  /// Field is optional (can be null) and each record has 0 or 1 values.
   OPTIONAL,
+  /// Field is repeated and can contain 0 or more values.
   REPEATED
 }
 
-/// Mirrors `parquet::Encoding`
+// ----------------------------------------------------------------------
+// Mirrors `parquet::Encoding`
+
+/// Encodings supported by Parquet.
+/// Not all encodings are valid for all types. These enums are also used to specify the
+/// encoding of definition and repetition levels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Encoding {
+  /// Default byte encoding.
+  /// - BOOLEAN - 1 bit per value, 0 is false; 1 is true.
+  /// - INT32 - 4 bytes per value, stored as little-endian.
+  /// - INT64 - 8 bytes per value, stored as little-endian.
+  /// - FLOAT - 4 bytes per value, stored as little-endian.
+  /// - DOUBLE - 8 bytes per value, stored as little-endian.
+  /// - BYTE_ARRAY - 4 byte length stored as little endian, followed by bytes.
+  /// - FIXED_LEN_BYTE_ARRAY - just the bytes are stored.
   PLAIN,
+
+  /// **Deprecated** dictionary encoding.
+  ///
+  /// The values in the dictionary are encoded using PLAIN encoding.
+  /// Since it is deprecated, RLE_DICTIONARY encoding is used for a data page, and PLAIN
+  /// encoding is used for dictionary page.
   PLAIN_DICTIONARY,
+
+  /// Group packed run length encoding.
+  ///
+  /// Usable for definition/repetition levels encoding and boolean values.
   RLE,
+
+  /// Bit packed encoding.
+  ///
+  /// This can only be used if the data has a known max width.
+  /// Usable for definition/repetition levels encoding.
   BIT_PACKED,
+
+  /// Delta encoding for integers, either INT32 or INT64.
+  ///
+  /// Works best on sorted data.
   DELTA_BINARY_PACKED,
+
+  /// Encoding for byte arrays to separate the length values and the data.
+  ///
+  /// The lengths are encoded using DELTA_BINARY_PACKED encoding.
   DELTA_LENGTH_BYTE_ARRAY,
+
+  /// Incremental encoding for byte arrays.
+  ///
+  /// Prefix lengths are encoded using DELTA_BINARY_PACKED encoding.
+  /// Suffixes are stored using DELTA_LENGTH_BYTE_ARRAY encoding.
   DELTA_BYTE_ARRAY,
+
+  /// Dictionary encoding.
+  ///
+  /// The ids are encoded using the RLE encoding.
   RLE_DICTIONARY
 }
 
-/// Mirrors `parquet::CompressionCodec`
+// ----------------------------------------------------------------------
+// Mirrors `parquet::CompressionCodec`
+
+/// Supported compression algorithms.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Compression {
   UNCOMPRESSED,
@@ -101,7 +235,11 @@ pub enum Compression {
   ZSTD
 }
 
-/// Mirrors `parquet::PageType`
+// ----------------------------------------------------------------------
+// Mirrors `parquet::PageType`
+
+/// Available data pages for Parquet file format.
+/// Note that some of the page types may not be supported.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PageType {
   DATA_PAGE,

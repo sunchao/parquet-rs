@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Contains Row enum that is used to represent record in Rust.
+
 use std::fmt;
 
 use basic::{LogicalType, Type as PhysicalType};
@@ -32,8 +34,7 @@ macro_rules! nyi {
   });
 }
 
-/// Row API to represent nested Parquet record.
-/// Use implementation methods to update how Parquet types are mapped to Row.
+/// Row API to represent a nested Parquet record.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Row {
   // Primitive types
@@ -55,7 +56,7 @@ pub enum Row {
 }
 
 impl Row {
-  /// Converts BOOLEAN into boolean value.
+  /// Converts Parquet BOOLEAN type with logical type into `bool` value.
   pub fn convert_bool(
     _physical_type: PhysicalType,
     _logical_type: LogicalType,
@@ -64,7 +65,7 @@ impl Row {
     Row::Bool(value)
   }
 
-  // Converts INT32 into integer value.
+  /// Converts Parquet INT32 type with logical type into `i32` value.
   pub fn convert_int32(
     physical_type: PhysicalType,
     logical_type: LogicalType,
@@ -78,7 +79,7 @@ impl Row {
     }
   }
 
-  /// Converts INT64 into long value.
+  /// Converts Parquet INT64 type with logical type into `i64` value.
   pub fn convert_int64(
     physical_type: PhysicalType,
     logical_type: LogicalType,
@@ -90,7 +91,8 @@ impl Row {
     }
   }
 
-  /// Converts nanosecond timestamps stored as INT96 into milliseconds
+  /// Converts Parquet INT96 (nanosecond timestamps) type and logical type into
+  /// `Timestamp` value.
   pub fn convert_int96(
     _physical_type: PhysicalType,
     _logical_type: LogicalType,
@@ -108,7 +110,7 @@ impl Row {
     Row::Timestamp(millis)
   }
 
-  /// Converts FLOAT into float value.
+  /// Converts Parquet FLOAT type with logical type into `f32` value.
   pub fn convert_float(
     _physical_type: PhysicalType,
     _logical_type: LogicalType,
@@ -117,7 +119,7 @@ impl Row {
     Row::Float(value)
   }
 
-  /// Converts DOUBLE into double value.
+  /// Converts Parquet DOUBLE type with logical type into `f64` value.
   pub fn convert_double(
     _physical_type: PhysicalType,
     _logical_type: LogicalType,
@@ -126,7 +128,8 @@ impl Row {
     Row::Double(value)
   }
 
-  /// Converts BYTE_ARRAY into either UTF8 string or array of bytes.
+  /// Converts Parquet BYTE_ARRAY type with logical type into either UTF8 string or
+  /// array of bytes.
   pub fn convert_byte_array(
     physical_type: PhysicalType,
     logical_type: LogicalType,

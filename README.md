@@ -4,8 +4,39 @@
 [![Coverage Status](https://coveralls.io/repos/github/sunchao/parquet-rs/badge.svg?branch=master)](https://coveralls.io/github/sunchao/parquet-rs?branch=master)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![](http://meritbadge.herokuapp.com/parquet)](https://crates.io/crates/parquet)
+[![Documentation](https://docs.rs/parquet/badge.svg)](https://docs.rs/parquet)
 
 An [Apache Parquet](https://parquet.apache.org/) implementation in Rust (work in progress)
+
+## Usage
+Add this to your Cargo.toml:
+```toml
+[dependencies]
+parquet = "0.1"
+```
+
+and this to your crate root:
+```rust
+extern crate parquet;
+```
+
+Example usage:
+```rust
+use std::fs::File;
+use std::path::Path;
+use parquet::file::reader::{FileReader, SerializedFileReader};
+
+let file = File::open(&Path::new("/path/to/file")).unwrap();
+let reader = SerializedFileReader::new(file).unwrap();
+let mut iter = reader.get_row_iter(None).unwrap();
+while let Some(record) = iter.next() {
+  println!("{}", record);
+}
+```
+See crate documentation on available API.
+
+## Supported Parquet Version
+- Parquet-format 2.4.0
 
 ## Requirements
 - Rust nightly
@@ -42,6 +73,9 @@ be printed).
 
 ## Benchmarks
 Run `cargo bench` for benchmarks.
+
+## Docs
+To build documentation, run `cargo doc --no-deps`. To compile and view in the browser, run `cargo doc --no-deps --open`.
 
 ## License
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0.

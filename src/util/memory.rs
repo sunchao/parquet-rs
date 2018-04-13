@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Utility methods and structs for working with memory.
+
 use std::cell::Cell;
 use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use std::io::{Result as IoResult, Write};
@@ -25,18 +27,21 @@ use std::rc::{Rc, Weak};
 // ----------------------------------------------------------------------
 // Memory Tracker classes
 
+/// Reference counted pointer for [`MemTracker`].
 pub type MemTrackerPtr = Rc<MemTracker>;
+/// Non-owning reference for [`MemTracker`].
 pub type WeakMemTrackerPtr = Weak<MemTracker>;
 
+/// Struct to track memory usage information.
 #[derive(Debug)]
 pub struct MemTracker {
-  // Memory usage information tracked by this. In the tuple, the first element is the
-  // current memory allocated (in bytes), and the second element is the maximum memory
-  // allocated so far (in bytes).
+  // In the tuple, the first element is the current memory allocated (in bytes),
+  // and the second element is the maximum memory allocated so far (in bytes).
   memory_usage: Cell<(i64, i64)>
 }
 
 impl MemTracker {
+  /// Creates new memory tracker.
   #[inline]
   pub fn new() -> MemTracker {
     MemTracker {
@@ -66,11 +71,12 @@ impl MemTracker {
   }
 }
 
-
 // ----------------------------------------------------------------------
 // Buffer classes
 
+/// Type alias for [`Buffer`].
 pub type ByteBuffer = Buffer<u8>;
+/// Type alias for [`BufferPtr`].
 pub type ByteBufferPtr = BufferPtr<u8>;
 
 /// A resize-able buffer class with generic member, with optional memory tracker.
@@ -88,6 +94,7 @@ pub struct Buffer<T: Clone> {
 }
 
 impl<T: Clone> Buffer<T> {
+  /// Creates new empty buffer.
   pub fn new() -> Self {
     Buffer {
       data: vec![],
@@ -96,6 +103,7 @@ impl<T: Clone> Buffer<T> {
     }
   }
 
+  /// Adds [`MemTracker`] for this buffer.
   #[inline]
   pub fn with_mem_tracker(mut self, mc: MemTrackerPtr) -> Self {
     mc.alloc((self.data.capacity() * self.type_length) as i64);
@@ -103,11 +111,13 @@ impl<T: Clone> Buffer<T> {
     self
   }
 
+  /// Returns slice of data in this buffer.
   #[inline]
   pub fn data(&self) -> &[T] {
     self.data.as_slice()
   }
 
+  /// Sets data for this buffer.
   #[inline]
   pub fn set_data(&mut self, new_data: Vec<T>) {
     if let Some(ref mc) = self.mem_tracker {
@@ -117,6 +127,12 @@ impl<T: Clone> Buffer<T> {
     self.data = new_data;
   }
 
+  /// Resizes underlying data in place to a new length `new_size`.
+  ///
+  /// If `new_size` is less than current length, data is truncated, otherwise, it is
+  /// extended to `new_size` with provided default value `init_value`.
+  ///
+  /// Memory tracker is also updated, if available.
   #[inline]
   pub fn resize(&mut self, new_size: usize, init_value: T) {
     let old_capacity = self.data.capacity();
@@ -127,11 +143,15 @@ impl<T: Clone> Buffer<T> {
     }
   }
 
+  /// Clears underlying data.
   #[inline]
   pub fn clear(&mut self) {
     self.data.clear()
   }
 
+  /// Reserves capacity `additional_capacity` for underlying data vector.
+  ///
+  /// Memory tracker is also updated, if available.
   #[inline]
   pub fn reserve(&mut self, additional_capacity: usize) {
     let old_capacity = self.data.capacity();
@@ -144,6 +164,8 @@ impl<T: Clone> Buffer<T> {
     }
   }
 
+  /// Returns [`BufferPtr`] with buffer data.
+  /// Buffer data is reset.
   #[inline]
   pub fn consume(&mut self) -> BufferPtr<T> {
     let old_data = mem::replace(&mut self.data, vec![]);
@@ -154,26 +176,33 @@ impl<T: Clone> Buffer<T> {
     result
   }
 
+  /// Adds `value` to the buffer.
   #[inline]
   pub fn push(&mut self, value: T) {
     self.data.push(value)
   }
 
+  /// Returns current capacity for the buffer.
   #[inline]
   pub fn capacity(&self) -> usize {
     self.data.capacity()
   }
 
+  /// Returns current size for the buffer.
   #[inline]
   pub fn size(&self) -> usize {
     self.data.len()
   }
 
+  /// Returns `true` if memory tracker is added to buffer, `false` otherwise.
   #[inline]
   pub fn is_mem_tracked(&self) -> bool {
     self.mem_tracker.is_some()
   }
 
+  /// Returns memory tracker associated with this buffer.
+  /// This may panic, if memory tracker is not set, use method above to check if
+  /// memory tracker is available.
   #[inline]
   pub fn mem_tracker(&self) -> &MemTrackerPtr {
     self.mem_tracker.as_ref().unwrap()
@@ -228,7 +257,6 @@ impl<T: Clone> Drop for Buffer<T> {
   }
 }
 
-
 // ----------------------------------------------------------------------
 // Immutable Buffer (BufferPtr) classes
 
@@ -245,6 +273,7 @@ pub struct BufferPtr<T> {
 }
 
 impl<T> BufferPtr<T> {
+  /// Creates new buffer from a vector.
   pub fn new(v: Vec<T>) -> Self {
     let len = v.len();
     Self {
@@ -255,10 +284,14 @@ impl<T> BufferPtr<T> {
     }
   }
 
+  /// Returns slice of data in this buffer.
   pub fn data(&self) -> &[T] {
     &self.data[self.start..self.start + self.len]
   }
 
+  /// Updates this buffer with new `start` position and length `len`.
+  ///
+  /// Range should be within current start position and length.
   pub fn with_range(mut self, start: usize, len: usize) -> Self {
     assert!(start <= self.len);
     assert!(start + len <= self.len);
@@ -267,23 +300,29 @@ impl<T> BufferPtr<T> {
     self
   }
 
+  /// Adds memory tracker to this buffer.
   pub fn with_mem_tracker(mut self, mc: MemTrackerPtr) -> Self {
     self.mem_tracker = Some(mc);
     self
   }
 
+  /// Returns start position of this buffer.
   pub fn start(&self) -> usize {
     self.start
   }
 
+  /// Returns length of this buffer
   pub fn len(&self) -> usize {
     self.len
   }
 
+  /// Returns `true` if this buffer has memory tracker, `false` otherwise.
   pub fn is_mem_tracked(&self) -> bool {
     self.mem_tracker.is_some()
   }
 
+  /// Returns a shallow copy of the buffer.
+  /// Reference counted pointer to the data is copied.
   pub fn all(&self) -> BufferPtr<T> {
     BufferPtr {
       data: self.data.clone(),
@@ -293,6 +332,7 @@ impl<T> BufferPtr<T> {
     }
   }
 
+  /// Returns a shallow copy of the buffer that starts with `start` position.
   pub fn start_from(&self, start: usize) -> BufferPtr<T> {
     assert!(start <= self.len);
     BufferPtr {
@@ -303,6 +343,7 @@ impl<T> BufferPtr<T> {
     }
   }
 
+  /// Returns a shallow copy that is a range slice within this buffer.
   pub fn range(&self, start: usize, len: usize) -> BufferPtr<T> {
     assert!(start + len <= self.len);
     BufferPtr {

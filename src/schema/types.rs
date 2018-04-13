@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Contains structs and methods to build Parquet schema and schema descriptors.
+
 use std::collections::HashMap;
 use std::convert::From;
 use std::fmt;
@@ -27,11 +29,15 @@ use parquet_thrift::parquet::SchemaElement;
 // ----------------------------------------------------------------------
 // Parquet Type definitions
 
+/// Type alias for `Rc<Type>`.
 pub type TypePtr = Rc<Type>;
+/// Type alias for `Rc<SchemaDescriptor>`.
 pub type SchemaDescPtr = Rc<SchemaDescriptor>;
+/// Type alias for `Rc<ColumnDescriptor>`.
 pub type ColumnDescPtr = Rc<ColumnDescriptor>;
 
 /// Representation of a Parquet type.
+/// Used to describe primitive leaf fields and structs, including top-level schema.
 /// Note that the top-level schema type is represented using `GroupType` whose
 /// repetition is `None`.
 #[derive(Debug, PartialEq)]
@@ -50,6 +56,7 @@ pub enum Type {
 }
 
 impl Type {
+  /// Creates primitive type builder with provided field name and physical type.
   pub fn primitive_type_builder(
     name: &str,
     physical_type: PhysicalType
@@ -57,10 +64,12 @@ impl Type {
     PrimitiveTypeBuilder::new(name, physical_type)
   }
 
+  /// Creates group type builder with provided column name.
   pub fn group_type_builder(name: &str) -> GroupTypeBuilder {
     GroupTypeBuilder::new(name)
   }
 
+  /// Returns [`BasicTypeInfo`] information about the type.
   pub fn get_basic_info(&self) -> &BasicTypeInfo {
     match *self {
       Type::PrimitiveType { ref basic_info, .. } => &basic_info,
@@ -68,21 +77,23 @@ impl Type {
     }
   }
 
+  /// Returns this type's field name.
   pub fn name(&self) -> &str {
     self.get_basic_info().name()
   }
 
   /// Gets the fields from this group type.
-  /// NOTE: this will panic if called on a non-group type.
+  /// Note that this will panic if called on a non-group type.
   // TODO: should we return `&[&Type]` here?
   pub fn get_fields(&self) -> &[TypePtr] {
     match *self {
-      Type::GroupType{ ref fields, .. } => &fields[..],
+      Type::GroupType { ref fields, .. } => &fields[..],
       _ => panic!("Cannot call get_fields() on a non-group type")
     }
   }
 
-  /// Get physical type or panic if current type is not primitive
+  /// Gets physical type of this primitive type.
+  /// Note that this will panic if called on a non-primitive type.
   pub fn get_physical_type(&self) -> PhysicalType {
     match *self {
       Type::PrimitiveType { basic_info: _, physical_type, .. } => physical_type,
@@ -90,7 +101,8 @@ impl Type {
     }
   }
 
-  /// Check if `sub_type` schema is part of current schema, e.g. projected columns
+  /// Checks if `sub_type` schema is part of current schema.
+  /// This method can be used to check if projected columns are part of the root schema.
   pub fn check_contains(&self, sub_type: &Type) -> bool {
     // Names match, and repetitions match or not set for both
     let basic_match = self.get_basic_info().name() == sub_type.get_basic_info().name() &&
@@ -122,7 +134,7 @@ impl Type {
     }
   }
 
-  /// Whether this is a primitive type.
+  /// Returns `true` if this type is a primitive type, `false` otherwise.
   pub fn is_primitive(&self) -> bool {
     match *self {
       Type::PrimitiveType { .. } => true,
@@ -130,7 +142,7 @@ impl Type {
     }
   }
 
-  /// Whether this is a group type.
+  /// Returns `true` if this type is a group type, `false` otherwise.
   pub fn is_group(&self) -> bool {
     match *self {
       Type::GroupType { .. } => true,
@@ -138,7 +150,7 @@ impl Type {
     }
   }
 
-  /// Whether this is the top-level schema type (message type).
+  /// Returns `true` if this type is the top-level schema type (message type).
   pub fn is_schema(&self) -> bool {
     match *self {
       Type::GroupType { ref basic_info, .. } => !basic_info.has_repetition(),
@@ -162,7 +174,8 @@ pub struct PrimitiveTypeBuilder<'a> {
 }
 
 impl<'a> PrimitiveTypeBuilder<'a> {
-  fn new(name: &'a str, physical_type: PhysicalType) -> Self {
+  /// Creates new primitive type builder with provided field name and physical type.
+  pub fn new(name: &'a str, physical_type: PhysicalType) -> Self {
     Self {
       name: name,
       repetition: Repetition::OPTIONAL,
@@ -175,38 +188,49 @@ impl<'a> PrimitiveTypeBuilder<'a> {
     }
   }
 
+  /// Sets [`Repetition`](`::basic::Repetition`) for this field and returns itself.
   pub fn with_repetition(mut self, repetition: Repetition) -> Self {
     self.repetition = repetition;
     self
   }
 
+  /// Sets [`LogicalType`](`::basic::LogicalType`) for this field and returns itself.
   pub fn with_logical_type(mut self, logical_type: LogicalType) -> Self {
     self.logical_type = logical_type;
     self
   }
 
+  /// Sets type length and returns itself.
+  /// This is only applied to FIXED_LEN_BYTE_ARRAY and INT96 (INTERVAL) types, because
+  /// they maintain fixed size underlying byte array.
+  /// By default, value is `0`.
   pub fn with_length(mut self, length: i32) -> Self {
     self.length = length;
     self
   }
 
+  /// Sets precision for Parquet DECIMAL physical type and returns itself.
+  /// By default, it equals to `0` and used only for decimal context.
   pub fn with_precision(mut self, precision: i32) -> Self {
     self.precision = precision;
     self
   }
 
+  /// Sets scale for Parquet DECIMAL physical type and returns itself.
+  /// By default, it equals to `0` and used only for decimal context.
   pub fn with_scale(mut self, scale: i32) -> Self {
     self.scale = scale;
     self
   }
 
+  /// Sets optional field id and returns itself.
   pub fn with_id(mut self, id: i32) -> Self {
     self.id = Some(id);
     self
   }
 
-  // Creates a new `PrimitiveType` instance from the gathered attributes.
-  // This also checks various illegal conditions and returns `Err` if that that happen.
+  /// Creates a new `PrimitiveType` instance from the collected attributes.
+  /// Returns `Err` in case of any building conditions are not met.
   pub fn build(self) -> Result<Type> {
     let basic_info = BasicTypeInfo {
       name: String::from(self.name),
@@ -304,6 +328,7 @@ pub struct GroupTypeBuilder<'a> {
 }
 
 impl<'a> GroupTypeBuilder<'a> {
+  /// Creates new group type builder with provided field name.
   pub fn new(name: &'a str) -> Self {
     Self {
       name: name,
@@ -314,27 +339,32 @@ impl<'a> GroupTypeBuilder<'a> {
     }
   }
 
+  /// Sets [`Repetition`](`::basic::Repetition`) for this field and returns itself.
   pub fn with_repetition(mut self, repetition: Repetition) -> Self {
     self.repetition = Some(repetition);
     self
   }
 
+  /// Sets [`LogicalType`](`::basic::LogicalType`) for this field and returns itself.
   pub fn with_logical_type(mut self, logical_type: LogicalType) -> Self {
     self.logical_type = logical_type;
     self
   }
 
+  /// Sets a list of fields that should be child nodes of this field.
+  /// Returns updated self.
   pub fn with_fields(mut self, fields: &mut Vec<TypePtr>) -> Self {
     self.fields.append(fields);
     self
   }
 
+  /// Sets optional field id and returns itself.
   pub fn with_id(mut self, id: i32) -> Self {
     self.id = Some(id);
     self
   }
 
-  // Create a new `GroupType` instance from the gathered attributes.
+  /// Creates a new `GroupType` instance from the gathered attributes.
   pub fn build(self) -> Result<Type> {
     let basic_info = BasicTypeInfo {
       name: String::from(self.name),
@@ -360,33 +390,40 @@ pub struct BasicTypeInfo {
 }
 
 impl BasicTypeInfo {
+  /// Returns field name.
   pub fn name(&self) -> &str {
     &self.name
   }
 
+  /// Returns `true` if type has repetition field set, `false` otherwise.
+  /// This is mostly applied to group type, because primitive type always has
+  /// repetition set.
   pub fn has_repetition(&self) -> bool {
     self.repetition.is_some()
   }
 
+  /// Returns [`Repetition`](`::basic::Repetition`) value for the type.
   pub fn repetition(&self) -> Repetition {
     assert!(self.repetition.is_some());
     self.repetition.unwrap()
   }
 
+  /// Returns [`LogicalType`](`::basic::LogicalType`) value for the type.
   pub fn logical_type(&self) -> LogicalType {
     self.logical_type
   }
 
+  /// Returns `true` if id is set, `false` otherwise.
   pub fn has_id(&self) -> bool {
     self.id.is_some()
   }
 
+  /// Returns id value for the type.
   pub fn id(&self) -> i32 {
     assert!(self.id.is_some());
     self.id.unwrap()
   }
 }
-
 
 // ----------------------------------------------------------------------
 // Parquet descriptor definitions
@@ -398,10 +435,22 @@ pub struct ColumnPath {
 }
 
 impl ColumnPath {
+  /// Creates new column path from vector of field names.
   pub fn new(parts: Vec<String>) -> Self {
     ColumnPath { parts: parts }
   }
 
+  /// Returns string representation of this column path.
+  /// ```rust
+  /// use parquet::schema::types::ColumnPath;
+  ///
+  /// let path = ColumnPath::new(vec![
+  ///   "a".to_string(),
+  ///   "b".to_string(),
+  ///   "c".to_string()
+  /// ]);
+  /// assert_eq!(&path.string(), "a.b.c");
+  /// ```
   pub fn string(&self) -> String {
     self.parts.join(".")
   }
@@ -434,7 +483,6 @@ impl From<String> for ColumnPath {
   }
 }
 
-
 /// A descriptor for leaf-level primitive columns.
 /// This encapsulates information such as definition and repetition levels and is used to
 /// re-assemble nested data.
@@ -460,6 +508,7 @@ pub struct ColumnDescriptor {
 }
 
 impl ColumnDescriptor {
+  /// Creates new descriptor for leaf-level column.
   pub fn new(
     primitive_type: TypePtr,
     root_type: Option<TypePtr>,
@@ -476,63 +525,77 @@ impl ColumnDescriptor {
     }
   }
 
+  /// Returns maximum definition level for this column.
   pub fn max_def_level(&self) -> i16 {
     self.max_def_level
   }
 
+  /// Returns maximum repetition level for this column.
   pub fn max_rep_level(&self) -> i16 {
     self.max_rep_level
   }
 
+  /// Returns [`ColumnPath`] for this column.
   pub fn path(&self) -> &ColumnPath {
     &self.path
   }
 
+  /// Returns root [`Type`](`::schema::types::Type`) (most top-level parent field) for
+  /// this leaf column.
   pub fn root_type(&self) -> &Type {
     assert!(self.root_type.is_some());
     self.root_type.as_ref().unwrap()
   }
 
+  /// Returns column name.
   pub fn name(&self) -> &str {
     self.primitive_type.name()
   }
 
+  /// Returns [`LogicalType`](`::basic::LogicalType`) for this column.
   pub fn logical_type(&self) -> LogicalType {
     self.primitive_type.get_basic_info().logical_type()
   }
 
+  /// Returns physical type for this column.
+  /// Note that it will panic if called on a non-primitive type.
   pub fn physical_type(&self) -> PhysicalType {
     match self.primitive_type.as_ref() {
-      &Type::PrimitiveType{ physical_type, .. } => physical_type,
+      &Type::PrimitiveType { physical_type, .. } => physical_type,
       _ => panic!("Expected primitive type!")
     }
   }
 
+  /// Returns type length for this column.
+  /// Note that it will panic if called on a non-primitive type.
   pub fn type_length(&self) -> i32 {
     match self.primitive_type.as_ref() {
-      &Type::PrimitiveType{ type_length, .. } => type_length,
+      &Type::PrimitiveType { type_length, .. } => type_length,
       _ => panic!("Expected primitive type!")
     }
   }
 
+  /// Returns type precision for this column.
+  /// Note that it will panic if called on a non-primitive type.
   pub fn type_precision(&self) -> i32 {
     match self.primitive_type.as_ref() {
-      &Type::PrimitiveType{ precision, .. } => precision,
+      &Type::PrimitiveType { precision, .. } => precision,
       _ => panic!("Expected primitive type!")
     }
   }
 
+  /// Returns type scale for this column.
+  /// Note that it will panic if called on a non-primitive type.
   pub fn type_scale(&self) -> i32 {
     match self.primitive_type.as_ref() {
-      &Type::PrimitiveType{ scale, .. } => scale,
+      &Type::PrimitiveType { scale, .. } => scale,
       _ => panic!("Expected primitive type!")
     }
   }
-
 }
 
-/// A schema descriptor. This encapsulates the top-level schemas for all the columns, as
-/// well as all descriptors for all the primitive columns.
+/// A schema descriptor. This encapsulates the top-level schemas for all the columns,
+/// as well as all descriptors for all the primitive columns.
 pub struct SchemaDescriptor {
   // The top-level schema (the "message" type).
   // This must be a `GroupType` where each field is a root column type in the schema.
@@ -544,7 +607,7 @@ pub struct SchemaDescriptor {
 
   // Mapping from a leaf column's index to the root column type that it
   // comes from. For instance: the leaf `a.b.c.d` would have a link back to `a`:
-  // -- a  <------
+  // -- a  <-----+
   // -- -- b     |
   // -- -- -- c  |
   // -- -- -- -- d
@@ -552,6 +615,7 @@ pub struct SchemaDescriptor {
 }
 
 impl SchemaDescriptor {
+  /// Creates new schema descriptor from Parquet schema.
   pub fn new(tp: TypePtr) -> Self {
     assert!(tp.is_group(), "SchemaDescriptor should take a GroupType");
     let mut leaves = vec![];
@@ -573,11 +637,11 @@ impl SchemaDescriptor {
     Self {
       schema: tp,
       leaves: leaves,
-      leaf_to_base:
-      leaf_to_base
+      leaf_to_base: leaf_to_base
     }
   }
 
+  /// Returns [`ColumnDescriptor`] for a field position.
   pub fn column(&self, i: usize) -> ColumnDescPtr {
     assert!(
       i < self.leaves.len(),
@@ -588,14 +652,17 @@ impl SchemaDescriptor {
     self.leaves[i].clone()
   }
 
+  /// Returns slice of [`ColumnDescriptor`].
   pub fn columns(&self) -> &[ColumnDescPtr] {
     &self.leaves
   }
 
+  /// Returns number of leaf-level columns.
   pub fn num_columns(&self) -> usize {
     self.leaves.len()
   }
 
+  /// Returns column root [`Type`](`::schema::types::Type`) for a field position.
   pub fn get_column_root(&self, i: usize) -> &Type {
     assert!(
       i < self.leaves.len(),
@@ -608,10 +675,12 @@ impl SchemaDescriptor {
     result.unwrap().as_ref()
   }
 
+  /// Returns schema as [`Type`](`::schema::types::Type`).
   pub fn root_schema(&self) -> &Type {
     self.schema.as_ref()
   }
 
+  /// Returns schema name.
   pub fn name(&self) -> &str {
     self.schema.name()
   }
@@ -669,8 +738,7 @@ fn build_tree(
   }
 }
 
-/// Conversion from Thrift equivalents
-
+/// Method to convert from Thrift.
 pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<TypePtr> {
   let mut index = 0;
   let mut schema_nodes = Vec::new();

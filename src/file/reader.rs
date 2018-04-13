@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Contains file reader API, and provides methods to access file metadata, row group
+//! readers to read individual column chunks, or access record iterator.
+
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
 use std::rc::Rc;
@@ -38,22 +41,21 @@ use util::memory::ByteBufferPtr;
 // APIs for file & row group readers
 
 /// Parquet file reader API. With this, user can get metadata information about the
-/// Parquet file, and can get reader for each row group.
+/// Parquet file, can get reader for each row group, and access record iterator.
 pub trait FileReader {
-  /// Get metadata information about this file
+  /// Get metadata information about this file.
   fn metadata(&self) -> ParquetMetaDataPtr;
 
-  /// Get the total number of row groups for this file
+  /// Get the total number of row groups for this file.
   fn num_row_groups(&self) -> usize;
 
   /// Get the `i`th row group reader. Note this doesn't do bound check.
-  /// N.B.: Box<..> has 'static lifetime in default, but here we need the lifetime to be
-  /// the same as this. Otherwise, the row group metadata stored in the row group reader
-  /// may outlive the file reader.
   fn get_row_group(&self, i: usize) -> Result<Box<RowGroupReader>>;
 
-  /// Get full iterator of `Row` from a file (over all row groups).
+  /// Get full iterator of `Row`s from a file (over all row groups).
+  ///
   /// Iterator will automatically load the next row group to advance.
+  ///
   /// Projected schema can be a subset of or equal to the file schema, when it is None,
   /// full file schema is assumed.
   fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter>;
@@ -65,29 +67,31 @@ pub trait RowGroupReader {
   /// Get metadata information about this row group.
   fn metadata(&self) -> RowGroupMetaDataPtr;
 
-  /// Get the total number of column chunks in this row group
+  /// Get the total number of column chunks in this row group.
   fn num_columns(&self) -> usize;
 
-  /// Get page reader for the `i`th column chunk
+  /// Get page reader for the `i`th column chunk.
   fn get_column_page_reader(&self, i: usize) -> Result<Box<PageReader>>;
 
-  /// Get value reader for the `i`th column chunk
+  /// Get value reader for the `i`th column chunk.
   fn get_column_reader(&self, i: usize) -> Result<ColumnReader>;
 
-  /// Get iterator of `Row` from this row group.
+  /// Get iterator of `Row`s from this row group.
+  ///
   /// Projected schema can be a subset of or equal to the file schema, when it is None,
   /// full file schema is assumed.
   fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter>;
 }
 
-
 /// A thin wrapper on `T: Read` to be used by Thrift transport. Write is not supported.
-pub struct TMemoryBuffer<'a, T> where T: 'a + Read {
+struct TMemoryBuffer<'a, T> where T: 'a + Read {
   data: &'a mut T
 }
 
 impl<'a, T: 'a + Read> TMemoryBuffer<'a, T> {
-  pub fn new(data: &'a mut T) -> Self { Self { data: data } }
+  fn new(data: &'a mut T) -> Self {
+    Self { data: data }
+  }
 }
 
 impl<'a, T: 'a + Read> Read for TMemoryBuffer<'a, T> {
@@ -103,12 +107,15 @@ impl<'a, T: 'a + Read> Read for TMemoryBuffer<'a, T> {
 const FOOTER_SIZE: usize = 8;
 const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
 
+/// A serialized implementation for Parquet [`FileReader`].
 pub struct SerializedFileReader {
   buf: BufReader<File>,
   metadata: ParquetMetaDataPtr
 }
 
 impl SerializedFileReader {
+  /// Creates file reader from a Parquet file.
+  /// Returns error if Parquet file does not exist or is corrupt.
   pub fn new(file: File) -> Result<Self> {
     let mut buf = BufReader::new(file);
     let metadata = Self::parse_metadata(&mut buf)?;
@@ -125,25 +132,25 @@ impl SerializedFileReader {
     let file_metadata = buf.get_ref().metadata()?;
     let file_size = file_metadata.len();
     if file_size < (FOOTER_SIZE as u64) {
-      return Err(general_err!("Invalid parquet file. Size is smaller than footer"));
+      return Err(general_err!("Invalid Parquet file. Size is smaller than footer"));
     }
     let mut footer_buffer: [u8; FOOTER_SIZE] = [0; FOOTER_SIZE];
     buf.seek(SeekFrom::End(-(FOOTER_SIZE as i64)))?;
     buf.read_exact(&mut footer_buffer)?;
     if footer_buffer[4..] != PARQUET_MAGIC {
-      return Err(general_err!("Invalid parquet file. Corrupt footer"));
+      return Err(general_err!("Invalid Parquet file. Corrupt footer"));
     }
     let metadata_len = LittleEndian::read_i32(&footer_buffer[0..4]) as i64;
     if metadata_len < 0 {
       return Err(general_err!(
-        "Invalid parquet file. Metadata length is less than zero ({})",
+        "Invalid Parquet file. Metadata length is less than zero ({})",
         metadata_len
       ));
     }
     let metadata_start: i64 = file_size as i64 - FOOTER_SIZE as i64 - metadata_len;
     if metadata_start < 0 {
       return Err(general_err!(
-        "Invalid parquet file. Metadata start is less than zero ({})",
+        "Invalid Parquet file. Metadata start is less than zero ({})",
         metadata_start
       ));
     }
@@ -185,6 +192,7 @@ impl FileReader for SerializedFileReader {
 
   fn get_row_group(&self, i: usize) -> Result<Box<RowGroupReader>> {
     let row_group_metadata = self.metadata.row_group(i);
+    // Row groups should be processed sequentially.
     let f = self.buf.get_ref().try_clone()?;
     Ok(Box::new(SerializedRowGroupReader::new(f, row_group_metadata)))
   }
@@ -194,14 +202,15 @@ impl FileReader for SerializedFileReader {
   }
 }
 
-/// A serialized impl for row group reader
+/// A serialized implementation for Parquet [`RowGroupReader`].
 pub struct SerializedRowGroupReader {
   buf: BufReader<File>,
   metadata: RowGroupMetaDataPtr
 }
 
 impl SerializedRowGroupReader {
-  pub fn new(file: File, metadata: RowGroupMetaDataPtr) -> Self {
+  /// Creates new row group reader from a file and row group metadata.
+  fn new(file: File, metadata: RowGroupMetaDataPtr) -> Self {
     let buf = BufReader::new(file);
     Self { buf, metadata }
   }
@@ -261,25 +270,25 @@ impl RowGroupReader for SerializedRowGroupReader {
   }
 }
 
-
-/// A serialized impl for Parquet page reader
+/// A serialized implementation for Parquet [`PageReader`].
 pub struct SerializedPageReader {
-  // The file chunk buffer which references exactly the bytes for the column trunk to be
-  // read by this page reader
+  // The file chunk buffer which references exactly the bytes for the column trunk
+  // to be read by this page reader.
   buf: FileChunk,
 
   // The compression codec for this column chunk. Only set for non-PLAIN codec.
   decompressor: Option<Box<Codec>>,
 
-  // The number of values we have seen so far
+  // The number of values we have seen so far.
   seen_num_values: i64,
 
-  // The number of total values in this column chunk
+  // The number of total values in this column chunk.
   total_num_values: i64
 }
 
 impl SerializedPageReader {
-  pub fn new(
+  /// Creates a new serialized page reader from file chunk.
+  fn new(
     buf: FileChunk,
     total_num_values: i64,
     compression: Compression
@@ -294,6 +303,7 @@ impl SerializedPageReader {
     Ok(result)
   }
 
+  /// Reads Page header from Thrift.
   fn read_page_header(&mut self) -> Result<PageHeader> {
     let transport = TMemoryBuffer::new(&mut self.buf);
     let mut prot = TCompactInputProtocol::new(transport);
@@ -421,7 +431,7 @@ mod tests {
     assert!(reader_result.is_err());
     assert_eq!(
       reader_result.err().unwrap(),
-      general_err!("Invalid parquet file. Size is smaller than footer")
+      general_err!("Invalid Parquet file. Size is smaller than footer")
     );
   }
 
@@ -432,7 +442,7 @@ mod tests {
     assert!(reader_result.is_err());
     assert_eq!(
       reader_result.err().unwrap(),
-      general_err!("Invalid parquet file. Corrupt footer")
+      general_err!("Invalid Parquet file. Corrupt footer")
     );
   }
 
@@ -444,7 +454,7 @@ mod tests {
     assert!(reader_result.is_err());
     assert_eq!(
       reader_result.err().unwrap(),
-      general_err!("Invalid parquet file. Metadata length is less than zero (-16777216)")
+      general_err!("Invalid Parquet file. Metadata length is less than zero (-16777216)")
     );
   }
 
@@ -456,7 +466,7 @@ mod tests {
     assert!(reader_result.is_err());
     assert_eq!(
       reader_result.err().unwrap(),
-      general_err!("Invalid parquet file. Metadata start is less than zero (-255)")
+      general_err!("Invalid Parquet file. Metadata start is less than zero (-255)")
     );
   }
 

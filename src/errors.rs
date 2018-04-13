@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Common Parquet errors and macros.
+
 use std::cell;
 use std::convert;
 use std::io;
@@ -24,8 +26,11 @@ use snap;
 use thrift;
 
 quick_error! {
+  /// Set of errors that can be produced during different operations in Parquet.
   #[derive(Debug, PartialEq)]
   pub enum ParquetError {
+    /// General Parquet error.
+    /// Returned when code violates normal workflow of working with Parquet files.
     General(message: String) {
       display("Parquet error: {}", message)
       description(message)
@@ -34,10 +39,15 @@ quick_error! {
       from(e: thrift::Error) -> (format!("underlying Thrift error: {}", e))
       from(e: cell::BorrowMutError) -> (format!("underlying borrow error: {}", e))
     }
+    /// "Not yet implemented" Parquet error.
+    /// Returned when functionality is not yet available.
     NYI(message: String) {
       display("NYI: {}", message)
       description(message)
     }
+    /// "End of file" Parquet error.
+    /// Returned when IO related failures occur, e.g. when there are not enough bytes to
+    /// decode.
     EOF(message: String) {
       display("EOF: {}", message)
       description(message)
@@ -45,9 +55,11 @@ quick_error! {
   }
 }
 
+/// A specialized `Result` for Parquet errors.
 pub type Result<T> = result::Result<T, ParquetError>;
 
-/// Conversion from `ParquetError` TO other types of `Error`s
+// ----------------------------------------------------------------------
+// Conversion from `ParquetError` to other types of `Error`s
 
 impl convert::From<ParquetError> for io::Error {
   fn from(e: ParquetError) -> Self {
@@ -55,7 +67,8 @@ impl convert::From<ParquetError> for io::Error {
   }
 }
 
-/// Convenient macros for different errors
+// ----------------------------------------------------------------------
+// Convenient macros for different errors
 
 macro_rules! general_err {
   ($fmt:expr) => (ParquetError::General($fmt.to_owned()));

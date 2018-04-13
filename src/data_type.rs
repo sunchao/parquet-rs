@@ -15,33 +15,37 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Data types that connect Parquet physical types with their Rust-specific
+//! representations.
+
 use std::mem;
 
 use basic::Type;
 use rand::{Rand, Rng};
 use util::memory::{ByteBuffer, ByteBufferPtr};
 
-// ----------------------------------------------------------------------
-// Types connect Parquet physical types with Rust-specific types
-
 // TODO: alignment?
 // TODO: we could also use [u32; 3], however it seems there is no easy way
 //   to convert [u32] to [u32; 3] in decoding.
+/// Rust representation for logical type INT96, value is backed by a vector of `u32`.
 #[derive(Clone, Debug)]
 pub struct Int96 {
   value: Option<Vec<u32>>
 }
 
 impl Int96 {
+  /// Creates new INT96 type struct with no data set.
   pub fn new() -> Self {
     Int96 { value: None }
   }
 
+  /// Returns underlying data as slice of [`u32`].
   pub fn data(&self) -> &[u32] {
     assert!(self.value.is_some());
     &self.value.as_ref().unwrap()
   }
 
+  /// Sets data for this INT96 type.
   pub fn set_data(&mut self, v: Vec<u32>) {
     assert_eq!(v.len(), 3);
     self.value = Some(v);
@@ -79,31 +83,37 @@ impl Rand for Int96 {
   }
 }
 
-
+/// Rust representation for BYTE_ARRAY and FIXED_LEN_BYTE_ARRAY Parquet physical types.
+/// Value is backed by a byte buffer.
 #[derive(Clone, Debug)]
 pub struct ByteArray {
   data: Option<ByteBufferPtr>
 }
 
 impl ByteArray {
+  /// Creates new byte array with no data set.
   pub fn new() -> Self {
     ByteArray { data: None }
   }
 
+  /// Gets length of the underlying byte buffer.
   pub fn len(&self) -> usize {
     assert!(self.data.is_some());
     self.data.as_ref().unwrap().len()
   }
 
+  /// Returns slice of data.
   pub fn data(&self) -> &[u8] {
     assert!(self.data.is_some());
     self.data.as_ref().unwrap().as_ref()
   }
 
+  /// Set data from another byte buffer.
   pub fn set_data(&mut self, data: ByteBufferPtr) {
     self.data = Some(data);
   }
 
+  /// Returns `ByteArray` instance with slice of values for a data.
   pub fn slice(&self, start: usize, len: usize) -> Self {
     assert!(self.data.is_some());
     Self::from(self.data.as_ref().unwrap().range(start, len))
@@ -162,11 +172,9 @@ impl Rand for ByteArray {
   }
 }
 
-
-// ----------------------------------------------------------------------
-// AsBytes converts an instance of data type to a slice of u8
-
+/// Converts an instance of data type to a slice of bytes as `u8`.
 pub trait AsBytes {
+  /// Returns slice of bytes for this data type.
   fn as_bytes(&self) -> &[u8];
 }
 
@@ -225,15 +233,16 @@ impl AsBytes for str {
   }
 }
 
-
-// ----------------------------------------------------------------------
-// DataType trait, which contains the Parquet physical type info as well as
-// the Rust primitive type presentation.
-
+/// Contains the Parquet physical type information as well as the Rust primitive type
+/// presentation.
 pub trait DataType {
   type T: ::std::cmp::PartialEq + ::std::fmt::Debug + ::std::default::Default
     + ::std::clone::Clone + Rand + AsBytes;
+
+  /// Returns Parquet physical type.
   fn get_physical_type() -> Type;
+
+  /// Returns size in bytes for Rust representation of the physical type.
   fn get_type_size() -> usize;
 }
 

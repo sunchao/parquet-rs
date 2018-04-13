@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Contains all supported decoders for Parquet.
+
 use std::cmp;
 use std::marker::PhantomData;
 use std::mem;
@@ -31,6 +33,7 @@ use util::memory::{ByteBuffer, ByteBufferPtr};
 // ----------------------------------------------------------------------
 // Decoders
 
+/// A Parquet decoder for the data type `T`.
 pub trait Decoder<T: DataType> {
   /// Sets the data to decode to be `data`, which should contain `num_values` of values
   /// to decode.
@@ -43,15 +46,15 @@ pub trait Decoder<T: DataType> {
   /// unless the remaining number of values is less than `buffer.len()`.
   fn get(&mut self, buffer: &mut [T::T]) -> Result<usize>;
 
-  /// Returns the number of values left in this decoder stream
+  /// Returns the number of values left in this decoder stream.
   fn values_left(&self) -> usize;
 
-  /// Returns the encoding for this decoder
+  /// Returns the encoding for this decoder.
   fn encoding(&self) -> Encoding;
 }
 
-
 /// Gets a decoder for the column descriptor `descr` and encoding type `encoding`.
+///
 /// NOTE: the primitive type in `descr` MUST match the data type `T`, otherwise
 /// disastrous consequence could occur.
 pub fn get_decoder<T: DataType>(
@@ -82,10 +85,13 @@ pub fn get_decoder<T: DataType>(
   Ok(decoder)
 }
 
-
 // ----------------------------------------------------------------------
 // PLAIN Decoding
 
+/// Plain decoding that supports all types.
+/// Values are encoded back to back. For native types, data is encoded as little endian.
+/// Floating point types are encoded in IEEE.
+/// See [`PlainDecoder`](`::encoding::PlainEncoder`) for more information.
 pub struct PlainDecoder<T: DataType> {
   // The remaining number of values in the byte array
   num_values: usize,
@@ -107,6 +113,7 @@ pub struct PlainDecoder<T: DataType> {
 }
 
 impl<T: DataType> PlainDecoder<T> {
+  /// Creates new plain decoder.
   pub fn new(type_length: i32) -> Self {
     PlainDecoder {
       data: None,
@@ -249,10 +256,13 @@ impl Decoder<FixedLenByteArrayType> for PlainDecoder<FixedLenByteArrayType> {
   }
 }
 
-
 // ----------------------------------------------------------------------
 // RLE_DICTIONARY/PLAIN_DICTIONARY Decoding
 
+/// Dictionary decoder.
+/// The dictionary encoding builds a dictionary of values encountered in a given column.
+/// The dictionary is be stored in a dictionary page per column chunk.
+/// See [`DictEncoder`](`::encoding::DictEncoder`) for more information.
 pub struct DictDecoder<T: DataType> {
   // The dictionary, which maps ids to the values
   dictionary: Vec<T::T>,
@@ -268,6 +278,7 @@ pub struct DictDecoder<T: DataType> {
 }
 
 impl<T: DataType> DictDecoder<T> {
+  /// Creates new dictionary decoder.
   pub fn new() -> Self {
     Self {
       dictionary: vec![],
@@ -277,6 +288,7 @@ impl<T: DataType> DictDecoder<T> {
     }
   }
 
+  /// Decodes and sets values for dictionary using `decoder` decoder.
   pub fn set_dict(&mut self, mut decoder: Box<Decoder<T>>) -> Result<()> {
     let num_values = decoder.values_left();
     self.dictionary.resize(num_values, T::T::default());
@@ -321,6 +333,7 @@ impl<T: DataType> Decoder<T> for DictDecoder<T> {
 
 /// RLE/Bit-Packing hybrid decoding for values.
 /// Currently is used only for data pages v2 and supports boolean types.
+/// See [`RleValueEncoder`](`::encoding::RleValueEncoder`) for more information.
 pub struct RleValueDecoder<T: DataType> {
   values_left: usize,
   decoder: Option<RleDecoder>,
@@ -392,6 +405,9 @@ impl Decoder<BoolType> for RleValueDecoder<BoolType> {
 // ----------------------------------------------------------------------
 // DELTA_BINARY_PACKED Decoding
 
+/// Delta binary packed decoder.
+/// Supports INT32 and INT64 types.
+/// See [`DeltaBitPackEncoder`](`::encoding::DeltaBitPackEncoder`) for more information.
 pub struct DeltaBitPackDecoder<T: DataType> {
   bit_reader: BitReader,
   initialized: bool,
@@ -418,6 +434,7 @@ pub struct DeltaBitPackDecoder<T: DataType> {
 }
 
 impl<T: DataType> DeltaBitPackDecoder<T> {
+  /// Creates new delta bit packed decoder.
   pub fn new() -> Self {
     Self {
       bit_reader: BitReader::from(vec![]),
@@ -439,11 +456,13 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
     }
   }
 
+  /// Returns underlying bit reader offset.
   pub fn get_offset(&self) -> usize {
     assert!(self.initialized, "Bit reader is not initialized");
     self.bit_reader.get_byte_offset()
   }
 
+  /// Initializes new mini block.
   #[inline]
   fn init_block(&mut self) -> Result<()> {
     self.min_delta = self.bit_reader
@@ -465,6 +484,7 @@ impl<T: DataType> DeltaBitPackDecoder<T> {
     Ok(())
   }
 
+  /// Loads delta into mini block.
   #[inline]
   fn load_deltas_in_mini_block(&mut self) -> Result<()> {
     self.deltas_in_mini_block.clear();
@@ -569,8 +589,9 @@ impl<T: DataType> Decoder<T> for DeltaBitPackDecoder<T> {
   }
 }
 
-// Helper trait to define specific conversions when decoding values
+/// Helper trait to define specific conversions when decoding values
 trait DeltaBitPackDecoderConversion<T: DataType> {
+  /// Sets decoded value based on type `T`.
   #[inline]
   fn get_delta(&self, index: usize) -> i64;
 
@@ -618,6 +639,11 @@ impl DeltaBitPackDecoderConversion<Int64Type> for DeltaBitPackDecoder<Int64Type>
 // ----------------------------------------------------------------------
 // DELTA_LENGTH_BYTE_ARRAY Decoding
 
+/// Delta length byte array decoder.
+/// Only applied to byte arrays to separate the length values and the data, the lengths
+/// are encoded using DELTA_BINARY_PACKED encoding.
+/// See [`DeltaLengthByteArrayEncoder`](`::encoding::DeltaLengthByteArrayEncoder`)
+/// for more information.
 pub struct DeltaLengthByteArrayDecoder<T: DataType> {
   // Lengths for each byte array in `data`
   // TODO: add memory tracker to this
@@ -640,6 +666,7 @@ pub struct DeltaLengthByteArrayDecoder<T: DataType> {
 }
 
 impl<T: DataType> DeltaLengthByteArrayDecoder<T> {
+  /// Creates new delta length byte array decoder.
   pub fn new() -> Self {
     Self {
       lengths: vec![],
@@ -705,6 +732,11 @@ impl Decoder<ByteArrayType> for DeltaLengthByteArrayDecoder<ByteArrayType> {
 // ----------------------------------------------------------------------
 // DELTA_BYTE_ARRAY Decoding
 
+/// Delta byte array decoder.
+/// Prefix lengths are encoded using `DELTA_BINARY_PACKED` encoding, Suffixes are stored
+/// using `DELTA_LENGTH_BYTE_ARRAY` encoding.
+/// See [`DeltaByteArrayEncoder`](`::encoding::DeltaByteArrayEncoder`) for more
+/// information.
 pub struct DeltaByteArrayDecoder<T: DataType> {
   // Prefix lengths for each byte array
   // TODO: add memory tracker to this
@@ -727,6 +759,7 @@ pub struct DeltaByteArrayDecoder<T: DataType> {
 }
 
 impl<T: DataType> DeltaByteArrayDecoder<T> {
+  /// Creates new delta byte array decoder.
   pub fn new() -> Self {
     Self {
       prefix_lengths: vec![],

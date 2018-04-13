@@ -30,8 +30,8 @@ use std::rc::Rc;
 
 use parquet::basic::*;
 use parquet::data_type::*;
-use parquet::encodings::encoding::*;
-use parquet::util::memory::MemTracker;
+use parquet::encoding::*;
+use parquet::memory::MemTracker;
 
 macro_rules! plain {
   ($fname:ident, $batch_size:expr, $ty:ident, $pty:expr, $gen_data_fn:expr) => {

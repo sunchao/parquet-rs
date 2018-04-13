@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Contains Parquet Page definitions and page reader interface.
+
 use basic::{PageType, Encoding};
 use errors::Result;
 use util::memory::ByteBufferPtr;
 
 /// Parquet Page definition.
 ///
+/// List of supported pages.
 /// These are 1-to-1 mapped from the equivalent Thrift definitions, except `buf` which
 /// used to store uncompressed bytes of the page.
 pub enum Page {
@@ -50,44 +53,48 @@ pub enum Page {
 }
 
 impl Page {
+  /// Returns [`PageType`](`::basic::PageType`) for this page.
   pub fn page_type(&self) -> PageType {
     match self {
-      &Page::DataPage{ .. } => PageType::DATA_PAGE,
-      &Page::DataPageV2{ .. } => PageType::DATA_PAGE_V2,
-      &Page::DictionaryPage{ .. } => PageType::DICTIONARY_PAGE
+      &Page::DataPage { .. } => PageType::DATA_PAGE,
+      &Page::DataPageV2 { .. } => PageType::DATA_PAGE_V2,
+      &Page::DictionaryPage { .. } => PageType::DICTIONARY_PAGE
     }
   }
 
+  /// Returns internal byte buffer reference for this page.
   pub fn buffer(&self) -> &ByteBufferPtr {
     match self {
-      &Page::DataPage{ ref buf, .. } => &buf,
-      &Page::DataPageV2{ ref buf, .. } => &buf,
-      &Page::DictionaryPage{ ref buf, .. } => &buf
+      &Page::DataPage { ref buf, .. } => &buf,
+      &Page::DataPageV2 { ref buf, .. } => &buf,
+      &Page::DictionaryPage { ref buf, .. } => &buf
     }
   }
 
+  /// Returns number of values in this page.
   pub fn num_values(&self) -> u32 {
     match self {
-      &Page::DataPage{ num_values, .. } => num_values,
-      &Page::DataPageV2{ num_values, .. } => num_values,
-      &Page::DictionaryPage{ num_values, .. } => num_values
+      &Page::DataPage { num_values, .. } => num_values,
+      &Page::DataPageV2 { num_values, .. } => num_values,
+      &Page::DictionaryPage { num_values, .. } => num_values
     }
   }
 
+  /// Returns this page [`Encoding`](`::basic::Encoding`).
   pub fn encoding(&self) -> Encoding {
     match self {
-      &Page::DataPage{ encoding, .. } => encoding,
-      &Page::DataPageV2{ encoding, .. } => encoding,
-      &Page::DictionaryPage{ encoding, .. } => encoding
+      &Page::DataPage { encoding, .. } => encoding,
+      &Page::DataPageV2 { encoding, .. } => encoding,
+      &Page::DictionaryPage { encoding, .. } => encoding
     }
   }
 }
 
-/// API for reading pages from a column chunk. This offers a iterator like API to get the
-/// next page.
+/// API for reading pages from a column chunk.
+/// This offers a iterator like API to get the next page.
 pub trait PageReader {
   /// Gets the next page in the column chunk associated with this reader.
-  /// Returns `None` if there's no page left.
+  /// Returns `None` if there are no pages left.
   fn get_next_page(&mut self) -> Result<Option<Page>>;
 }
 

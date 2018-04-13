@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Contains implementation of record assembly and converting Parquet types into
+//! [`Row`](`::record::api::Row`)s.
+
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -29,7 +32,8 @@ use record::triplet::TripletIter;
 const DEFAULT_BATCH_SIZE: usize = 256;
 
 /// Tree builder for `Reader` enum.
-/// Serves as a container of options for building a reader tree and a builder.
+/// Serves as a container of options for building a reader tree and a builder, and
+/// accessing a records iterator [`RowIter`].
 pub struct TreeBuilder {
   // Batch size (>= 1) for triplet iterators
   batch_size: usize
@@ -476,7 +480,7 @@ impl Reader {
 // ----------------------------------------------------------------------
 // Row iterators
 
-/// Iterator of `Row`s.
+/// Iterator of [`Row`](`::record::api::Row`)s.
 /// It is used either for a single row group to iterate over data in that row group, or
 /// an entire file with auto buffering of all row groups.
 pub struct RowIter<'a> {
@@ -489,7 +493,7 @@ pub struct RowIter<'a> {
 }
 
 impl<'a> RowIter<'a> {
-  /// Creates iterator of `Row`s for all row groups in a file.
+  /// Creates iterator of [`Row`](`::record::api::Row`)s for all row groups in a file.
   pub fn from_file(proj: Option<Type>, reader: &'a FileReader) -> Result<Self> {
     let descr = Self::get_proj_descr(proj,
       reader.metadata().file_metadata().schema_descr_ptr())?;
@@ -505,7 +509,7 @@ impl<'a> RowIter<'a> {
     })
   }
 
-  /// Creates iterator of `Row`s for a specific row group.
+  /// Creates iterator of [`Row`](`::record::api::Row`)s for a specific row group.
   pub fn from_row_group(proj: Option<Type>, reader: &'a RowGroupReader) -> Result<Self> {
     let descr = Self::get_proj_descr(proj, reader.metadata().schema_descr_ptr())?;
     let tree_builder = Self::tree_builder();
@@ -579,7 +583,7 @@ impl<'a> Iterator for RowIter<'a> {
   }
 }
 
-/// Internal iterator of `Row`s for a reader.
+/// Internal iterator of [`Row`](`::record::api::Row`)s for a reader.
 pub struct ReaderIter {
   root_reader: Reader,
   records_left: usize

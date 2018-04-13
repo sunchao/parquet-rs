@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Contains record-based API for reading Parquet files.
+
 pub mod api;
 pub mod reader;
 mod triplet;

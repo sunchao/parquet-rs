@@ -15,6 +15,31 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Contains codec interface and supported codec implementations.
+//!
+//! See [`Compression`](`::basic::Compression`) enum for all available compression
+//! algorithms.
+//!
+//! # Example
+//!
+//! ```rust
+//! use parquet::basic::Compression;
+//! use parquet::compression::create_codec;
+//!
+//! let mut codec = match create_codec(Compression::SNAPPY) {
+//!   Ok(Some(codec)) => codec,
+//!   _ => panic!()
+//! };
+//!
+//! let data = vec![b'p', b'a', b'r', b'q', b'u', b'e', b't'];
+//! let compressed = codec.compress(&data[..]).unwrap();
+//!
+//! let mut output = vec![];
+//! codec.decompress(&compressed[..], &mut output).unwrap();
+//!
+//! assert_eq!(output, data);
+//! ```
+
 use std::io::{Read, Write};
 
 use basic::Compression as CodecType;
@@ -25,6 +50,7 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use snap::{decompress_len, Decoder, Encoder};
 
+/// Parquet compression codec interface.
 pub trait Codec {
   /// Compresses data stored in slice `input_buf` and returns a new vector with the
   /// compressed data.
@@ -37,8 +63,7 @@ pub trait Codec {
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize>;
 }
 
-
-/// Given the compression type `codec`, returns a codec used to compress & decompress
+/// Given the compression type `codec`, returns a codec used to compress and decompress
 /// bytes for the compression type.
 /// This returns `None` if the codec type is `UNCOMPRESSED`.
 pub fn create_codec(codec: CodecType) -> Result<Option<Box<Codec>>> {
@@ -51,12 +76,14 @@ pub fn create_codec(codec: CodecType) -> Result<Option<Box<Codec>>> {
   }
 }
 
+/// Codec for Snappy compression format.
 pub struct SnappyCodec {
   decoder: Decoder,
   encoder: Encoder
 }
 
 impl SnappyCodec {
+  /// Creates new Snappy compression codec.
   fn new() -> Self {
     Self {
       decoder: Decoder::new(),
@@ -79,9 +106,11 @@ impl Codec for SnappyCodec {
   }
 }
 
+/// Codec for GZIP compression algorithm.
 pub struct GZipCodec {}
 
 impl GZipCodec {
+  /// Creates new GZIP compression codec.
   fn new() -> Self {
     Self {}
   }
@@ -108,9 +137,11 @@ const BROTLI_DEFAULT_BUFFER_SIZE: usize = 4096;
 const BROTLI_DEFAULT_COMPRESSION_QUALITY: u32 = 9; // supported levels 0-9
 const BROTLI_DEFAULT_LG_WINDOW_SIZE: u32 = 22; // recommended between 20-22
 
+/// Codec for Brotli compression algorithm.
 pub struct BrotliCodec {}
 
 impl BrotliCodec {
+  /// Creates new Brotli compression codec.
   fn new() -> Self {
     Self {}
   }

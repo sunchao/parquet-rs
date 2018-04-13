@@ -15,6 +15,35 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Parquet schema printer.
+//! Provides methods to print Parquet file schema and list file metadata.
+//!
+//! # Example
+//!
+//! ```rust
+//! use std::fs::File;
+//! use std::path::Path;
+//! use parquet::file::reader::{FileReader, SerializedFileReader};
+//! use parquet::schema::printer::{
+//!   print_parquet_metadata,
+//!   print_file_metadata,
+//!   print_schema
+//! };
+//!
+//! // Open a file
+//! let path = Path::new("data/alltypes_plain.parquet");
+//! let file = File::open(&path).expect("File should exist");
+//! let reader = SerializedFileReader::new(file).expect("Valid Parquet file");
+//!
+//! let parquet_metadata = reader.metadata();
+//!
+//! print_parquet_metadata(&mut std::io::stdout(), &parquet_metadata);
+//!
+//! print_file_metadata(&mut std::io::stdout(), &parquet_metadata.file_metadata());
+//!
+//! print_schema(&mut std::io::stdout(), &parquet_metadata.file_metadata().schema());
+//! ```
+
 use std::fmt;
 use std::io;
 
@@ -27,7 +56,8 @@ use file::metadata::{
 };
 use schema::types::Type;
 
-/// Prints Parquet metadata
+/// Prints Parquet metadata [`ParquetMetaData`](`::file::metadata::ParquetMetaData`)
+/// information.
 #[allow(unused_must_use)]
 pub fn print_parquet_metadata(out: &mut io::Write, metadata: &ParquetMetaData) {
   print_file_metadata(out, &metadata.file_metadata());
@@ -43,7 +73,7 @@ pub fn print_parquet_metadata(out: &mut io::Write, metadata: &ParquetMetaData) {
   }
 }
 
-/// Prints metadata information from `file_metadata`.
+/// Prints file metadata [`FileMetaData`](`::file::metadata::FileMetaData`) information.
 #[allow(unused_must_use)]
 pub fn print_file_metadata(out: &mut io::Write, file_metadata: &FileMetaData) {
   writeln!(out, "version: {}", file_metadata.version());
@@ -55,6 +85,7 @@ pub fn print_file_metadata(out: &mut io::Write, file_metadata: &FileMetaData) {
   print_schema(out, schema);
 }
 
+/// Prints Parquet [`Type`](`::schema::types::Type`) information.
 #[allow(unused_must_use)]
 pub fn print_schema(out: &mut io::Write, tp: &Type) {
   // TODO: better if we can pass fmt::Write to Printer.
@@ -123,7 +154,8 @@ fn print_dashes(out: &mut io::Write, num: i32) {
 
 const INDENT_WIDTH: i32 = 2;
 
-pub struct Printer<'a> {
+/// Struct for printing Parquet message type.
+struct Printer<'a> {
   output: &'a mut fmt::Write,
   indent: i32
 }

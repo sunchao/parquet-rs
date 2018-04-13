@@ -15,5 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Main entrypoint for working with Parquet API.
+//! Provides access to file and row group readers, record API, etc.
+//!
+//! See [`reader::SerializedFileReader`] for a starting reference and
+//! [`metadata::ParquetMetaData`] for file metadata.
+//!
+//! # Example
+//!
+//! ```rust
+//! use std::fs::File;
+//! use std::path::Path;
+//! use parquet::file::reader::{FileReader, SerializedFileReader};
+//!
+//! let file = File::open(&Path::new("data/alltypes_plain.parquet")).unwrap();
+//! let reader = SerializedFileReader::new(file).unwrap();
+//!
+//! let parquet_metadata = reader.metadata();
+//! let row_group = reader.get_row_group(0);
+//! ```
+
 pub mod metadata;
 pub mod reader;

@@ -15,13 +15,42 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Parquet schema parser.
+//! Provides methods to parse and validate string message type into Parquet
+//! [`Type`](`::schema::types::Type`).
+//!
+//! # Example
+//!
+//! ```rust
+//! use parquet::schema::parser::parse_message_type;
+//!
+//! let message_type = "
+//!   message spark_schema {
+//!     OPTIONAL BYTE_ARRAY a (UTF8);
+//!     REQUIRED INT32 b;
+//!     REQUIRED DOUBLE c;
+//!     REQUIRED BOOLEAN d;
+//!     OPTIONAL group e (LIST) {
+//!       REPEATED group list {
+//!         REQUIRED INT32 element;
+//!       }
+//!     }
+//!   }
+//! ";
+//!
+//! let schema = parse_message_type(message_type).expect("Expected valid schema");
+//! println!("{:?}", schema);
+//! ```
+
 use std::rc::Rc;
 
 use basic::{LogicalType, Repetition, Type as PhysicalType};
 use errors::{ParquetError, Result};
 use schema::types::{Type, TypePtr};
 
-/// Parses message type into `Type` class that can be used to extract individual columns
+/// Parses message type as string into a Parquet [`Type`](`::schema::types::Type`) which,
+/// for example, could be used to extract individual columns. Returns Parquet general
+/// error when parsing or validation fails.
 pub fn parse_message_type<'a>(message_type: &'a str) -> Result<Type> {
   let mut parser = Parser { tokenizer: &mut Tokenizer::from_str(message_type) };
   parser.parse_message_type()
@@ -92,14 +121,14 @@ impl<'a> Iterator for Tokenizer<'a> {
   }
 }
 
-/// Internal Schema parser
+/// Internal Schema parser.
 /// Traverses message type using tokenizer and parses each group/primitive type
 /// recursively.
 struct Parser<'a> {
   tokenizer: &'a mut Tokenizer<'a>
 }
 
-// Utility function to assert token on validity
+// Utility function to assert token on validity.
 fn assert_token(token: Option<&str>, expected: &str) -> Result<()> {
   match token {
     Some(value) if value == expected => Ok(()),
@@ -108,7 +137,7 @@ fn assert_token(token: Option<&str>, expected: &str) -> Result<()> {
   }
 }
 
-// Utility function to parse i32 or return general error
+// Utility function to parse i32 or return general error.
 fn parse_i32(
   value: Option<&str>,
   not_found_msg: &str,
@@ -121,9 +150,9 @@ fn parse_i32(
 }
 
 impl<'a> Parser<'a> {
-  // Entry function to parse message type, uses internal tokenizer
+  // Entry function to parse message type, uses internal tokenizer.
   fn parse_message_type(&mut self) -> Result<Type> {
-    // Check that message type starts with "message"
+    // Check that message type starts with "message".
     match self.tokenizer.next() {
       Some("message") => {
         let name = self.tokenizer.next()
@@ -139,8 +168,8 @@ impl<'a> Parser<'a> {
     }
   }
 
-  // Parse child types for a current group type.
-  // This is only invoked on root and group types
+  // Parses child types for a current group type.
+  // This is only invoked on root and group types.
   fn parse_child_types(&mut self) -> Result<Vec<TypePtr>> {
     assert_token(self.tokenizer.next(), "{")?;
     let mut vec = Vec::new();
