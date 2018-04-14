@@ -124,20 +124,18 @@
 extern crate quick_error;
 extern crate byteorder;
 extern crate thrift;
-extern crate ordered_float;
-extern crate try_from;
 extern crate arena;
 extern crate snap;
 extern crate brotli;
 extern crate flate2;
 extern crate rand;
 extern crate x86intrin;
+extern crate parquet_format;
 
 #[macro_use]
 pub mod errors;
 pub mod basic;
 pub mod data_type;
-mod parquet_thrift;
 
 // Exported for external use, such as benchmarks
 pub use util::memory;

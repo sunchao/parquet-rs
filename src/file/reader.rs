@@ -1,3 +1,4 @@
+
 // Licensed to the Apache Software Foundation (ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -29,8 +30,8 @@ use column::reader::{ColumnReader, ColumnReaderImpl};
 use compression::{create_codec, Codec};
 use errors::{ParquetError, Result};
 use file::metadata::*;
-use parquet_thrift::parquet::FileMetaData as TFileMetaData;
-use parquet_thrift::parquet::{PageType, PageHeader};
+use parquet_format::FileMetaData as TFileMetaData;
+use parquet_format::{PageType, PageHeader};
 use record::reader::RowIter;
 use schema::types::{self, SchemaDescriptor, Type as SchemaType};
 use thrift::protocol::TCompactInputProtocol;

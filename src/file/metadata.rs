@@ -36,7 +36,7 @@ use basic::{Compression, Encoding, Type};
 use errors::{ParquetError, Result};
 use schema::types::{ColumnDescriptor, ColumnDescPtr, ColumnPath};
 use schema::types::{SchemaDescriptor, SchemaDescPtr, Type as SchemaType, TypePtr};
-use parquet_thrift::parquet::{ColumnChunk, ColumnMetaData, RowGroup};
+use parquet_format::{ColumnChunk, ColumnMetaData, RowGroup};
 
 /// Reference counted pointer for [`ParquetMetaData`].
 pub type ParquetMetaDataPtr = Rc<ParquetMetaData>;

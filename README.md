@@ -38,20 +38,14 @@ See crate documentation on available API.
 ## Supported Parquet Version
 - Parquet-format 2.4.0
 
+To update Parquet format to a newer version, check if [parquet-format](https://github.com/sunchao/parquet-format-rs)
+version is available. Then simply update version of `parquet-format` crate in Cargo.toml.
+
 ## Requirements
 - Rust nightly
-- Thrift 0.11.0 or higher
 
 See [Working with nightly Rust](https://github.com/rust-lang-nursery/rustup.rs/blob/master/README.md#working-with-nightly-rust)
-to install nightly toolchain and set it as default. Follow instructions on [Apache Thrift](https://thrift.apache.org)
-website to install the required version of Thrift (it may be necessary to build from source).
-
-For more information on setup and build refer to [.travis.yml](./.travis.yml#L15) file
-(`before_script` section).
-
-## System Dependencies
-All of the dependencies are required by Thrift install, please see [Apache Thrift](https://thrift.apache.org)
-website for installing or updating necessary dependencies.
+to install nightly toolchain and set it as default.
 
 ## Build
 Run `cargo build` or `cargo build --release` to build in release mode.
@@ -75,7 +69,8 @@ be printed).
 Run `cargo bench` for benchmarks.
 
 ## Docs
-To build documentation, run `cargo doc --no-deps`. To compile and view in the browser, run `cargo doc --no-deps --open`.
+To build documentation, run `cargo doc --no-deps`.
+To compile and view in the browser, run `cargo doc --no-deps --open`.
 
 ## License
 Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0.

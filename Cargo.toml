@@ -11,13 +11,11 @@ readme = "README.md"
 homepage = "https://github.com/sunchao/parquet-rs"
 repository = "https://github.com/sunchao/parquet-rs"
 keywords = ["parquet", "hadoop"]
-build = "build.rs"
 
 [dependencies]
+parquet-format = "2.4.0"
 quick-error = "1.2.1"
 byteorder = "1"
-ordered-float = "0.5.0"
-try_from = "0.2.2"
 snap = "0.2"
 brotli = "1.1.2"
 flate2 = "0.2"

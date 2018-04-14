@@ -24,7 +24,7 @@ use std::rc::Rc;
 
 use basic::{LogicalType, Repetition, Type as PhysicalType};
 use errors::{ParquetError, Result};
-use parquet_thrift::parquet::SchemaElement;
+use parquet_format::SchemaElement;
 
 // ----------------------------------------------------------------------
 // Parquet Type definitions

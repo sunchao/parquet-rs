@@ -24,7 +24,7 @@ use std::result;
 use std::str;
 
 use errors::ParquetError;
-use parquet_thrift::parquet;
+use parquet_format as parquet;
 
 // ----------------------------------------------------------------------
 // Types from the Thrift definition
