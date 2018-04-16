@@ -131,6 +131,7 @@ extern crate flate2;
 extern crate rand;
 extern crate x86intrin;
 extern crate parquet_format;
+extern crate chrono;
 
 #[macro_use]
 pub mod errors;

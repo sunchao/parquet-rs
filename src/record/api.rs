@@ -20,6 +20,7 @@
 use std::fmt;
 
 use basic::{LogicalType, Type as PhysicalType};
+use chrono::{Local, TimeZone};
 use data_type::{ByteArray, Int96};
 
 /// Macro as a shortcut to generate 'not yet implemented' panic error.
@@ -37,22 +38,44 @@ macro_rules! nyi {
 /// Row API to represent a nested Parquet record.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Row {
+  // ----------------------------------------------------------------------
   // Primitive types
+
+  /// Null value.
   Null,
+  /// Boolean value (`true`, `false`).
   Bool(bool),
+  /// Signed integer INT_8.
   Byte(i8),
+  /// Signed integer INT_16.
   Short(i16),
+  /// Signed integer INT_32.
   Int(i32),
+  /// Signed integer INT_64.
   Long(i64),
+  /// IEEE 32-bit floating point value.
   Float(f32),
+  /// IEEE 64-bit floating point value.
   Double(f64),
+  /// UTF-8 encoded character string.
   Str(String),
+  /// General binary value.
   Bytes(ByteArray),
-  Timestamp(u64), // Timestamp with milliseconds
+  /// Date without a time of day, stores the number of days from the
+  /// Unix epoch, 1 January 1970.
+  Date(u32),
+  /// Milliseconds from the Unix epoch, 1 January 1970.
+  Timestamp(u64),
+
+  // ----------------------------------------------------------------------
   // Complex types
-  Group(Vec<(String, Row)>), // Struct, child elements are tuples of field-value pairs
-  List(Vec<Row>), // List of elements
-  Map(Vec<(Row, Row)>) // List of key-value pairs
+
+  /// Struct, child elements are tuples of field-value pairs.
+  Group(Vec<(String, Row)>),
+  /// List of elements.
+  List(Vec<Row>),
+  /// List of key-value pairs.
+  Map(Vec<(Row, Row)>)
 }
 
 impl Row {
@@ -75,6 +98,7 @@ impl Row {
       LogicalType::INT_8 => Row::Byte(value as i8),
       LogicalType::INT_16 => Row::Short(value as i16),
       LogicalType::INT_32 | LogicalType::NONE => Row::Int(value),
+      LogicalType::DATE => Row::Date(value as u32),
       _ => nyi!(physical_type, logical_type, value)
     }
   }
@@ -151,6 +175,25 @@ impl Row {
   }
 }
 
+/// Helper method to convert Parquet date into a string.
+/// Input `value` is a number of days since the epoch in UTC.
+/// Date is displayed in local timezone.
+#[inline]
+fn convert_date_to_string(value: u32) -> String {
+  static NUM_SECONDS_IN_DAY: i64 = 60 * 60 * 24;
+  let dt = Local.timestamp(value as i64 * NUM_SECONDS_IN_DAY, 0).date();
+  format!("{}", dt.format("%Y-%m-%d %:z"))
+}
+
+/// Helper method to convert Parquet timestamp into a string.
+/// Input `value` is a number of milliseconds since the epoch in UTC.
+/// Datetime is displayed in local timezone.
+#[inline]
+fn convert_timestamp_to_string(value: u64) -> String {
+  let dt = Local.timestamp((value / 1000) as i64, 0);
+  format!("{}", dt.format("%Y-%m-%d %H:%M:%S %:z"))
+}
+
 impl fmt::Display for Row {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match *self {
@@ -164,7 +207,8 @@ impl fmt::Display for Row {
       Row::Double(value) => write!(f, "{:?}", value),
       Row::Str(ref value) => write!(f, "\"{}\"", value),
       Row::Bytes(ref value) => write!(f, "{:?}", value.data()),
-      Row::Timestamp(value) => write!(f, "{}", value),
+      Row::Date(value) => write!(f, "{}", convert_date_to_string(value)),
+      Row::Timestamp(value) => write!(f, "{}", convert_timestamp_to_string(value)),
       Row::Group(ref fields) => {
         write!(f, "{{")?;
         for (i, &(ref key, ref value)) in fields.iter().enumerate() {
@@ -207,6 +251,7 @@ impl fmt::Display for Row {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use chrono;
 
   #[test]
   fn test_row_convert_bool() {
@@ -231,6 +276,9 @@ mod tests {
 
     let row = Row::convert_int32(PhysicalType::INT32, LogicalType::NONE, 444);
     assert_eq!(row, Row::Int(444));
+
+    let row = Row::convert_int32(PhysicalType::INT32, LogicalType::DATE, 14611);
+    assert_eq!(row, Row::Date(14611));
   }
 
   #[test]
@@ -302,6 +350,40 @@ mod tests {
   }
 
   #[test]
+  fn test_convert_date_to_string() {
+    fn check_date_conversion(y: u32, m: u32, d: u32) {
+      let datetime = chrono::NaiveDate::from_ymd(y as i32, m, d).and_hms(0, 0, 0);
+      let dt = Local.from_utc_datetime(&datetime);
+      let res = convert_date_to_string((dt.timestamp() / 60 / 60 / 24) as u32);
+      let exp = format!("{}", dt.format("%Y-%m-%d %:z"));
+      assert_eq!(res, exp);
+    }
+
+    check_date_conversion(2010, 01, 02);
+    check_date_conversion(2014, 05, 01);
+    check_date_conversion(2016, 02, 29);
+    check_date_conversion(2017, 09, 12);
+    check_date_conversion(2018, 03, 31);
+  }
+
+  #[test]
+  fn test_convert_timestamp_to_string() {
+    fn check_datetime_conversion(y: u32, m: u32, d: u32, h: u32, mi: u32, s: u32) {
+      let datetime = chrono::NaiveDate::from_ymd(y as i32, m, d).and_hms(h, mi, s);
+      let dt = Local.from_utc_datetime(&datetime);
+      let res = convert_timestamp_to_string(dt.timestamp_millis() as u64);
+      let exp = format!("{}", dt.format("%Y-%m-%d %H:%M:%S %:z"));
+      assert_eq!(res, exp);
+    }
+
+    check_datetime_conversion(2010, 01, 02, 13, 12, 54);
+    check_datetime_conversion(2011, 01, 03, 08, 23, 01);
+    check_datetime_conversion(2012, 04, 05, 11, 06, 32);
+    check_datetime_conversion(2013, 05, 12, 16, 38, 00);
+    check_datetime_conversion(2014, 11, 28, 21, 15, 12);
+  }
+
+  #[test]
   fn test_row_display() {
     // Primitive types
     assert_eq!(format!("{}", Row::Null), "null");
@@ -317,7 +399,11 @@ mod tests {
     assert_eq!(format!("{}", Row::Double(6.1234)), "6.1234");
     assert_eq!(format!("{}", Row::Str("abc".to_string())), "\"abc\"");
     assert_eq!(format!("{}", Row::Bytes(ByteArray::from(vec![1, 2, 3]))), "[1, 2, 3]");
-    assert_eq!(format!("{}", Row::Timestamp(12345678)), "12345678");
+    assert_eq!(format!("{}", Row::Date(14611)), convert_date_to_string(14611));
+    assert_eq!(
+      format!("{}", Row::Timestamp(1262391174000)),
+      convert_timestamp_to_string(1262391174000)
+    );
 
     // Complex types
     let row = Row::Group(vec![
