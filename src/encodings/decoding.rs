@@ -24,6 +24,7 @@ use std::slice::from_raw_parts_mut;
 
 use super::rle::RleDecoder;
 use basic::*;
+use byteorder::{ByteOrder, LittleEndian};
 use data_type::*;
 use errors::{ParquetError, Result};
 use schema::types::ColumnDescPtr;
@@ -171,23 +172,25 @@ impl Decoder<Int96Type> for PlainDecoder<Int96Type> {
   fn get(&mut self, buffer: &mut [Int96]) -> Result<usize> {
     assert!(self.data.is_some());
 
-    let data = self.data.as_mut().unwrap();
+    let data = self.data.as_ref().unwrap();
     let num_values = cmp::min(buffer.len(), self.num_values);
     let bytes_left = data.len() - self.start;
     let bytes_to_decode = 12 * num_values;
     if bytes_left < bytes_to_decode {
       return Err(eof_err!("Not enough bytes to decode"));
     }
+
+    let data_range = data.range(self.start, bytes_to_decode);
+    let bytes: &[u8] = data_range.data();
+    self.start += bytes_to_decode;
+
+    let mut pos = 0; // position in byte array
     for i in 0..num_values {
-      buffer[i].set_data(
-        unsafe {
-          // TODO: avoid this copying
-          let slice = ::std::slice::from_raw_parts(
-            data.range(self.start, 12).as_ref().as_ptr() as *mut u32, 3);
-          Vec::from(slice)
-        }
-      );
-      self.start += 12;
+      let elem0 = LittleEndian::read_u32(&bytes[pos..pos+4]);
+      let elem1 = LittleEndian::read_u32(&bytes[pos+4..pos+8]);
+      let elem2 = LittleEndian::read_u32(&bytes[pos+8..pos+12]);
+      buffer[i].set_data(elem0, elem1, elem2);
+      pos += 12;
     }
     self.num_values -= num_values;
 
@@ -919,15 +922,11 @@ mod tests {
 
   #[test]
   fn test_plain_decode_int96() {
-    let v0 = vec![11, 22, 33];
-    let v1 = vec![44, 55, 66];
-    let v2 = vec![10, 20, 30];
-    let v3 = vec![40, 50, 60];
     let mut data = vec![Int96::new(); 4];
-    data[0].set_data(v0);
-    data[1].set_data(v1);
-    data[2].set_data(v2);
-    data[3].set_data(v3);
+    data[0].set_data(11, 22, 33);
+    data[1].set_data(44, 55, 66);
+    data[2].set_data(10, 20, 30);
+    data[3].set_data(40, 50, 60);
     let data_bytes = Int96Type::to_byte_array(&data[..]);
     let mut buffer = vec![Int96::new(); 4];
     test_plain_decode::<Int96Type>(

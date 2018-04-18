@@ -24,37 +24,34 @@ use basic::Type;
 use rand::{Rand, Rng};
 use util::memory::{ByteBuffer, ByteBufferPtr};
 
-// TODO: alignment?
-// TODO: we could also use [u32; 3], however it seems there is no easy way
-//   to convert [u32] to [u32; 3] in decoding.
-/// Rust representation for logical type INT96, value is backed by a vector of `u32`.
+/// Rust representation for logical type INT96, value is backed by an array of `u32`.
+/// The type only takes 12 bytes, without extra padding.
 #[derive(Clone, Debug)]
 pub struct Int96 {
-  value: Option<Vec<u32>>
+  value: Option<[u32; 3]>
 }
 
 impl Int96 {
   /// Creates new INT96 type struct with no data set.
   pub fn new() -> Self {
-    Int96 { value: None }
+    Self { value: None }
   }
 
   /// Returns underlying data as slice of [`u32`].
   pub fn data(&self) -> &[u32] {
     assert!(self.value.is_some());
-    &self.value.as_ref().unwrap()
+    self.value.as_ref().unwrap()
   }
 
   /// Sets data for this INT96 type.
-  pub fn set_data(&mut self, v: Vec<u32>) {
-    assert_eq!(v.len(), 3);
-    self.value = Some(v);
+  pub fn set_data(&mut self, elem0: u32, elem1: u32, elem2: u32) {
+    self.value = Some([elem0, elem1, elem2]);
   }
 }
 
 impl Default for Int96 {
   fn default() -> Self {
-    Int96 { value: None }
+    Self { value: None }
   }
 }
 
@@ -65,20 +62,18 @@ impl PartialEq for Int96 {
 }
 
 impl From<Vec<u32>> for Int96 {
-  fn from(buf: Vec<u32>) -> Int96 {
+  fn from(buf: Vec<u32>) -> Self {
     assert_eq!(buf.len(), 3);
-    Self { value: Some(buf) }
+    let mut result = Self::new();
+    result.set_data(buf[0], buf[1], buf[2]);
+    result
   }
 }
 
 impl Rand for Int96 {
   fn rand<R: Rng>(rng: &mut R) -> Self {
-    let mut result = Int96::new();
-    let mut value = vec![];
-    for _ in 0..3 {
-      value.push(rng.gen::<u32>());
-    }
-    result.set_data(value);
+    let mut result = Self::new();
+    result.set_data(rng.gen::<u32>(), rng.gen::<u32>(), rng.gen::<u32>());
     result
   }
 }
@@ -311,5 +306,26 @@ mod tests {
     // Test ByteArray
     let ba = ByteArray::from(vec![1, 2, 3]);
     assert_eq!(ba.as_bytes(), &[1, 2, 3]);
+  }
+
+  #[test]
+  fn test_int96_from() {
+    assert_eq!(
+      Int96::from(vec![1, 12345, 1234567890]).data(),
+      &[1, 12345, 1234567890]
+    );
+  }
+
+  #[test]
+  fn test_byte_array_from() {
+    assert_eq!(ByteArray::from(vec![b'A', b'B', b'C']).data(), &[b'A', b'B', b'C']);
+    assert_eq!(ByteArray::from("ABC").data(), &[b'A', b'B', b'C']);
+    assert_eq!(
+      ByteArray::from(ByteBufferPtr::new(vec![1u8, 2u8, 3u8, 4u8, 5u8])).data(),
+      &[1u8, 2u8, 3u8, 4u8, 5u8]
+    );
+    let mut buf = ByteBuffer::new();
+    buf.set_data(vec![6u8, 7u8, 8u8, 9u8, 10u8]);
+    assert_eq!(ByteArray::from(buf).data(), &[6u8, 7u8, 8u8, 9u8, 10u8]);
   }
 }
