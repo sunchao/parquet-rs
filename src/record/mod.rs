@@ -17,6 +17,8 @@
 
 //! Contains record-based API for reading Parquet files.
 
-pub mod api;
 pub mod reader;
+mod api;
 mod triplet;
+
+pub use self::api::Row;

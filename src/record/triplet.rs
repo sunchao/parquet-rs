@@ -19,7 +19,7 @@ use basic::{LogicalType, Type as PhysicalType};
 use column::reader::{get_typed_column_reader, ColumnReader, ColumnReaderImpl};
 use data_type::*;
 use errors::{ParquetError, Result};
-use record::api::Row;
+use record::api::Field;
 use schema::types::ColumnDescPtr;
 
 /// Macro to generate simple functions that cover all types of triplet iterator.
@@ -141,39 +141,39 @@ impl TripletIter {
   }
 
   /// Updates non-null value for current row.
-  pub fn current_value(&self) -> Row {
+  pub fn current_value(&self) -> Field {
     assert!(!self.is_null(), "Value is null");
     match *self {
       TripletIter::BoolTripletIter(ref typed) => {
-        Row::convert_bool(
+        Field::convert_bool(
           typed.physical_type(), typed.logical_type(), *typed.current_value())
       },
       TripletIter::Int32TripletIter(ref typed) => {
-        Row::convert_int32(
+        Field::convert_int32(
           typed.physical_type(), typed.logical_type(), *typed.current_value())
       },
       TripletIter::Int64TripletIter(ref typed) => {
-        Row::convert_int64(
+        Field::convert_int64(
           typed.physical_type(), typed.logical_type(), *typed.current_value())
       },
       TripletIter::Int96TripletIter(ref typed) => {
-        Row::convert_int96(
+        Field::convert_int96(
           typed.physical_type(), typed.logical_type(), typed.current_value().clone())
       },
       TripletIter::FloatTripletIter(ref typed) => {
-        Row::convert_float(
+        Field::convert_float(
           typed.physical_type(), typed.logical_type(), *typed.current_value())
       },
       TripletIter::DoubleTripletIter(ref typed) => {
-        Row::convert_double(
+        Field::convert_double(
           typed.physical_type(), typed.logical_type(), *typed.current_value())
       },
       TripletIter::ByteArrayTripletIter(ref typed) => {
-        Row::convert_byte_array(
+        Field::convert_byte_array(
           typed.physical_type(), typed.logical_type(), typed.current_value().clone())
       },
       TripletIter::FixedLenByteArrayTripletIter(ref typed) => {
-        Row::convert_byte_array(
+        Field::convert_byte_array(
           typed.physical_type(), typed.logical_type(), typed.current_value().clone())
       }
     }
@@ -400,7 +400,7 @@ mod tests {
   fn test_triplet_required_column() {
     let path = vec!["ID"];
     let values = vec![
-      Row::Long(8)
+      Field::Long(8)
     ];
     let def_levels = vec![0];
     let rep_levels = vec![0];
@@ -412,8 +412,8 @@ mod tests {
   fn test_triplet_optional_column() {
     let path = vec!["nested_struct", "A"];
     let values = vec![
-      Row::Int(1),
-      Row::Int(7)
+      Field::Int(1),
+      Field::Int(7)
     ];
     let def_levels = vec![2, 1, 1, 1, 1, 0, 2];
     let rep_levels = vec![0, 0, 0, 0, 0, 0, 0];
@@ -425,21 +425,21 @@ mod tests {
   fn test_triplet_optional_list_column() {
     let path = vec!["a", "list", "element", "list", "element", "list", "element"];
     let values = vec![
-      Row::Str("a".to_string()),
-      Row::Str("b".to_string()),
-      Row::Str("c".to_string()),
-      Row::Str("d".to_string()),
-      Row::Str("a".to_string()),
-      Row::Str("b".to_string()),
-      Row::Str("c".to_string()),
-      Row::Str("d".to_string()),
-      Row::Str("e".to_string()),
-      Row::Str("a".to_string()),
-      Row::Str("b".to_string()),
-      Row::Str("c".to_string()),
-      Row::Str("d".to_string()),
-      Row::Str("e".to_string()),
-      Row::Str("f".to_string())
+      Field::Str("a".to_string()),
+      Field::Str("b".to_string()),
+      Field::Str("c".to_string()),
+      Field::Str("d".to_string()),
+      Field::Str("a".to_string()),
+      Field::Str("b".to_string()),
+      Field::Str("c".to_string()),
+      Field::Str("d".to_string()),
+      Field::Str("e".to_string()),
+      Field::Str("a".to_string()),
+      Field::Str("b".to_string()),
+      Field::Str("c".to_string()),
+      Field::Str("d".to_string()),
+      Field::Str("e".to_string()),
+      Field::Str("f".to_string())
     ];
     let def_levels = vec![7, 7, 7, 4, 7, 7, 7, 7, 7, 4, 7, 7, 7, 7, 7, 7, 4, 7];
     let rep_levels = vec![0, 3, 2, 1, 2, 0, 3, 2, 3, 1, 2, 0, 3, 2, 3, 2, 1, 2];
@@ -451,13 +451,13 @@ mod tests {
   fn test_triplet_optional_map_column() {
     let path = vec!["a", "key_value", "value", "key_value", "key"];
     let values = vec![
-      Row::Int(1),
-      Row::Int(2),
-      Row::Int(1),
-      Row::Int(1),
-      Row::Int(3),
-      Row::Int(4),
-      Row::Int(5)
+      Field::Int(1),
+      Field::Int(2),
+      Field::Int(1),
+      Field::Int(1),
+      Field::Int(3),
+      Field::Int(4),
+      Field::Int(5)
     ];
     let def_levels = vec![4, 4, 4, 2, 3, 4, 4, 4, 4];
     let rep_levels = vec![0, 2, 0, 0, 0, 0, 0, 2, 2];
@@ -469,7 +469,7 @@ mod tests {
   fn test_triplet_iter(
     file_name: &str,
     column_path: Vec<&str>,
-    expected_values: &[Row],
+    expected_values: &[Field],
     expected_def_levels: &[i16],
     expected_rep_levels: &[i16]
   ) {
@@ -489,7 +489,7 @@ mod tests {
     file_name: &str,
     batch_size: usize,
     column_path: &ColumnPath,
-    expected_values: &[Row],
+    expected_values: &[Field],
     expected_def_levels: &[i16],
     expected_rep_levels: &[i16]
   ) {
@@ -516,12 +516,12 @@ mod tests {
     descr: ColumnDescPtr,
     reader: ColumnReader,
     batch_size: usize,
-    expected_values: &[Row],
+    expected_values: &[Field],
     expected_def_levels: &[i16],
     expected_rep_levels: &[i16]
   ) {
     let mut iter = TripletIter::new(descr.clone(), reader, batch_size);
-    let mut values: Vec<Row> = Vec::new();
+    let mut values: Vec<Field> = Vec::new();
     let mut def_levels: Vec<i16> = Vec::new();
     let mut rep_levels: Vec<i16> = Vec::new();
 

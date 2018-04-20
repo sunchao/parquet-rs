@@ -35,10 +35,69 @@ macro_rules! nyi {
   });
 }
 
-/// Row API to represent a nested Parquet record.
+/// `Row` represents a nested Parquet record.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Row {
-  // ----------------------------------------------------------------------
+pub struct Row {
+  fields: Vec<(String, Field)>
+}
+
+/// Constructs a `Row` from the list of `fields` and returns it.
+#[inline]
+pub fn make_row(fields: Vec<(String, Field)>) -> Row {
+  Row { fields: fields }
+}
+
+// TODO: implement `getXXX` for different `Field`s
+
+impl fmt::Display for Row {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{{")?;
+    for (i, &(ref key, ref value)) in self.fields.iter().enumerate() {
+      key.fmt(f)?;
+      write!(f, ": ")?;
+      value.fmt(f)?;
+      if i < self.fields.len() - 1 {
+        write!(f, ", ")?;
+      }
+    }
+    write!(f, "}}")
+  }
+}
+
+
+/// `List` represents a list which contains an array of elements.
+#[derive(Clone, Debug, PartialEq)]
+pub struct List {
+  elements: Vec<Field>
+}
+
+/// Constructs a `List` from the list of `fields` and returns it.
+#[inline]
+pub fn make_list(elements: Vec<Field>) -> List {
+  List { elements: elements }
+}
+
+// TODO: implement `getXXX` for different `Fields` in the `List`.
+
+
+/// `Map` represents a map which contains an list of key->value pairs.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Map {
+  entries: Vec<(Field, Field)>
+}
+
+/// Constructs a `Map` from the list of `entries` and returns it.
+#[inline]
+pub fn make_map(entries: Vec<(Field, Field)>) -> Map {
+  Map { entries: entries }
+}
+
+// TODO: implement `getKeys`, `getValues`, etc., for `Map`.
+
+
+/// API to represent a single field in a `Row`.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Field {
   // Primitive types
 
   /// Null value.
@@ -71,21 +130,21 @@ pub enum Row {
   // Complex types
 
   /// Struct, child elements are tuples of field-value pairs.
-  Group(Vec<(String, Row)>),
+  Group(Row),
   /// List of elements.
-  List(Vec<Row>),
+  ListInternal(List),
   /// List of key-value pairs.
-  Map(Vec<(Row, Row)>)
+  MapInternal(Map)
 }
 
-impl Row {
+impl Field {
   /// Converts Parquet BOOLEAN type with logical type into `bool` value.
   pub fn convert_bool(
     _physical_type: PhysicalType,
     _logical_type: LogicalType,
     value: bool
   ) -> Self {
-    Row::Bool(value)
+    Field::Bool(value)
   }
 
   /// Converts Parquet INT32 type with logical type into `i32` value.
@@ -95,10 +154,10 @@ impl Row {
     value: i32
   ) -> Self {
     match logical_type {
-      LogicalType::INT_8 => Row::Byte(value as i8),
-      LogicalType::INT_16 => Row::Short(value as i16),
-      LogicalType::INT_32 | LogicalType::NONE => Row::Int(value),
-      LogicalType::DATE => Row::Date(value as u32),
+      LogicalType::INT_8 => Field::Byte(value as i8),
+      LogicalType::INT_16 => Field::Short(value as i16),
+      LogicalType::INT_32 | LogicalType::NONE => Field::Int(value),
+      LogicalType::DATE => Field::Date(value as u32),
       _ => nyi!(physical_type, logical_type, value)
     }
   }
@@ -110,7 +169,7 @@ impl Row {
     value: i64
   ) -> Self {
     match logical_type {
-      LogicalType::INT_64 | LogicalType::NONE => Row::Long(value),
+      LogicalType::INT_64 | LogicalType::NONE => Field::Long(value),
       _ => nyi!(physical_type, logical_type, value)
     }
   }
@@ -131,7 +190,7 @@ impl Row {
     let nanos = days_since_epoch * nano_seconds_in_a_day + nanoseconds;
     let millis = nanos / 1_000_000;
 
-    Row::Timestamp(millis)
+    Field::Timestamp(millis)
   }
 
   /// Converts Parquet FLOAT type with logical type into `f32` value.
@@ -140,7 +199,7 @@ impl Row {
     _logical_type: LogicalType,
     value: f32
   ) -> Self {
-    Row::Float(value)
+    Field::Float(value)
   }
 
   /// Converts Parquet DOUBLE type with logical type into `f64` value.
@@ -149,7 +208,7 @@ impl Row {
     _logical_type: LogicalType,
     value: f64
   ) -> Self {
-    Row::Double(value)
+    Field::Double(value)
   }
 
   /// Converts Parquet BYTE_ARRAY type with logical type into either UTF8 string or
@@ -164,13 +223,57 @@ impl Row {
         match logical_type {
           LogicalType::UTF8 | LogicalType::ENUM | LogicalType::JSON => {
             let value = unsafe { String::from_utf8_unchecked(value.data().to_vec()) };
-            Row::Str(value)
+            Field::Str(value)
           },
-          LogicalType::BSON | LogicalType::NONE => Row::Bytes(value),
+          LogicalType::BSON | LogicalType::NONE => Field::Bytes(value),
           _ => nyi!(physical_type, logical_type, value)
         }
       },
       _ => nyi!(physical_type, logical_type, value)
+    }
+  }
+}
+
+impl fmt::Display for Field {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    match *self {
+      Field::Null => write!(f, "null"),
+      Field::Bool(value) => write!(f, "{}", value),
+      Field::Byte(value) => write!(f, "{}", value),
+      Field::Short(value) => write!(f, "{}", value),
+      Field::Int(value) => write!(f, "{}", value),
+      Field::Long(value) => write!(f, "{}", value),
+      Field::Float(value) => write!(f, "{:?}", value),
+      Field::Double(value) => write!(f, "{:?}", value),
+      Field::Str(ref value) => write!(f, "\"{}\"", value),
+      Field::Bytes(ref value) => write!(f, "{:?}", value.data()),
+      Field::Date(value) => write!(f, "{}", convert_date_to_string(value)),
+      Field::Timestamp(value) => write!(f, "{}", convert_timestamp_to_string(value)),
+      Field::Group(ref fields) => write!(f, "{}", fields),
+      Field::ListInternal(ref list) => {
+        let elems = &list.elements;
+        write!(f, "[")?;
+        for (i, field) in elems.iter().enumerate() {
+          field.fmt(f)?;
+          if i < elems.len() - 1 {
+            write!(f, ", ")?;
+          }
+        }
+        write!(f, "]")
+      },
+      Field::MapInternal(ref map) => {
+        let entries = &map.entries;
+        write!(f, "{{")?;
+        for (i, &(ref key, ref value)) in entries.iter().enumerate() {
+          key.fmt(f)?;
+          write!(f, " -> ")?;
+          value.fmt(f)?;
+          if i < entries.len() - 1 {
+            write!(f, ", ")?;
+          }
+        }
+        write!(f, "}}")
+      }
     }
   }
 }
@@ -194,59 +297,6 @@ fn convert_timestamp_to_string(value: u64) -> String {
   format!("{}", dt.format("%Y-%m-%d %H:%M:%S %:z"))
 }
 
-impl fmt::Display for Row {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match *self {
-      Row::Null => write!(f, "null"),
-      Row::Bool(value) => write!(f, "{}", value),
-      Row::Byte(value) => write!(f, "{}", value),
-      Row::Short(value) => write!(f, "{}", value),
-      Row::Int(value) => write!(f, "{}", value),
-      Row::Long(value) => write!(f, "{}", value),
-      Row::Float(value) => write!(f, "{:?}", value),
-      Row::Double(value) => write!(f, "{:?}", value),
-      Row::Str(ref value) => write!(f, "\"{}\"", value),
-      Row::Bytes(ref value) => write!(f, "{:?}", value.data()),
-      Row::Date(value) => write!(f, "{}", convert_date_to_string(value)),
-      Row::Timestamp(value) => write!(f, "{}", convert_timestamp_to_string(value)),
-      Row::Group(ref fields) => {
-        write!(f, "{{")?;
-        for (i, &(ref key, ref value)) in fields.iter().enumerate() {
-          key.fmt(f)?;
-          write!(f, ": ")?;
-          value.fmt(f)?;
-          if i < fields.len() - 1 {
-            write!(f, ", ")?;
-          }
-        }
-        write!(f, "}}")
-      },
-      Row::List(ref fields) => {
-        write!(f, "[")?;
-        for (i, field) in fields.iter().enumerate() {
-          field.fmt(f)?;
-          if i < fields.len() - 1 {
-            write!(f, ", ")?;
-          }
-        }
-        write!(f, "]")
-      },
-      Row::Map(ref pairs) => {
-        write!(f, "{{")?;
-        for (i, &(ref key, ref value)) in pairs.iter().enumerate() {
-          key.fmt(f)?;
-          write!(f, " -> ")?;
-          value.fmt(f)?;
-          if i < pairs.len() - 1 {
-            write!(f, ", ")?;
-          }
-        }
-        write!(f, "}}")
-      }
-    }
-  }
-}
-
 
 #[cfg(test)]
 mod tests {
@@ -256,97 +306,97 @@ mod tests {
   #[test]
   fn test_row_convert_bool() {
     // BOOLEAN value does not depend on logical type
-    let row = Row::convert_bool(PhysicalType::BOOLEAN, LogicalType::NONE, true);
-    assert_eq!(row, Row::Bool(true));
+    let row = Field::convert_bool(PhysicalType::BOOLEAN, LogicalType::NONE, true);
+    assert_eq!(row, Field::Bool(true));
 
-    let row = Row::convert_bool(PhysicalType::BOOLEAN, LogicalType::NONE, false);
-    assert_eq!(row, Row::Bool(false));
+    let row = Field::convert_bool(PhysicalType::BOOLEAN, LogicalType::NONE, false);
+    assert_eq!(row, Field::Bool(false));
   }
 
   #[test]
   fn test_row_convert_int32() {
-    let row = Row::convert_int32(PhysicalType::INT32, LogicalType::INT_8, 111);
-    assert_eq!(row, Row::Byte(111));
+    let row = Field::convert_int32(PhysicalType::INT32, LogicalType::INT_8, 111);
+    assert_eq!(row, Field::Byte(111));
 
-    let row = Row::convert_int32(PhysicalType::INT32, LogicalType::INT_16, 222);
-    assert_eq!(row, Row::Short(222));
+    let row = Field::convert_int32(PhysicalType::INT32, LogicalType::INT_16, 222);
+    assert_eq!(row, Field::Short(222));
 
-    let row = Row::convert_int32(PhysicalType::INT32, LogicalType::INT_32, 333);
-    assert_eq!(row, Row::Int(333));
+    let row = Field::convert_int32(PhysicalType::INT32, LogicalType::INT_32, 333);
+    assert_eq!(row, Field::Int(333));
 
-    let row = Row::convert_int32(PhysicalType::INT32, LogicalType::NONE, 444);
-    assert_eq!(row, Row::Int(444));
+    let row = Field::convert_int32(PhysicalType::INT32, LogicalType::NONE, 444);
+    assert_eq!(row, Field::Int(444));
 
-    let row = Row::convert_int32(PhysicalType::INT32, LogicalType::DATE, 14611);
-    assert_eq!(row, Row::Date(14611));
+    let row = Field::convert_int32(PhysicalType::INT32, LogicalType::DATE, 14611);
+    assert_eq!(row, Field::Date(14611));
   }
 
   #[test]
   fn test_row_convert_int64() {
-    let row = Row::convert_int64(PhysicalType::INT64, LogicalType::INT_64, 1111);
-    assert_eq!(row, Row::Long(1111));
+    let row = Field::convert_int64(PhysicalType::INT64, LogicalType::INT_64, 1111);
+    assert_eq!(row, Field::Long(1111));
 
-    let row = Row::convert_int64(PhysicalType::INT64, LogicalType::NONE, 2222);
-    assert_eq!(row, Row::Long(2222));
+    let row = Field::convert_int64(PhysicalType::INT64, LogicalType::NONE, 2222);
+    assert_eq!(row, Field::Long(2222));
   }
 
   #[test]
   fn test_row_convert_int96() {
     // INT96 value does not depend on logical type
     let value = Int96::from(vec![0, 0, 2454923]);
-    let row = Row::convert_int96(PhysicalType::INT96, LogicalType::NONE, value);
-    assert_eq!(row, Row::Timestamp(1238544000000));
+    let row = Field::convert_int96(PhysicalType::INT96, LogicalType::NONE, value);
+    assert_eq!(row, Field::Timestamp(1238544000000));
 
     let value = Int96::from(vec![4165425152, 13, 2454923]);
-    let row = Row::convert_int96(PhysicalType::INT96, LogicalType::NONE, value);
-    assert_eq!(row, Row::Timestamp(1238544060000));
+    let row = Field::convert_int96(PhysicalType::INT96, LogicalType::NONE, value);
+    assert_eq!(row, Field::Timestamp(1238544060000));
   }
 
   #[test]
   fn test_row_convert_float() {
     // FLOAT value does not depend on logical type
-    let row = Row::convert_float(PhysicalType::FLOAT, LogicalType::NONE, 2.31);
-    assert_eq!(row, Row::Float(2.31));
+    let row = Field::convert_float(PhysicalType::FLOAT, LogicalType::NONE, 2.31);
+    assert_eq!(row, Field::Float(2.31));
   }
 
   #[test]
   fn test_row_convert_double() {
     // DOUBLE value does not depend on logical type
-    let row = Row::convert_double(PhysicalType::FLOAT, LogicalType::NONE, 1.56);
-    assert_eq!(row, Row::Double(1.56));
+    let row = Field::convert_double(PhysicalType::FLOAT, LogicalType::NONE, 1.56);
+    assert_eq!(row, Field::Double(1.56));
   }
 
   #[test]
   fn test_row_convert_byte_array() {
     // UTF8
     let value = ByteArray::from(vec![b'A', b'B', b'C', b'D']);
-    let row = Row::convert_byte_array(
+    let row = Field::convert_byte_array(
       PhysicalType::BYTE_ARRAY, LogicalType::UTF8, value);
-    assert_eq!(row, Row::Str("ABCD".to_string()));
+    assert_eq!(row, Field::Str("ABCD".to_string()));
 
     // ENUM
     let value = ByteArray::from(vec![b'1', b'2', b'3']);
-    let row = Row::convert_byte_array(
+    let row = Field::convert_byte_array(
       PhysicalType::BYTE_ARRAY, LogicalType::ENUM, value);
-    assert_eq!(row, Row::Str("123".to_string()));
+    assert_eq!(row, Field::Str("123".to_string()));
 
     // JSON
     let value = ByteArray::from(vec![b'{', b'"', b'a', b'"', b':', b'1', b'}']);
-    let row = Row::convert_byte_array(
+    let row = Field::convert_byte_array(
       PhysicalType::BYTE_ARRAY, LogicalType::JSON, value);
-    assert_eq!(row, Row::Str("{\"a\":1}".to_string()));
+    assert_eq!(row, Field::Str("{\"a\":1}".to_string()));
 
     // NONE
     let value = ByteArray::from(vec![1, 2, 3, 4, 5]);
-    let row = Row::convert_byte_array(
+    let row = Field::convert_byte_array(
       PhysicalType::BYTE_ARRAY, LogicalType::NONE, value.clone());
-    assert_eq!(row, Row::Bytes(value));
+    assert_eq!(row, Field::Bytes(value));
 
     // BSON
     let value = ByteArray::from(vec![1, 2, 3, 4, 5]);
-    let row = Row::convert_byte_array(
+    let row = Field::convert_byte_array(
       PhysicalType::BYTE_ARRAY, LogicalType::BSON, value.clone());
-    assert_eq!(row, Row::Bytes(value));
+    assert_eq!(row, Field::Bytes(value));
   }
 
   #[test]
@@ -386,47 +436,50 @@ mod tests {
   #[test]
   fn test_row_display() {
     // Primitive types
-    assert_eq!(format!("{}", Row::Null), "null");
-    assert_eq!(format!("{}", Row::Bool(true)), "true");
-    assert_eq!(format!("{}", Row::Bool(false)), "false");
-    assert_eq!(format!("{}", Row::Byte(1)), "1");
-    assert_eq!(format!("{}", Row::Short(2)), "2");
-    assert_eq!(format!("{}", Row::Int(3)), "3");
-    assert_eq!(format!("{}", Row::Long(4)), "4");
-    assert_eq!(format!("{}", Row::Float(5.0)), "5.0");
-    assert_eq!(format!("{}", Row::Float(5.1234)), "5.1234");
-    assert_eq!(format!("{}", Row::Double(6.0)), "6.0");
-    assert_eq!(format!("{}", Row::Double(6.1234)), "6.1234");
-    assert_eq!(format!("{}", Row::Str("abc".to_string())), "\"abc\"");
-    assert_eq!(format!("{}", Row::Bytes(ByteArray::from(vec![1, 2, 3]))), "[1, 2, 3]");
-    assert_eq!(format!("{}", Row::Date(14611)), convert_date_to_string(14611));
+    assert_eq!(format!("{}", Field::Null), "null");
+    assert_eq!(format!("{}", Field::Bool(true)), "true");
+    assert_eq!(format!("{}", Field::Bool(false)), "false");
+    assert_eq!(format!("{}", Field::Byte(1)), "1");
+    assert_eq!(format!("{}", Field::Short(2)), "2");
+    assert_eq!(format!("{}", Field::Int(3)), "3");
+    assert_eq!(format!("{}", Field::Long(4)), "4");
+    assert_eq!(format!("{}", Field::Float(5.0)), "5.0");
+    assert_eq!(format!("{}", Field::Float(5.1234)), "5.1234");
+    assert_eq!(format!("{}", Field::Double(6.0)), "6.0");
+    assert_eq!(format!("{}", Field::Double(6.1234)), "6.1234");
+    assert_eq!(format!("{}", Field::Str("abc".to_string())), "\"abc\"");
+    assert_eq!(format!("{}", Field::Bytes(ByteArray::from(vec![1, 2, 3]))), "[1, 2, 3]");
+    assert_eq!(format!("{}", Field::Date(14611)), convert_date_to_string(14611));
     assert_eq!(
-      format!("{}", Row::Timestamp(1262391174000)),
+      format!("{}", Field::Timestamp(1262391174000)),
       convert_timestamp_to_string(1262391174000)
     );
 
     // Complex types
-    let row = Row::Group(vec![
-      ("x".to_string(), Row::Null),
-      ("Y".to_string(), Row::Int(2)),
-      ("z".to_string(), Row::Float(3.1)),
-      ("a".to_string(), Row::Str("abc".to_string()))
-    ]);
+    let fields = vec![
+      ("x".to_string(), Field::Null),
+      ("Y".to_string(), Field::Int(2)),
+      ("z".to_string(), Field::Float(3.1)),
+      ("a".to_string(), Field::Str("abc".to_string()))
+    ];
+    let row = Field::Group(make_row(fields));
     assert_eq!(format!("{}", row), "{x: null, Y: 2, z: 3.1, a: \"abc\"}");
 
-    let row = Row::List(vec![
-      Row::Int(2),
-      Row::Int(1),
-      Row::Null,
-      Row::Int(12)
-    ]);
+    let row = Field::ListInternal(
+      make_list(vec![
+        Field::Int(2),
+        Field::Int(1),
+        Field::Null,
+        Field::Int(12)
+      ]));
     assert_eq!(format!("{}", row), "[2, 1, null, 12]");
 
-    let row = Row::Map(vec![
-      (Row::Int(1), Row::Float(1.2)),
-      (Row::Int(2), Row::Float(4.5)),
-      (Row::Int(3), Row::Float(2.3))
-    ]);
+    let row = Field::MapInternal(
+      make_map(vec![
+        (Field::Int(1), Field::Float(1.2)),
+        (Field::Int(2), Field::Float(4.5)),
+        (Field::Int(3), Field::Float(2.3))
+      ]));
     assert_eq!(format!("{}", row), "{1 -> 1.2, 2 -> 4.5, 3 -> 2.3}");
   }
 }
