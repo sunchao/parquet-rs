@@ -114,8 +114,6 @@
 #![feature(type_ascription)]
 #![feature(rustc_private)]
 #![feature(specialization)]
-#![feature(cfg_target_feature)]
-#![feature(match_default_bindings)]
 
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
