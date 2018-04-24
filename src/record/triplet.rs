@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use basic::{LogicalType, Type as PhysicalType};
+use basic::{Type as PhysicalType};
 use column::reader::{get_typed_column_reader, ColumnReader, ColumnReaderImpl};
 use data_type::*;
 use errors::{ParquetError, Result};
@@ -145,36 +145,28 @@ impl TripletIter {
     assert!(!self.is_null(), "Value is null");
     match *self {
       TripletIter::BoolTripletIter(ref typed) => {
-        Field::convert_bool(
-          typed.physical_type(), typed.logical_type(), *typed.current_value())
+        Field::convert_bool(typed.column_descr(), *typed.current_value())
       },
       TripletIter::Int32TripletIter(ref typed) => {
-        Field::convert_int32(
-          typed.physical_type(), typed.logical_type(), *typed.current_value())
+        Field::convert_int32(typed.column_descr(), *typed.current_value())
       },
       TripletIter::Int64TripletIter(ref typed) => {
-        Field::convert_int64(
-          typed.physical_type(), typed.logical_type(), *typed.current_value())
+        Field::convert_int64(typed.column_descr(), *typed.current_value())
       },
       TripletIter::Int96TripletIter(ref typed) => {
-        Field::convert_int96(
-          typed.physical_type(), typed.logical_type(), typed.current_value().clone())
+        Field::convert_int96(typed.column_descr(), typed.current_value().clone())
       },
       TripletIter::FloatTripletIter(ref typed) => {
-        Field::convert_float(
-          typed.physical_type(), typed.logical_type(), *typed.current_value())
+        Field::convert_float(typed.column_descr(), *typed.current_value())
       },
       TripletIter::DoubleTripletIter(ref typed) => {
-        Field::convert_double(
-          typed.physical_type(), typed.logical_type(), *typed.current_value())
+        Field::convert_double(typed.column_descr(), *typed.current_value())
       },
       TripletIter::ByteArrayTripletIter(ref typed) => {
-        Field::convert_byte_array(
-          typed.physical_type(), typed.logical_type(), typed.current_value().clone())
+        Field::convert_byte_array(typed.column_descr(), typed.current_value().clone())
       },
       TripletIter::FixedLenByteArrayTripletIter(ref typed) => {
-        Field::convert_byte_array(
-          typed.physical_type(), typed.logical_type(), typed.current_value().clone())
+        Field::convert_byte_array(typed.column_descr(), typed.current_value().clone())
       }
     }
   }
@@ -184,8 +176,7 @@ impl TripletIter {
 /// (primitive leaf column), provides per-element access.
 pub struct TypedTripletIter<T: DataType> {
   reader: ColumnReaderImpl<T>,
-  physical_type: PhysicalType,
-  logical_type: LogicalType,
+  column_descr: ColumnDescPtr,
   batch_size: usize,
   // type properties
   max_def_level: i16,
@@ -220,8 +211,7 @@ impl<T: DataType> TypedTripletIter<T> where T: 'static {
 
     Self {
       reader: get_typed_column_reader(column_reader),
-      physical_type: descr.physical_type(),
-      logical_type: descr.logical_type(),
+      column_descr: descr,
       batch_size: batch_size,
       max_def_level: max_def_level,
       max_rep_level: max_rep_level,
@@ -234,16 +224,10 @@ impl<T: DataType> TypedTripletIter<T> where T: 'static {
     }
   }
 
-  /// Returns physical type for the current typed triplet iterator.
+  /// Returns column descriptor reference for the current typed triplet iterator.
   #[inline]
-  pub fn physical_type(&self) -> PhysicalType {
-    self.physical_type
-  }
-
-  /// Returns logical type for the current typed triplet iterator.
-  #[inline]
-  pub fn logical_type(&self) -> LogicalType {
-    self.logical_type
+  pub fn column_descr(&self) -> &ColumnDescPtr {
+    &self.column_descr
   }
 
   /// Returns maximum definition level for the triplet iterator (leaf column).

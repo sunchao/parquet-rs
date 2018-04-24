@@ -23,14 +23,15 @@ use basic::{LogicalType, Type as PhysicalType};
 use chrono::{Local, TimeZone};
 use data_type::{ByteArray, Int96};
 use errors::{ParquetError, Result};
+use schema::types::ColumnDescPtr;
 
 /// Macro as a shortcut to generate 'not yet implemented' panic error.
 macro_rules! nyi {
-  ($physical_type:ident, $logical_type:ident, $value:ident) => ({
+  ($column_descr:ident, $value:ident) => ({
     unimplemented!(
       "Conversion for physical type {}, logical type {}, value {:?}",
-      $physical_type,
-      $logical_type,
+      $column_descr.physical_type(),
+      $column_descr.logical_type(),
       $value
     );
   });
@@ -43,13 +44,13 @@ pub struct Row {
 }
 
 impl Row {
-  /// Get the number of fields in this row
+  /// Get the number of fields in this row.
   pub fn len(&self) -> usize {
     self.fields.len()
   }
 }
 
-/// Trait for type-safe convenient access to fields within a Row
+/// Trait for type-safe convenient access to fields within a Row.
 pub trait RowAccessor {
   fn get_bool(&self, i: usize) -> Result<bool>;
   fn get_byte(&self, i: usize) -> Result<i8>;
@@ -66,7 +67,8 @@ pub trait RowAccessor {
   fn get_map(&self, i: usize) -> Result<&Map>;
 }
 
-/// Macro to generate type-safe get_xxx methods for primitive types e.g. get_bool, get_short
+/// Macro to generate type-safe get_xxx methods for primitive types,
+/// e.g. `get_bool`, `get_short`.
 macro_rules! row_primitive_accessor {
   ($METHOD:ident, $VARIANT:ident, $TY:ty) => {
     fn $METHOD(&self, i: usize) -> Result<$TY> {
@@ -79,7 +81,8 @@ macro_rules! row_primitive_accessor {
   }
 }
 
-/// Macro to generate type-safe get_xxx methods for reference types e.g. get_list, get_map
+/// Macro to generate type-safe get_xxx methods for reference types,
+/// e.g. `get_list`, `get_map`.
 macro_rules! row_complex_accessor {
   ($METHOD:ident, $VARIANT:ident, $TY:ty) => {
     fn $METHOD(&self, i: usize) -> Result<&$TY> {
@@ -217,7 +220,7 @@ pub enum Field {
 
 
 impl Field {
-  /// Get the type name
+  /// Get the type name.
   fn get_type_name(&self) -> &'static str {
     match *self {
       Field::Null => "Null",
@@ -238,7 +241,7 @@ impl Field {
     }
   }
 
-  /// Determines if this Row represents a primitive value
+  /// Determines if this Row represents a primitive value.
   pub fn is_primitive(&self) -> bool {
     match *self {
       Field::Group(_) => false,
@@ -247,99 +250,78 @@ impl Field {
       _ => true
     }
   }
-  
+
   /// Converts Parquet BOOLEAN type with logical type into `bool` value.
-  pub fn convert_bool(
-    _physical_type: PhysicalType,
-    _logical_type: LogicalType,
-    value: bool
-  ) -> Self {
+  #[inline]
+  pub fn convert_bool(_descr: &ColumnDescPtr, value: bool) -> Self {
     Field::Bool(value)
   }
 
   /// Converts Parquet INT32 type with logical type into `i32` value.
-  pub fn convert_int32(
-    physical_type: PhysicalType,
-    logical_type: LogicalType,
-    value: i32
-  ) -> Self {
-    match logical_type {
+  #[inline]
+  pub fn convert_int32(descr: &ColumnDescPtr, value: i32) -> Self {
+    match descr.logical_type() {
       LogicalType::INT_8 => Field::Byte(value as i8),
       LogicalType::INT_16 => Field::Short(value as i16),
       LogicalType::INT_32 | LogicalType::NONE => Field::Int(value),
       LogicalType::DATE => Field::Date(value as u32),
-      _ => nyi!(physical_type, logical_type, value)
+      _ => nyi!(descr, value)
     }
   }
 
   /// Converts Parquet INT64 type with logical type into `i64` value.
-  pub fn convert_int64(
-    physical_type: PhysicalType,
-    logical_type: LogicalType,
-    value: i64
-  ) -> Self {
-    match logical_type {
+  #[inline]
+  pub fn convert_int64(descr: &ColumnDescPtr, value: i64) -> Self {
+    match descr.logical_type() {
       LogicalType::INT_64 | LogicalType::NONE => Field::Long(value),
-      _ => nyi!(physical_type, logical_type, value)
+      _ => nyi!(descr, value)
     }
   }
 
   /// Converts Parquet INT96 (nanosecond timestamps) type and logical type into
   /// `Timestamp` value.
-  pub fn convert_int96(
-    _physical_type: PhysicalType,
-    _logical_type: LogicalType,
-    value: Int96
-  ) -> Self {
-    let julian_to_unix_epoch_days: u64 = 2_440_588;
-    let milli_seconds_in_a_day: u64 = 86_400_000;
-    let nano_seconds_in_a_day: u64 = milli_seconds_in_a_day * 1_000_000;
+  #[inline]
+  pub fn convert_int96(_descr: &ColumnDescPtr, value: Int96) -> Self {
+    const JULIAN_TO_UNIX_EPOCH_DAYS: u64 = 2_440_588;
+    const MILLI_SECONDS_IN_A_DAY: u64 = 86_400_000;
+    const NANO_SECONDS_IN_A_DAY: u64 = MILLI_SECONDS_IN_A_DAY * 1_000_000;
 
-    let days_since_epoch = value.data()[2] as u64 - julian_to_unix_epoch_days;
+    let days_since_epoch = value.data()[2] as u64 - JULIAN_TO_UNIX_EPOCH_DAYS;
     let nanoseconds: u64 = ((value.data()[1] as u64) << 32) + value.data()[0] as u64;
-    let nanos = days_since_epoch * nano_seconds_in_a_day + nanoseconds;
+    let nanos = days_since_epoch * NANO_SECONDS_IN_A_DAY + nanoseconds;
     let millis = nanos / 1_000_000;
 
     Field::Timestamp(millis)
   }
 
   /// Converts Parquet FLOAT type with logical type into `f32` value.
-  pub fn convert_float(
-    _physical_type: PhysicalType,
-    _logical_type: LogicalType,
-    value: f32
-  ) -> Self {
+  #[inline]
+  pub fn convert_float(_descr: &ColumnDescPtr, value: f32) -> Self {
     Field::Float(value)
   }
 
   /// Converts Parquet DOUBLE type with logical type into `f64` value.
-  pub fn convert_double(
-    _physical_type: PhysicalType,
-    _logical_type: LogicalType,
-    value: f64
-  ) -> Self {
+  #[inline]
+  pub fn convert_double(_descr: &ColumnDescPtr, value: f64) -> Self {
     Field::Double(value)
   }
 
   /// Converts Parquet BYTE_ARRAY type with logical type into either UTF8 string or
   /// array of bytes.
-  pub fn convert_byte_array(
-    physical_type: PhysicalType,
-    logical_type: LogicalType,
-    value: ByteArray
-  ) -> Self {
-    match physical_type {
+  #[inline]
+  pub fn convert_byte_array(descr: &ColumnDescPtr, value: ByteArray) -> Self {
+    match descr.physical_type() {
       PhysicalType::BYTE_ARRAY => {
-        match logical_type {
+        match descr.logical_type() {
           LogicalType::UTF8 | LogicalType::ENUM | LogicalType::JSON => {
             let value = unsafe { String::from_utf8_unchecked(value.data().to_vec()) };
             Field::Str(value)
           },
           LogicalType::BSON | LogicalType::NONE => Field::Bytes(value),
-          _ => nyi!(physical_type, logical_type, value)
+          _ => nyi!(descr, value)
         }
       },
-      _ => nyi!(physical_type, logical_type, value)
+      _ => nyi!(descr, value)
     }
   }
 }
@@ -410,102 +392,129 @@ fn convert_timestamp_to_string(value: u64) -> String {
 
 #[cfg(test)]
 mod tests {
+  use std::rc::Rc;
+
   use super::*;
   use chrono;
+  use schema::types::{ColumnDescriptor, ColumnPath, PrimitiveTypeBuilder};
+
+  /// Creates test column descriptor based on provided type parameters.
+  macro_rules! make_column_descr {
+    ($physical_type:expr, $logical_type:expr) => ({
+      let tpe = PrimitiveTypeBuilder::new("col", $physical_type)
+        .with_logical_type($logical_type)
+        .build()
+        .unwrap();
+      Rc::new(ColumnDescriptor::new(Rc::new(tpe), None, 0, 0, ColumnPath::from("col")))
+    });
+  }
 
   #[test]
   fn test_row_convert_bool() {
     // BOOLEAN value does not depend on logical type
-    let row = Field::convert_bool(PhysicalType::BOOLEAN, LogicalType::NONE, true);
+    let descr = make_column_descr![PhysicalType::BOOLEAN, LogicalType::NONE];
+
+    let row = Field::convert_bool(&descr, true);
     assert_eq!(row, Field::Bool(true));
 
-    let row = Field::convert_bool(PhysicalType::BOOLEAN, LogicalType::NONE, false);
+    let row = Field::convert_bool(&descr, false);
     assert_eq!(row, Field::Bool(false));
   }
 
   #[test]
   fn test_row_convert_int32() {
-    let row = Field::convert_int32(PhysicalType::INT32, LogicalType::INT_8, 111);
+    let descr = make_column_descr![PhysicalType::INT32, LogicalType::INT_8];
+    let row = Field::convert_int32(&descr, 111);
     assert_eq!(row, Field::Byte(111));
 
-    let row = Field::convert_int32(PhysicalType::INT32, LogicalType::INT_16, 222);
+    let descr = make_column_descr![PhysicalType::INT32, LogicalType::INT_16];
+    let row = Field::convert_int32(&descr, 222);
     assert_eq!(row, Field::Short(222));
 
-    let row = Field::convert_int32(PhysicalType::INT32, LogicalType::INT_32, 333);
+    let descr = make_column_descr![PhysicalType::INT32, LogicalType::INT_32];
+    let row = Field::convert_int32(&descr, 333);
     assert_eq!(row, Field::Int(333));
 
-    let row = Field::convert_int32(PhysicalType::INT32, LogicalType::NONE, 444);
+    let descr = make_column_descr![PhysicalType::INT32, LogicalType::NONE];
+    let row = Field::convert_int32(&descr, 444);
     assert_eq!(row, Field::Int(444));
 
-    let row = Field::convert_int32(PhysicalType::INT32, LogicalType::DATE, 14611);
+    let descr = make_column_descr![PhysicalType::INT32, LogicalType::DATE];
+    let row = Field::convert_int32(&descr, 14611);
     assert_eq!(row, Field::Date(14611));
   }
 
   #[test]
   fn test_row_convert_int64() {
-    let row = Field::convert_int64(PhysicalType::INT64, LogicalType::INT_64, 1111);
+    let descr = make_column_descr![PhysicalType::INT64, LogicalType::INT_64];
+    let row = Field::convert_int64(&descr, 1111);
     assert_eq!(row, Field::Long(1111));
 
-    let row = Field::convert_int64(PhysicalType::INT64, LogicalType::NONE, 2222);
+    let descr = make_column_descr![PhysicalType::INT64, LogicalType::NONE];
+    let row = Field::convert_int64(&descr, 2222);
     assert_eq!(row, Field::Long(2222));
   }
 
   #[test]
   fn test_row_convert_int96() {
     // INT96 value does not depend on logical type
+    let descr = make_column_descr![PhysicalType::INT96, LogicalType::NONE];
+
     let value = Int96::from(vec![0, 0, 2454923]);
-    let row = Field::convert_int96(PhysicalType::INT96, LogicalType::NONE, value);
+    let row = Field::convert_int96(&descr, value);
     assert_eq!(row, Field::Timestamp(1238544000000));
 
     let value = Int96::from(vec![4165425152, 13, 2454923]);
-    let row = Field::convert_int96(PhysicalType::INT96, LogicalType::NONE, value);
+    let row = Field::convert_int96(&descr, value);
     assert_eq!(row, Field::Timestamp(1238544060000));
   }
 
   #[test]
   fn test_row_convert_float() {
     // FLOAT value does not depend on logical type
-    let row = Field::convert_float(PhysicalType::FLOAT, LogicalType::NONE, 2.31);
+    let descr = make_column_descr![PhysicalType::FLOAT, LogicalType::NONE];
+    let row = Field::convert_float(&descr, 2.31);
     assert_eq!(row, Field::Float(2.31));
   }
 
   #[test]
   fn test_row_convert_double() {
     // DOUBLE value does not depend on logical type
-    let row = Field::convert_double(PhysicalType::FLOAT, LogicalType::NONE, 1.56);
+    let descr = make_column_descr![PhysicalType::DOUBLE, LogicalType::NONE];
+    let row = Field::convert_double(&descr, 1.56);
     assert_eq!(row, Field::Double(1.56));
   }
 
   #[test]
   fn test_row_convert_byte_array() {
     // UTF8
+    let descr = make_column_descr![PhysicalType::BYTE_ARRAY, LogicalType::UTF8];
     let value = ByteArray::from(vec![b'A', b'B', b'C', b'D']);
-    let row = Field::convert_byte_array(
-      PhysicalType::BYTE_ARRAY, LogicalType::UTF8, value);
+    let row = Field::convert_byte_array(&descr, value);
     assert_eq!(row, Field::Str("ABCD".to_string()));
 
     // ENUM
+    let descr = make_column_descr![PhysicalType::BYTE_ARRAY, LogicalType::ENUM];
     let value = ByteArray::from(vec![b'1', b'2', b'3']);
-    let row = Field::convert_byte_array(
-      PhysicalType::BYTE_ARRAY, LogicalType::ENUM, value);
+    let row = Field::convert_byte_array(&descr, value);
     assert_eq!(row, Field::Str("123".to_string()));
 
     // JSON
+    let descr = make_column_descr![PhysicalType::BYTE_ARRAY, LogicalType::JSON];
     let value = ByteArray::from(vec![b'{', b'"', b'a', b'"', b':', b'1', b'}']);
-    let row = Field::convert_byte_array(
-      PhysicalType::BYTE_ARRAY, LogicalType::JSON, value);
+    let row = Field::convert_byte_array(&descr, value);
     assert_eq!(row, Field::Str("{\"a\":1}".to_string()));
 
     // NONE
+    let descr = make_column_descr![PhysicalType::BYTE_ARRAY, LogicalType::NONE];
     let value = ByteArray::from(vec![1, 2, 3, 4, 5]);
-    let row = Field::convert_byte_array(
-      PhysicalType::BYTE_ARRAY, LogicalType::NONE, value.clone());
+    let row = Field::convert_byte_array(&descr, value.clone());
     assert_eq!(row, Field::Bytes(value));
 
     // BSON
+    let descr = make_column_descr![PhysicalType::BYTE_ARRAY, LogicalType::BSON];
     let value = ByteArray::from(vec![1, 2, 3, 4, 5]);
-    let row = Field::convert_byte_array(
-      PhysicalType::BYTE_ARRAY, LogicalType::BSON, value.clone());
+    let row = Field::convert_byte_array(&descr, value.clone());
     assert_eq!(row, Field::Bytes(value));
   }
 
