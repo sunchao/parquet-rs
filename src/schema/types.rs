@@ -239,6 +239,11 @@ impl<'a> PrimitiveTypeBuilder<'a> {
       id: self.id
     };
 
+    // Check length before logical type, since it is used for logical type validation.
+    if self.physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY && self.length < 0 {
+      return Err(general_err!("Invalid FIXED_LEN_BYTE_ARRAY length: {}", self.length));
+    }
+
     match self.logical_type {
       LogicalType::NONE => {},
       LogicalType::UTF8 | LogicalType::BSON | LogicalType::JSON => {
@@ -257,19 +262,60 @@ impl<'a> PrimitiveTypeBuilder<'a> {
             return Err(general_err!(
               "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED"));
           }
-        };
-        if self.precision < 0 {
+        }
+
+        // Precision is required and must be a non-zero positive integer.
+        if self.precision < 1 {
           return Err(general_err!("Invalid DECIMAL precision: {}", self.precision));
         }
+
+        // Scale must be zero or a positive integer less than the precision.
         if self.scale < 0 {
           return Err(general_err!("Invalid DECIMAL scale: {}", self.scale));
         }
-        if self.scale > self.precision {
+
+        if self.scale >= self.precision {
           return Err(general_err!(
-            "Invalid DECIMAL: scale ({}) cannot be greater than precision ({})",
+            "Invalid DECIMAL: scale ({}) cannot be greater than or equal to \
+              precision ({})",
             self.scale,
             self.precision
           ));
+        }
+
+        // Check precision and scale based on physical type limitations.
+        match self.physical_type {
+          PhysicalType::INT32 => {
+            if self.precision > 9 {
+              return Err(general_err!(
+                "Cannot represent INT32 as DECIMAL with precision {}",
+                self.precision
+              ));
+            }
+          },
+          PhysicalType::INT64 => {
+            if self.precision > 18 {
+              return Err(general_err!(
+                "Cannot represent INT64 as DECIMAL with precision {}",
+                self.precision
+              ));
+            }
+          },
+          PhysicalType::FIXED_LEN_BYTE_ARRAY => {
+            let max_precision = (
+              2f64.powi(8 * self.length - 1) - 1f64
+            ).log10().floor() as i32;
+
+            if self.precision > max_precision {
+              return Err(general_err!(
+                "Cannot represent FIXED_LEN_BYTE_ARRAY as DECIMAL with length {} and \
+                  precision {}",
+                self.length,
+                self.precision
+              ));
+            }
+          },
+          _ => () // For BYTE_ARRAY precision is not limited
         }
       }
       LogicalType::DATE | LogicalType::TIME_MILLIS | LogicalType::UINT_8 |
@@ -301,9 +347,6 @@ impl<'a> PrimitiveTypeBuilder<'a> {
           self.logical_type
         ));
       }
-    };
-    if self.physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY && self.length < 0 {
-      return Err(general_err!("Invalid FIXED_LEN_BYTE_ARRAY length: {}", self.length));
     }
 
     Ok(Type::PrimitiveType {
@@ -870,7 +913,9 @@ mod tests {
     assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(
-        e.description(), "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED");
+        e.description(),
+        "DECIMAL can only annotate INT32, INT64, BYTE_ARRAY and FIXED"
+      );
     }
 
     result = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
@@ -879,6 +924,7 @@ mod tests {
       .with_precision(-1)
       .with_scale(-1)
       .build();
+    assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "Invalid DECIMAL precision: -1");
     }
@@ -886,8 +932,21 @@ mod tests {
     result = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
       .with_repetition(Repetition::REQUIRED)
       .with_logical_type(LogicalType::DECIMAL)
+      .with_precision(0)
       .with_scale(-1)
       .build();
+    assert!(result.is_err());
+    if let Err(e) = result {
+      assert_eq!(e.description(), "Invalid DECIMAL precision: 0");
+    }
+
+    result = Type::primitive_type_builder("foo", PhysicalType::BYTE_ARRAY)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::DECIMAL)
+      .with_precision(1)
+      .with_scale(-1)
+      .build();
+    assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "Invalid DECIMAL scale: -1");
     }
@@ -898,16 +957,62 @@ mod tests {
       .with_precision(1)
       .with_scale(2)
       .build();
+    assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(
         e.description(),
-        "Invalid DECIMAL: scale (2) cannot be greater than precision (1)");
+        "Invalid DECIMAL: scale (2) cannot be greater than or equal to precision (1)"
+      );
+    }
+
+    result = Type::primitive_type_builder("foo", PhysicalType::INT32)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::DECIMAL)
+      .with_precision(18)
+      .with_scale(2)
+      .build();
+    assert!(result.is_err());
+    if let Err(e) = result {
+      assert_eq!(
+        e.description(),
+        "Cannot represent INT32 as DECIMAL with precision 18"
+      );
+    }
+
+    result = Type::primitive_type_builder("foo", PhysicalType::INT64)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::DECIMAL)
+      .with_precision(32)
+      .with_scale(2)
+      .build();
+    assert!(result.is_err());
+    if let Err(e) = result {
+      assert_eq!(
+        e.description(),
+        "Cannot represent INT64 as DECIMAL with precision 32"
+      );
+    }
+
+    result = Type::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+      .with_repetition(Repetition::REQUIRED)
+      .with_logical_type(LogicalType::DECIMAL)
+      .with_length(5)
+      .with_precision(12)
+      .with_scale(2)
+      .build();
+    assert!(result.is_err());
+    if let Err(e) = result {
+      assert_eq!(
+        e.description(),
+        "Cannot represent FIXED_LEN_BYTE_ARRAY as DECIMAL with length 5 and precision 12"
+      );
     }
 
     result = Type::primitive_type_builder("foo", PhysicalType::INT64)
       .with_repetition(Repetition::REQUIRED)
       .with_logical_type(LogicalType::UINT_8)
       .build();
+    assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "UINT_8 can only annotate INT32");
     }
@@ -916,6 +1021,7 @@ mod tests {
       .with_repetition(Repetition::REQUIRED)
       .with_logical_type(LogicalType::TIME_MICROS)
       .build();
+    assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "TIME_MICROS can only annotate INT64");
     }
@@ -924,6 +1030,7 @@ mod tests {
       .with_repetition(Repetition::REQUIRED)
       .with_logical_type(LogicalType::INTERVAL)
       .build();
+    assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "INTERVAL can only annotate FIXED(12)");
     }
@@ -932,6 +1039,7 @@ mod tests {
       .with_repetition(Repetition::REQUIRED)
       .with_logical_type(LogicalType::INTERVAL)
       .build();
+    assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "INTERVAL can only annotate FIXED(12)");
     }
@@ -940,6 +1048,7 @@ mod tests {
       .with_repetition(Repetition::REQUIRED)
       .with_logical_type(LogicalType::ENUM)
       .build();
+    assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "ENUM can only annotate BYTE_ARRAY fields");
     }
@@ -948,6 +1057,7 @@ mod tests {
       .with_repetition(Repetition::REQUIRED)
       .with_logical_type(LogicalType::MAP)
       .build();
+    assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "MAP cannot be applied to a primitive type");
     }
@@ -957,6 +1067,7 @@ mod tests {
       .with_logical_type(LogicalType::DECIMAL)
       .with_length(-1)
       .build();
+    assert!(result.is_err());
     if let Err(e) = result {
       assert_eq!(e.description(), "Invalid FIXED_LEN_BYTE_ARRAY length: -1");
     }

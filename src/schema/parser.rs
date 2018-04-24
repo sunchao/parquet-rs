@@ -477,7 +477,7 @@ mod tests {
     // It is okay for decimal to omit precision and scale with right syntax.
     // Here we test wrong syntax of decimal type
 
-    // Invalid decimal, need precision and scale
+    // Invalid decimal syntax
     let schema = "
     message root {
       optional int32 f1 (DECIMAL();
@@ -487,10 +487,31 @@ mod tests {
     let result = Parser { tokenizer: &mut iter }.parse_message_type();
     assert!(result.is_err());
 
-    // Invalid decimal, has precision, needs scale
+    // Invalid decimal, need precision and scale
+    let schema = "
+    message root {
+      optional int32 f1 (DECIMAL());
+    }
+    ";
+    let mut iter = Tokenizer::from_str(schema);
+    let result = Parser { tokenizer: &mut iter }.parse_message_type();
+    assert!(result.is_err());
+
+    // Invalid decimal because of `,` - has precision, needs scale
     let schema = "
     message root {
       optional int32 f1 (DECIMAL(8,));
+    }
+    ";
+    let mut iter = Tokenizer::from_str(schema);
+    let result = Parser { tokenizer: &mut iter }.parse_message_type();
+    assert!(result.is_err());
+
+    // Invalid decimal because, we always require either precision or scale to be
+    // specified as part of logical type
+    let schema = "
+    message root {
+      optional int32 f3 (DECIMAL);
     }
     ";
     let mut iter = Tokenizer::from_str(schema);
@@ -502,7 +523,6 @@ mod tests {
     message root {
       optional int32 f1 (DECIMAL(8, 3));
       optional int32 f2 (DECIMAL(8));
-      optional int32 f3 (DECIMAL);
     }
     ";
     let mut iter = Tokenizer::from_str(schema);
@@ -515,6 +535,7 @@ mod tests {
     let schema = "
     message root {
       optional fixed_len_byte_array(5) f1 (DECIMAL(9, 3));
+      optional fixed_len_byte_array (16) f2 (DECIMAL (38, 18));
     }
     ";
     let mut iter = Tokenizer::from_str(schema);
@@ -528,6 +549,13 @@ mod tests {
             .with_length(5)
             .with_precision(9)
             .with_scale(3)
+            .build().unwrap()),
+        Rc::new(
+          Type::primitive_type_builder("f2", PhysicalType::FIXED_LEN_BYTE_ARRAY)
+            .with_logical_type(LogicalType::DECIMAL)
+            .with_length(16)
+            .with_precision(38)
+            .with_scale(18)
             .build().unwrap())
       ])
       .build().unwrap();

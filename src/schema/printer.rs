@@ -428,13 +428,8 @@ mod tests {
       .with_precision(9)
       .build().unwrap();
 
-    let f3 = Type::primitive_type_builder("f3", PhysicalType::INT32)
-      .with_repetition(Repetition::OPTIONAL)
-      .with_logical_type(LogicalType::DECIMAL)
-      .build().unwrap();
-
     let message = Type::group_type_builder("schema")
-      .with_fields(&mut vec![Rc::new(f1), Rc::new(f2), Rc::new(f3)])
+      .with_fields(&mut vec![Rc::new(f1), Rc::new(f2)])
       .build().unwrap();
 
     assert_print_parse_message(message);
