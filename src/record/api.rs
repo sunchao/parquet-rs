@@ -151,7 +151,73 @@ pub fn make_list(elements: Vec<Field>) -> List {
   List { elements: elements }
 }
 
-// TODO: implement `getXXX` for different `Fields` in the `List`.
+
+/// Trait for type-safe access of an index for a `List`.
+/// Note that the get_XXX methods do not do bound checking.
+pub trait ListAccessor {
+  fn get_bool(&self, i: usize) -> Result<bool>;
+  fn get_byte(&self, i: usize) -> Result<i8>;
+  fn get_short(&self, i: usize) -> Result<i16>;
+  fn get_int(&self, i: usize) -> Result<i32>;
+  fn get_long(&self, i: usize) -> Result<i64>;
+  fn get_float(&self, i: usize) -> Result<f32>;
+  fn get_double(&self, i: usize) -> Result<f64>;
+  fn get_timestamp(&self, i: usize) -> Result<u64>;
+  fn get_string(&self, i: usize) -> Result<&String>;
+  fn get_bytes(&self, i: usize) -> Result<&ByteArray>;
+  fn get_group(&self, i: usize) -> Result<&Row>;
+  fn get_list(&self, i: usize) -> Result<&List>;
+  fn get_map(&self, i: usize) -> Result<&Map>;
+}
+
+
+/// Macro to generate type-safe get_xxx methods for primitive types,
+/// e.g. get_bool, get_short
+macro_rules! list_primitive_accessor {
+  ($METHOD:ident, $VARIANT:ident, $TY:ty) => {
+    fn $METHOD(&self, i: usize) -> Result<$TY> {
+      match self.elements[i] {
+        Field::$VARIANT(v) => Ok(v),
+        _ => Err(general_err!(
+          "Cannot access {} as {}",
+          self.elements[i].get_type_name(), stringify!($VARIANT))
+        )
+      }
+    }
+  }
+}
+
+/// Macro to generate type-safe get_xxx methods for reference types
+/// e.g. get_list, get_map
+macro_rules! list_complex_accessor {
+  ($METHOD:ident, $VARIANT:ident, $TY:ty) => {
+    fn $METHOD(&self, i: usize) -> Result<&$TY> {
+      match self.elements[i] {
+        Field::$VARIANT(ref v) => Ok(v),
+        _ => Err(general_err!(
+          "Cannot access {} as {}",
+          self.elements[i].get_type_name(), stringify!($VARIANT))
+        )
+      }
+    }
+  }
+}
+
+impl ListAccessor for List {
+  list_primitive_accessor!(get_bool, Bool, bool);
+  list_primitive_accessor!(get_byte, Byte, i8);
+  list_primitive_accessor!(get_short, Short, i16);
+  list_primitive_accessor!(get_int, Int, i32);
+  list_primitive_accessor!(get_long, Long, i64);
+  list_primitive_accessor!(get_float, Float, f32);
+  list_primitive_accessor!(get_double, Double, f64);
+  list_primitive_accessor!(get_timestamp, Timestamp, u64);
+  list_complex_accessor!(get_string, Str, String);
+  list_complex_accessor!(get_bytes, Bytes, ByteArray);
+  list_complex_accessor!(get_group, Group, Row);
+  list_complex_accessor!(get_list, ListInternal, List);
+  list_complex_accessor!(get_map, MapInternal, Map);
+}
 
 
 /// `Map` represents a map which contains an list of key->value pairs.
@@ -173,8 +239,59 @@ pub fn make_map(entries: Vec<(Field, Field)>) -> Map {
   Map { entries: entries }
 }
 
-// TODO: implement `getKeys`, `getValues`, etc., for `Map`.
+/// Trait for type-safe access of an index for a `Map`
+pub trait MapAccessor {
+  fn get_keys<'a>(&'a self) -> Box<ListAccessor + 'a>;
+  fn get_values<'a>(&'a self) -> Box<ListAccessor + 'a>;
+}
 
+struct MapList<'a> {
+  elements: Vec<&'a Field>
+}
+
+/// Macro to generate type-safe get_xxx methods for primitive types,
+/// e.g. get_bool, get_short
+macro_rules! map_list_primitive_accessor {
+  ($METHOD:ident, $VARIANT:ident, $TY:ty) => {
+    fn $METHOD(&self, i: usize) -> Result<$TY> {
+      match self.elements[i] {
+        Field::$VARIANT(v) => Ok(*v),
+        _ => Err(general_err!(
+          "Cannot access {} as {}",
+          self.elements[i].get_type_name(), stringify!($VARIANT))
+        )
+      }
+    }
+  }
+}
+
+impl<'a> ListAccessor for MapList<'a> {
+  map_list_primitive_accessor!(get_bool, Bool, bool);
+  map_list_primitive_accessor!(get_byte, Byte, i8);
+  map_list_primitive_accessor!(get_short, Short, i16);
+  map_list_primitive_accessor!(get_int, Int, i32);
+  map_list_primitive_accessor!(get_long, Long, i64);
+  map_list_primitive_accessor!(get_float, Float, f32);
+  map_list_primitive_accessor!(get_double, Double, f64);
+  map_list_primitive_accessor!(get_timestamp, Timestamp, u64);
+  list_complex_accessor!(get_string, Str, String);
+  list_complex_accessor!(get_bytes, Bytes, ByteArray);
+  list_complex_accessor!(get_group, Group, Row);
+  list_complex_accessor!(get_list, ListInternal, List);
+  list_complex_accessor!(get_map, MapInternal, Map);
+}
+
+impl MapAccessor for Map {
+  fn get_keys<'a>(&'a self) -> Box<ListAccessor + 'a> {
+    let map_list = MapList { elements: self.entries.iter().map(|v| &v.0).collect() };
+    Box::new(map_list)
+  }
+
+  fn get_values<'a>(&'a self) -> Box<ListAccessor + 'a> {
+    let map_list = MapList { elements: self.entries.iter().map(|v| &v.1).collect() };
+    Box::new(map_list)
+  }
+}
 
 /// API to represent a single field in a `Row`.
 #[derive(Clone, Debug, PartialEq)]
@@ -744,5 +861,151 @@ mod tests {
       row.get_float(1).unwrap_err());
     assert_eq!(ParquetError::General("Cannot access MapInternal as Float".to_string()),
       row.get_float(2).unwrap_err());
+  }
+
+  #[test]
+  fn test_list_primitive_accessors() {
+    // primitives
+    let list = make_list(vec![Field::Bool(false)]);
+    assert_eq!(false, list.get_bool(0).unwrap());
+
+    let list = make_list(vec![Field::Byte(3), Field::Byte(4)]);
+    assert_eq!(4, list.get_byte(1).unwrap());
+
+    let list = make_list(vec![Field::Short(4), Field::Short(5), Field::Short(6)]);
+    assert_eq!(6, list.get_short(2).unwrap());
+
+    let list = make_list(vec![Field::Int(5)]);
+    assert_eq!(5, list.get_int(0).unwrap());
+
+    let list = make_list(vec![Field::Long(6), Field::Long(7)]);
+    assert_eq!(7, list.get_long(1).unwrap());
+
+    let list = make_list(vec![Field::Float(8.1), Field::Float(9.2), Field::Float(10.3)]);
+    assert_eq!(10.3, list.get_float(2).unwrap());
+
+    let list = make_list(vec![Field::Double(3.1415)]);
+    assert_eq!(3.1415, list.get_double(0).unwrap());
+
+    let list = make_list(vec![Field::Str("abc".to_string())]);
+    assert_eq!(&"abc".to_string(), list.get_string(0).unwrap());
+
+    let list = make_list(vec![Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5]))]);
+    assert_eq!(&[1, 2, 3, 4, 5], list.get_bytes(0).unwrap().data());
+  }
+
+  #[test]
+  fn test_list_primitive_invalid_accessors() {
+    // primitives
+    let list = make_list(vec![Field::Bool(false)]);
+    assert!(list.get_byte(0).is_err());
+
+    let list = make_list(vec![Field::Byte(3), Field::Byte(4)]);
+    assert!(list.get_short(1).is_err());
+
+    let list = make_list(vec![Field::Short(4), Field::Short(5), Field::Short(6)]);
+    assert!(list.get_int(2).is_err());
+
+    let list = make_list(vec![Field::Int(5)]);
+    assert!(list.get_long(0).is_err());
+
+    let list = make_list(vec![Field::Long(6), Field::Long(7)]);
+    assert!(list.get_float(1).is_err());
+
+    let list = make_list(vec![Field::Float(8.1), Field::Float(9.2), Field::Float(10.3)]);
+    assert!(list.get_double(2).is_err());
+
+    let list = make_list(vec![Field::Double(3.1415)]);
+    assert!(list.get_string(0).is_err());
+
+    let list = make_list(vec![Field::Str("abc".to_string())]);
+    assert!(list.get_bytes(0).is_err());
+
+    let list = make_list(vec![Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5]))]);
+    assert!(list.get_bool(0).is_err());
+  }
+
+  #[test]
+  fn test_list_complex_accessors() {
+    let list = make_list(vec![
+      Field::Group(make_row(vec![
+        ("x".to_string(), Field::Null),
+        ("Y".to_string(), Field::Int(2))
+      ]))]);
+    assert_eq!(2, list.get_group(0).unwrap().len());
+
+    let list = make_list(vec![
+      Field::ListInternal(make_list(vec![
+        Field::Int(2),
+        Field::Int(1),
+        Field::Null,
+        Field::Int(12)
+      ]))]);
+    assert_eq!(4, list.get_list(0).unwrap().len());
+
+    let list = make_list(vec![
+      Field::MapInternal(make_map(vec![
+        (Field::Int(1), Field::Float(1.2)),
+        (Field::Int(2), Field::Float(4.5)),
+        (Field::Int(3), Field::Float(2.3))
+      ]))]);
+    assert_eq!(3, list.get_map(0).unwrap().len());
+  }
+
+  #[test]
+  fn test_list_complex_invalid_accessors() {
+    let list = make_list(vec![
+      Field::Group(make_row(vec![
+        ("x".to_string(), Field::Null),
+        ("Y".to_string(), Field::Int(2))
+      ]))]);
+    assert_eq!(
+      general_err!("Cannot access Group as Float".to_string()),
+      list.get_float(0).unwrap_err()
+    );
+
+    let list = make_list(vec![
+      Field::ListInternal(make_list(vec![
+        Field::Int(2),
+        Field::Int(1),
+        Field::Null,
+        Field::Int(12)
+      ]))]);
+    assert_eq!(
+      general_err!("Cannot access ListInternal as Float".to_string()),
+      list.get_float(0).unwrap_err()
+    );
+
+    let list = make_list(vec![
+      Field::MapInternal(make_map(vec![
+        (Field::Int(1), Field::Float(1.2)),
+        (Field::Int(2), Field::Float(4.5)),
+        (Field::Int(3), Field::Float(2.3))
+      ]))]);
+    assert_eq!(
+      general_err!("Cannot access MapInternal as Float".to_string()),
+      list.get_float(0).unwrap_err()
+    );
+  }
+
+  #[test]
+  fn test_map_accessors() {
+    // a map from int to string
+    let map = make_map(vec![
+      (Field::Int(1), Field::Str("a".to_string())),
+      (Field::Int(2), Field::Str("b".to_string())),
+      (Field::Int(3), Field::Str("c".to_string())),
+      (Field::Int(4), Field::Str("d".to_string())),
+      (Field::Int(5), Field::Str("e".to_string())),
+    ]);
+
+    assert_eq!(5, map.len());
+    for i in 0..5 {
+      assert_eq!((i + 1) as i32, map.get_keys().get_int(i).unwrap());
+      assert_eq!(
+        &((i as u8 + 'a' as u8) as char).to_string(),
+        map.get_values().get_string(i).unwrap()
+      );
+    }
   }
 }
