@@ -16,12 +16,9 @@ addons:
 rust:
   - nightly
 
-before_script:
-  - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
-
 script:
-  - travis-cargo build
-  - travis-cargo test
+  - cargo build
+  - cargo test
 
 after_success:
   - if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
