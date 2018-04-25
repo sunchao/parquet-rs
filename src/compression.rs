@@ -49,6 +49,7 @@ use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use snap::{decompress_len, Decoder, Encoder};
+use lz4;
 
 /// Parquet compression codec interface.
 pub trait Codec {
@@ -71,6 +72,7 @@ pub fn create_codec(codec: CodecType) -> Result<Option<Box<Codec>>> {
     CodecType::BROTLI => Ok(Some(Box::new(BrotliCodec::new()))),
     CodecType::GZIP => Ok(Some(Box::new(GZipCodec::new()))),
     CodecType::SNAPPY => Ok(Some(Box::new(SnappyCodec::new()))),
+    CodecType::LZ4 => Ok(Some(Box::new(LZ4Codec::new()))),
     CodecType::UNCOMPRESSED => Ok(None),
     _ => Err(nyi_err!("The codec type {} is not supported yet", codec))
   }
@@ -168,6 +170,54 @@ impl Codec for BrotliCodec {
 }
 
 
+const LZ4_BUFFER_SIZE: usize = 4096;
+
+/// Codec for LZ4 compression algorithm.
+pub struct LZ4Codec {}
+
+impl LZ4Codec {
+  /// Creates new LZ4 compression codec.
+  fn new() -> Self {
+    Self {}
+  }
+}
+
+impl Codec for LZ4Codec {
+  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
+    let mut decoder = lz4::Decoder::new(input_buf)?;
+    let mut buffer: [u8; LZ4_BUFFER_SIZE] = [0; LZ4_BUFFER_SIZE];
+    let mut total_len = 0;
+    loop {
+      let len = decoder.read(&mut buffer)?;
+      if len == 0 {
+        break;
+      }
+      total_len += len;
+      output_buf.write_all(&buffer[0..len])?;
+    }
+    Ok(total_len)
+  }
+
+  fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
+    let mut encoder = lz4::EncoderBuilder::new().build(Vec::new())?;
+    let mut from = 0;
+    loop {
+      let to = ::std::cmp::min(from + LZ4_BUFFER_SIZE, input_buf.len());
+      encoder.write_all(&input_buf[from..to])?;
+      from += LZ4_BUFFER_SIZE;
+      if from >= input_buf.len() {
+        break;
+      }
+    }
+    let (v, result) = encoder.finish();
+    match result {
+      Ok(_) => Ok(v),
+      e => Err(general_err!("Error when finishing compressing with LZ4: {:?}", e))
+    }
+  }
+}
+
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -222,5 +272,10 @@ mod tests {
   #[test]
   fn test_codec_brotli() {
     test_codec(CodecType::BROTLI);
+  }
+
+  #[test]
+  fn test_codec_lz4() {
+    test_codec(CodecType::LZ4);
   }
 }

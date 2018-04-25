@@ -137,6 +137,15 @@ compress!(compress_snappy_double, Compression::SNAPPY, 5);
 compress!(compress_snappy_fixed, Compression::SNAPPY, 6);
 compress!(compress_snappy_int96, Compression::SNAPPY, 7);
 
+compress!(compress_lz4_binary, Compression::LZ4, 0);
+compress!(compress_lz4_int32, Compression::LZ4, 1);
+compress!(compress_lz4_int64, Compression::LZ4, 2);
+compress!(compress_lz4_boolean, Compression::LZ4, 3);
+compress!(compress_lz4_float, Compression::LZ4, 4);
+compress!(compress_lz4_double, Compression::LZ4, 5);
+compress!(compress_lz4_fixed, Compression::LZ4, 6);
+compress!(compress_lz4_int96, Compression::LZ4, 7);
+
 decompress!(decompress_brotli_binary, Compression::BROTLI, 0);
 decompress!(decompress_brotli_int32, Compression::BROTLI, 1);
 decompress!(decompress_brotli_int64, Compression::BROTLI, 2);
@@ -163,3 +172,12 @@ decompress!(decompress_snappy_float, Compression::SNAPPY, 4);
 decompress!(decompress_snappy_double, Compression::SNAPPY, 5);
 decompress!(decompress_snappy_fixed, Compression::SNAPPY, 6);
 decompress!(decompress_snappy_int96, Compression::SNAPPY, 7);
+
+decompress!(decompress_lz4_binary, Compression::LZ4, 0);
+decompress!(decompress_lz4_int32, Compression::LZ4, 1);
+decompress!(decompress_lz4_int64, Compression::LZ4, 2);
+decompress!(decompress_lz4_boolean, Compression::LZ4, 3);
+decompress!(decompress_lz4_float, Compression::LZ4, 4);
+decompress!(decompress_lz4_double, Compression::LZ4, 5);
+decompress!(decompress_lz4_fixed, Compression::LZ4, 6);
+decompress!(decompress_lz4_int96, Compression::LZ4, 7);
