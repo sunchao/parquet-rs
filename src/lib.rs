@@ -30,7 +30,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! parquet = "0.1"
+//! parquet = "0.2"
 //! ```
 //!
 //! and this to the project's crate root:

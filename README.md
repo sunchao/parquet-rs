@@ -12,7 +12,7 @@ An [Apache Parquet](https://parquet.apache.org/) implementation in Rust (work in
 Add this to your Cargo.toml:
 ```toml
 [dependencies]
-parquet = "0.1"
+parquet = "0.2"
 ```
 
 and this to your crate root:
