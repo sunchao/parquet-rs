@@ -28,11 +28,15 @@
 //! use std::path::Path;
 //! use parquet::file::reader::{FileReader, SerializedFileReader};
 //!
-//! let file = File::open(&Path::new("data/alltypes_plain.parquet")).unwrap();
+//! let path = Path::new("data/alltypes_plain.parquet");
+//! let file = File::open(&path).unwrap();
 //! let reader = SerializedFileReader::new(file).unwrap();
 //!
 //! let parquet_metadata = reader.metadata();
-//! let row_group = reader.get_row_group(0);
+//! assert_eq!(parquet_metadata.num_row_groups(), 1);
+//!
+//! let row_group_reader = reader.get_row_group(0).unwrap();
+//! assert_eq!(row_group_reader.num_columns(), 11);
 //! ```
 
 pub mod metadata;

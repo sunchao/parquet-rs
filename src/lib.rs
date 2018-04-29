@@ -25,57 +25,54 @@
 //!
 //! # Usage
 //!
-//! This crate is [on crates.io](https://crates.io/crates/parquet) and can be used by
-//! adding `parquet` to the list of dependencies in `Cargo.toml`.
+//! See the link [crates.io/crates/parquet](https://crates.io/crates/parquet) for the
+//! latest version of the crate.
 //!
-//! ```toml
-//! [dependencies]
-//! parquet = "0.2"
+//! Add `parquet` to the list of dependencies in `Cargo.toml` and this to the project's
+//! crate root:
+//!
 //! ```
-//!
-//! and this to the project's crate root:
-//!
-//! ```rust
 //! extern crate parquet;
 //! ```
 //!
 //! # Example
 //!
-//! Below is the example of reading a Parquet file, listing Parquet metadata including
-//! column chunk metadata, using record API and accessing row group readers.
+//! Import file reader to get access to Parquet metadata, including the file schema.
 //!
-//! ```rust
-//! use std::fs::File;
-//! use std::path::Path;
+//! ```
+//! #![feature(try_from)]
+//!
+//! use std::convert::TryFrom;
 //! use parquet::file::reader::{FileReader, SerializedFileReader};
 //!
-//! // Creating a file reader
-//! let path = Path::new("data/alltypes_plain.parquet");
-//! let file = File::open(&path).expect("File should exist");
-//! let reader = SerializedFileReader::new(file).expect("Valid Parquet file");
+//! let reader = SerializedFileReader::try_from("data/alltypes_plain.parquet").unwrap();
 //!
-//! // Listing Parquet metadata
 //! let parquet_metadata = reader.metadata();
+//! assert_eq!(parquet_metadata.num_row_groups(), 1);
+//!
 //! let file_metadata = parquet_metadata.file_metadata();
-//! for i in 0..parquet_metadata.num_row_groups() {
-//!   // Accessing row group metadata
-//!   let row_group_metadata = parquet_metadata.row_group(i);
-//!   // Accessing column chunk metadata
-//!   for j in 0..row_group_metadata.num_columns() {
-//!     let column_chunk_metadata = row_group_metadata.column(j);
-//!   }
-//! }
+//! assert_eq!(file_metadata.num_rows(), 8);
 //!
-//! // Reading data using record API
-//! let mut iter = reader.get_row_iter(None).expect("Should be okay");
+//! let schema = file_metadata.schema();
+//! assert_eq!(schema.get_fields().len(), 11);
+//! ```
+//!
+//! Crate offers several [read API options](#read-api), the simplest one is getting
+//! record reader directly, see below:
+//!
+//! ```
+//! #![feature(try_from)]
+//!
+//! use std::convert::TryFrom;
+//! use parquet::file::reader::{FileReader, SerializedFileReader};
+//!
+//! let reader = SerializedFileReader::try_from("data/alltypes_plain.parquet").unwrap();
+//!
+//! // Reading data using record API, optional projection schema can be passed as well.
+//! let mut iter = reader.get_row_iter(None).unwrap();
 //! while let Some(record) = iter.next() {
-//!   // do something with the record...
+//!   // See record API for different field accessors
 //!   println!("{}", record);
-//! }
-//!
-//! // Accessing row group readers in a file
-//! for i in 0..reader.num_row_groups() {
-//!   let row_group_reader = reader.get_row_group(i).expect("Should be okay");
 //! }
 //! ```
 //!
@@ -92,7 +89,7 @@
 //! and is represented by Parquet type.
 //!
 //! Parquet type is described by [`Type`](`schema::types::Type`), including top level
-//! message type or schema. Refer to the [`schema`] module for the detailed information
+//! message type (schema). Refer to the [`schema`] module for the detailed information
 //! on Type API, printing and parsing of message types.
 //!
 //! # File and row group API
@@ -106,14 +103,14 @@
 //! # Read API
 //!
 //! Crate offers several methods to read data from a Parquet file:
-//! - Low level column reader API (see [`column`] module)
+//! - Low level column reader API (see [`file`] and [`column`] modules)
 //! - Arrow API (_TODO_)
 //! - High level record API (see [`record`] module)
-//!
 
 #![feature(type_ascription)]
 #![feature(rustc_private)]
 #![feature(specialization)]
+#![feature(try_from)]
 
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]

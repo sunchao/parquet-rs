@@ -19,8 +19,10 @@
 //! Contains file reader API, and provides methods to access file metadata, row group
 //! readers to read individual column chunks, or access record iterator.
 
+use std::convert::TryFrom;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom};
+use std::path::Path;
 use std::rc::Rc;
 
 use basic::{Type, Compression, Encoding};
@@ -200,6 +202,39 @@ impl FileReader for SerializedFileReader {
 
   fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter> {
     RowIter::from_file(projection, self)
+  }
+}
+
+impl TryFrom<File> for SerializedFileReader {
+  type Error = ParquetError;
+
+  fn try_from(file: File) -> Result<Self> {
+    Self::new(file)
+  }
+}
+
+impl<'a> TryFrom<&'a Path> for SerializedFileReader {
+  type Error = ParquetError;
+
+  fn try_from(path: &Path) -> Result<Self> {
+    let file = File::open(path)?;
+    Self::try_from(file)
+  }
+}
+
+impl TryFrom<String> for SerializedFileReader {
+  type Error = ParquetError;
+
+  fn try_from(path: String) -> Result<Self> {
+    Self::try_from(Path::new(&path))
+  }
+}
+
+impl<'a> TryFrom<&'a str> for SerializedFileReader {
+  type Error = ParquetError;
+
+  fn try_from(path: &str) -> Result<Self> {
+    Self::try_from(Path::new(&path))
   }
 }
 
@@ -423,7 +458,7 @@ impl PageReader for SerializedPageReader {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use util::test_common::{get_temp_file, get_test_file};
+  use util::test_common::{get_temp_file, get_test_file, get_test_path};
 
   #[test]
   fn test_file_reader_metadata_size_smaller_than_footer() {
@@ -469,6 +504,40 @@ mod tests {
       reader_result.err().unwrap(),
       general_err!("Invalid Parquet file. Metadata start is less than zero (-255)")
     );
+  }
+
+  #[test]
+  fn test_file_reader_try_from() {
+    // Valid file path
+    let test_file = get_test_file("alltypes_plain.parquet");
+    let test_path_buf = get_test_path("alltypes_plain.parquet");
+    let test_path = test_path_buf.as_path();
+    let test_path_str = test_path.to_str().unwrap();
+
+    let reader = SerializedFileReader::try_from(test_file);
+    assert!(reader.is_ok());
+
+    let reader = SerializedFileReader::try_from(test_path);
+    assert!(reader.is_ok());
+
+    let reader = SerializedFileReader::try_from(test_path_str);
+    assert!(reader.is_ok());
+
+    let reader = SerializedFileReader::try_from(test_path_str.to_string());
+    assert!(reader.is_ok());
+
+    // Invalid file path
+    let test_path = Path::new("invalid.parquet");
+    let test_path_str = test_path.to_str().unwrap();
+
+    let reader = SerializedFileReader::try_from(test_path);
+    assert!(reader.is_err());
+
+    let reader = SerializedFileReader::try_from(test_path_str);
+    assert!(reader.is_err());
+
+    let reader = SerializedFileReader::try_from(test_path_str.to_string());
+    assert!(reader.is_err());
   }
 
   #[test]

@@ -20,6 +20,7 @@ use rand::distributions::range::SampleRange;
 use std::env;
 use std::fs;
 use std::io::Write;
+use std::path;
 
 use data_type::{ByteArray, DataType, FixedLenByteArrayType};
 
@@ -95,12 +96,17 @@ pub fn random_numbers_range<T>(
   }
 }
 
-/// Returns file handle for a test parquet file from 'data' directory
-pub fn get_test_file(file_name: &str) -> fs::File {
+/// Returns path to the test parquet file in 'data' directory
+pub fn get_test_path(file_name: &str) -> path::PathBuf {
   let mut path_buf = env::current_dir().unwrap();
   path_buf.push("data");
   path_buf.push(file_name);
-  let file = fs::File::open(path_buf.as_path());
+  path_buf
+}
+
+/// Returns file handle for a test parquet file from 'data' directory
+pub fn get_test_file(file_name: &str) -> fs::File {
+  let file = fs::File::open(get_test_path(file_name).as_path());
   assert!(file.is_ok());
   file.unwrap()
 }
