@@ -777,11 +777,15 @@ impl<T: DataType> DeltaByteArrayDecoder<T> {
 
 impl<'m, T: DataType> Decoder<T> for DeltaByteArrayDecoder<T> {
   default fn set_data(&mut self, _: ByteBufferPtr, _: usize) -> Result<()> {
-    Err(general_err!("DeltaByteArrayDecoder only support ByteArrayType"))
+    Err(general_err!(
+      "DeltaByteArrayDecoder only supports ByteArrayType and FixedLenByteArrayType"
+    ))
   }
 
   default fn get(&mut self, _: &mut [T::T]) -> Result<usize> {
-    Err(general_err!("DeltaByteArrayDecoder only support ByteArrayType"))
+    Err(general_err!(
+      "DeltaByteArrayDecoder only supports ByteArrayType and FixedLenByteArrayType"
+    ))
   }
 
   fn values_left(&self) -> usize {
@@ -815,13 +819,13 @@ impl<> Decoder<ByteArrayType> for DeltaByteArrayDecoder<ByteArrayType> {
     assert!(self.suffix_decoder.is_some());
 
     let num_values = cmp::min(buffer.len(), self.num_values);
+    let mut v: [ByteArray; 1] = [ByteArray::new(); 1];
     for i in 0..num_values {
       // Process suffix
       // TODO: this is awkward - maybe we should add a non-vectorized API?
-      let mut suffix = vec![ByteArray::new(); 1];
       let suffix_decoder = self.suffix_decoder.as_mut().unwrap();
-      suffix_decoder.get(&mut suffix[..])?;
-      let suffix = suffix[0].data();
+      suffix_decoder.get(&mut v[..])?;
+      let suffix = v[0].data();
 
       // Extract current prefix length, can be 0
       let prefix_len = self.prefix_lengths[self.current_idx] as usize;
@@ -842,6 +846,17 @@ impl<> Decoder<ByteArrayType> for DeltaByteArrayDecoder<ByteArrayType> {
   }
 }
 
+impl<> Decoder<FixedLenByteArrayType> for DeltaByteArrayDecoder<FixedLenByteArrayType> {
+  fn set_data(&mut self, data: ByteBufferPtr, num_values: usize) -> Result<()> {
+    let s: &mut DeltaByteArrayDecoder<ByteArrayType> = unsafe { mem::transmute(self) };
+    s.set_data(data, num_values)
+  }
+
+  fn get(&mut self, buffer: &mut [ByteArray]) -> Result<usize> {
+    let s: &mut DeltaByteArrayDecoder<ByteArrayType> = unsafe { mem::transmute(self) };
+    s.get(buffer)
+  }
+}
 
 #[cfg(test)]
 mod tests {

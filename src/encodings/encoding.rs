@@ -832,7 +832,7 @@ impl<T: DataType> DeltaByteArrayEncoder<T> {
 
 impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
   default fn put(&mut self, _values: &[T::T]) -> Result<()> {
-    panic!("DeltaByteArrayEncoder only supports ByteArrayType");
+    panic!("DeltaByteArrayEncoder only supports ByteArrayType and FixedLenByteArrayType");
   }
 
   fn encoding(&self) -> Encoding {
@@ -840,7 +840,7 @@ impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
   }
 
   default fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
-    panic!("DeltaByteArrayEncoder only supports ByteArrayType");
+    panic!("DeltaByteArrayEncoder only supports ByteArrayType and FixedLenByteArrayType");
   }
 }
 
@@ -880,6 +880,18 @@ impl Encoder<ByteArrayType> for DeltaByteArrayEncoder<ByteArrayType> {
     total_bytes.extend_from_slice(suffixes.data());
 
     Ok(ByteBufferPtr::new(total_bytes))
+  }
+}
+
+impl Encoder<FixedLenByteArrayType> for DeltaByteArrayEncoder<FixedLenByteArrayType> {
+  fn put(&mut self, values: &[ByteArray]) -> Result<()> {
+    let s: &mut DeltaByteArrayEncoder<ByteArrayType> = unsafe { mem::transmute(self) };
+    s.put(values)
+  }
+
+  fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
+    let s: &mut DeltaByteArrayEncoder<ByteArrayType> = unsafe { mem::transmute(self) };
+    s.flush_buffer()
   }
 }
 
@@ -946,6 +958,7 @@ mod tests {
   fn test_fixed_lenbyte_array() {
     FixedLenByteArrayType::test(Encoding::PLAIN, TEST_SET_SIZE, 100);
     FixedLenByteArrayType::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, 100);
+    FixedLenByteArrayType::test(Encoding::DELTA_BYTE_ARRAY, TEST_SET_SIZE, 100);
   }
 
   trait EncodingTester<T: DataType> {
