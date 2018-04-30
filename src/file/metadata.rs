@@ -32,7 +32,8 @@
 
 use std::rc::Rc;
 
-use basic::{Compression, Encoding, Type};
+use super::statistics::{self, Statistics};
+use basic::{ColumnOrder, Compression, Encoding, Type};
 use errors::{ParquetError, Result};
 use schema::types::{ColumnDescriptor, ColumnDescPtr, ColumnPath};
 use schema::types::{SchemaDescriptor, SchemaDescPtr, Type as SchemaType, TypePtr};
@@ -88,7 +89,8 @@ pub struct FileMetaData {
   num_rows: i64,
   created_by: Option<String>,
   schema: TypePtr,
-  schema_descr: SchemaDescPtr
+  schema_descr: SchemaDescPtr,
+  column_orders: Option<Vec<ColumnOrder>>
 }
 
 impl FileMetaData {
@@ -98,14 +100,16 @@ impl FileMetaData {
     num_rows: i64,
     created_by: Option<String>,
     schema: TypePtr,
-    schema_descr: SchemaDescPtr
+    schema_descr: SchemaDescPtr,
+    column_orders: Option<Vec<ColumnOrder>>
   ) -> Self {
     FileMetaData {
       version,
       num_rows,
       created_by,
       schema,
-      schema_descr
+      schema_descr,
+      column_orders
     }
   }
 
@@ -144,6 +148,23 @@ impl FileMetaData {
   /// Returns reference counted clone for schema descriptor.
   pub fn schema_descr_ptr(&self) -> SchemaDescPtr {
     self.schema_descr.clone()
+  }
+
+  /// Column (sort) order used for `min` and `max` values of each column in this file.
+  ///
+  /// Each column order corresponds to one column, determined by its position in the list,
+  /// matching the position of the column in the schema.
+  ///
+  /// When `None` is returned, there are no column orders available, and each column
+  /// should be assumed to have undefined (legacy) column order.
+  pub fn column_orders(&self) -> Option<&Vec<ColumnOrder>> {
+    self.column_orders.as_ref()
+  }
+
+  /// Returns column order for `i`th column in this file.
+  /// If column orders are not available, returns undefined (legacy) column order.
+  pub fn column_order(&self, i: usize) -> ColumnOrder {
+    self.column_orders.as_ref().map(|data| data[i]).unwrap_or(ColumnOrder::UNDEFINED)
   }
 }
 
@@ -233,7 +254,8 @@ pub struct ColumnChunkMetaData {
   total_uncompressed_size: i64,
   data_page_offset: i64,
   index_page_offset: Option<i64>,
-  dictionary_page_offset: Option<i64>
+  dictionary_page_offset: Option<i64>,
+  statistics: Option<Statistics>
 }
 
 /// Represents common operations for a column chunk.
@@ -316,11 +338,15 @@ impl ColumnChunkMetaData {
     self.dictionary_page_offset.is_some()
   }
 
-  /// TODO: add statistics
-
   /// Returns the offset for the dictionary page, if any.
   pub fn dictionary_page_offset(&self) -> Option<i64> {
     self.dictionary_page_offset
+  }
+
+  /// Returns statistics that are set for this column chunk,
+  /// or `None` if no statistics are available.
+  pub fn statistics(&self) -> Option<&Statistics> {
+    self.statistics.as_ref()
   }
 
   /// Method to convert from Thrift.
@@ -341,6 +367,7 @@ impl ColumnChunkMetaData {
     let data_page_offset = col_metadata.data_page_offset;
     let index_page_offset = col_metadata.index_page_offset;
     let dictionary_page_offset = col_metadata.dictionary_page_offset;
+    let statistics = statistics::from_thrift(column_type, col_metadata.statistics);
     let result = ColumnChunkMetaData {
       column_type,
       column_path,
@@ -354,7 +381,8 @@ impl ColumnChunkMetaData {
       total_uncompressed_size,
       data_page_offset,
       index_page_offset,
-      dictionary_page_offset
+      dictionary_page_offset,
+      statistics
     };
     Ok(result)
   }

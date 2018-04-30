@@ -268,7 +268,12 @@ impl<T: DataType> ColumnReaderImpl<T> where T: 'static {
             },
             // 2. Data page v1
             Page::DataPage {
-              buf, num_values, encoding, def_level_encoding, rep_level_encoding
+              buf,
+              num_values,
+              encoding,
+              def_level_encoding,
+              rep_level_encoding,
+              statistics: _
             } => {
               self.num_buffered_values = num_values;
               self.num_decoded_values = 0;
@@ -299,8 +304,17 @@ impl<T: DataType> ColumnReaderImpl<T> where T: 'static {
               return Ok(true)
             },
             // 3. Data page v2
-            Page::DataPageV2 { buf, num_values, encoding, num_nulls: _, num_rows: _,
-                def_levels_byte_len, rep_levels_byte_len, is_compressed: _ } => {
+            Page::DataPageV2 {
+              buf,
+              num_values,
+              encoding,
+              num_nulls: _,
+              num_rows: _,
+              def_levels_byte_len,
+              rep_levels_byte_len,
+              is_compressed: _,
+              statistics: _
+            } => {
               self.num_buffered_values = num_values;
               self.num_decoded_values = 0;
 
@@ -1077,7 +1091,8 @@ mod tests {
           num_rows: self.num_values, // also don't need this when reading data page
           def_levels_byte_len: self.def_levels_byte_len,
           rep_levels_byte_len: self.rep_levels_byte_len,
-          is_compressed: false
+          is_compressed: false,
+          statistics: None // set to None, we do not need statistics for tests
         }
       } else {
         Page::DataPage {
@@ -1085,7 +1100,8 @@ mod tests {
           num_values: self.num_values,
           encoding: self.encoding.unwrap(),
           def_level_encoding: Encoding::RLE,
-          rep_level_encoding: Encoding::RLE
+          rep_level_encoding: Encoding::RLE,
+          statistics: None // set to None, we do not need statistics for tests
         }
       }
     }

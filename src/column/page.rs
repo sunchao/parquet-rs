@@ -20,6 +20,7 @@
 use basic::{PageType, Encoding};
 use errors::Result;
 use util::memory::ByteBufferPtr;
+use file::statistics::Statistics;
 
 /// Parquet Page definition.
 ///
@@ -32,7 +33,8 @@ pub enum Page {
     num_values: u32,
     encoding: Encoding,
     def_level_encoding: Encoding,
-    rep_level_encoding: Encoding
+    rep_level_encoding: Encoding,
+    statistics: Option<Statistics>
   },
   DataPageV2 {
     buf: ByteBufferPtr,
@@ -42,7 +44,8 @@ pub enum Page {
     num_rows: u32,
     def_levels_byte_len: u32,
     rep_levels_byte_len: u32,
-    is_compressed: bool
+    is_compressed: bool,
+    statistics: Option<Statistics>
   },
   DictionaryPage {
     buf: ByteBufferPtr,
@@ -88,6 +91,15 @@ impl Page {
       &Page::DictionaryPage { encoding, .. } => encoding
     }
   }
+
+  /// Returns optional [`Statistics`](`::file::metadata::Statistics`).
+  pub fn statistics(&self) -> Option<&Statistics> {
+    match self {
+      &Page::DataPage { ref statistics, ..} => statistics.as_ref(),
+      &Page::DataPageV2 { ref statistics, ..} => statistics.as_ref(),
+      &Page::DictionaryPage { .. } => None
+    }
+  }
 }
 
 /// API for reading pages from a column chunk.
@@ -110,12 +122,17 @@ mod tests {
       num_values: 10,
       encoding: Encoding::PLAIN,
       def_level_encoding: Encoding::RLE,
-      rep_level_encoding: Encoding::RLE
+      rep_level_encoding: Encoding::RLE,
+      statistics: Some(Statistics::int32(Some(1), Some(2), None, 1, true))
     };
     assert_eq!(data_page.page_type(), PageType::DATA_PAGE);
     assert_eq!(data_page.buffer().data(), vec![0, 1, 2].as_slice());
     assert_eq!(data_page.num_values(), 10);
     assert_eq!(data_page.encoding(), Encoding::PLAIN);
+    assert_eq!(
+      data_page.statistics(),
+      Some(&Statistics::int32(Some(1), Some(2), None, 1, true))
+    );
 
     let data_page_v2 = Page::DataPageV2 {
       buf: ByteBufferPtr::new(vec![0, 1, 2]),
@@ -125,12 +142,17 @@ mod tests {
       num_rows: 20,
       def_levels_byte_len: 30,
       rep_levels_byte_len: 40,
-      is_compressed: false
+      is_compressed: false,
+      statistics: Some(Statistics::int32(Some(1), Some(2), None, 1, true))
     };
     assert_eq!(data_page_v2.page_type(), PageType::DATA_PAGE_V2);
     assert_eq!(data_page_v2.buffer().data(), vec![0, 1, 2].as_slice());
     assert_eq!(data_page_v2.num_values(), 10);
     assert_eq!(data_page_v2.encoding(), Encoding::PLAIN);
+    assert_eq!(
+      data_page_v2.statistics(),
+      Some(&Statistics::int32(Some(1), Some(2), None, 1, true))
+    );
 
     let dict_page = Page::DictionaryPage {
       buf: ByteBufferPtr::new(vec![0, 1, 2]),
@@ -142,5 +164,6 @@ mod tests {
     assert_eq!(dict_page.buffer().data(), vec![0, 1, 2].as_slice());
     assert_eq!(dict_page.num_values(), 10);
     assert_eq!(dict_page.encoding(), Encoding::PLAIN);
+    assert_eq!(dict_page.statistics(), None);
   }
 }

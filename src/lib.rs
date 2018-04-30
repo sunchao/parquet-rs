@@ -83,6 +83,12 @@
 //! row group metadata with a set of column chunks that contain column type and encodings,
 //! number of values and compressed/uncompressed size in bytes.
 //!
+//! # Statistics
+//!
+//! Statistics are optional, and provide min/max values, null count, etc. for each column
+//! or data page, from which they could be accessed respectively, and are described in
+//! [`statistics`](`file::statistics`) module.
+//!
 //! # Schema and type
 //!
 //! Parquet schema can be extracted from [`FileMetaData`](`file::metadata::FileMetaData`)

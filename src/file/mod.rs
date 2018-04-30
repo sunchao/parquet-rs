@@ -18,8 +18,9 @@
 //! Main entrypoint for working with Parquet API.
 //! Provides access to file and row group readers, record API, etc.
 //!
-//! See [`reader::SerializedFileReader`] for a starting reference and
-//! [`metadata::ParquetMetaData`] for file metadata.
+//! See [`reader::SerializedFileReader`] for a starting reference,
+//! [`metadata::ParquetMetaData`] for file metadata, and [`statistics`] for working
+//! with statistics.
 //!
 //! # Example
 //!
@@ -41,3 +42,4 @@
 
 pub mod metadata;
 pub mod reader;
+pub mod statistics;

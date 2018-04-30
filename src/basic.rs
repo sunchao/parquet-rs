@@ -248,6 +248,112 @@ pub enum PageType {
   DATA_PAGE_V2
 }
 
+// ----------------------------------------------------------------------
+// Mirrors `parquet::ColumnOrder`
+
+/// Sort order for page and column statistics.
+///
+/// Types are associated with sort orders and column stats are aggregated using a sort
+/// order, and a sort order should be considered when comparing values with statistics
+/// min/max.
+///
+/// See reference in
+/// https://github.com/apache/parquet-cpp/blob/master/src/parquet/types.h
+///
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SortOrder {
+  /// Signed (either value or legacy byte-wise) comparison.
+  SIGNED,
+  /// Unsigned (depending on physical type either value or byte-wise) comparison.
+  UNSIGNED,
+  /// Comparison is undefined.
+  UNDEFINED
+}
+
+/// Column order that specifies what method was used to aggregate min/max values for
+/// statistics.
+///
+/// If column order is undefined, then it is the legacy behaviour and all values should
+/// be compared as signed values/bytes.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ColumnOrder {
+  /// Column uses the order defined by its logical or physical type
+  /// (if there is no logical type), parquet-format 2.4.0+.
+  TYPE_DEFINED_ORDER(SortOrder),
+  /// Undefined column order, means legacy behaviour before parquet-format 2.4.0.
+  /// Sort order is always SIGNED.
+  UNDEFINED
+}
+
+impl ColumnOrder {
+  /// Returns sort order for a physical/logical type.
+  pub fn get_sort_order(logical_type: LogicalType, physical_type: Type) -> SortOrder {
+    match logical_type {
+      // Unsigned byte-wise comparison.
+      LogicalType::UTF8 |
+      LogicalType::JSON |
+      LogicalType::BSON |
+      LogicalType::ENUM => SortOrder::UNSIGNED,
+
+      LogicalType::INT_8 |
+      LogicalType::INT_16 |
+      LogicalType::INT_32 |
+      LogicalType::INT_64 => SortOrder::SIGNED,
+
+      LogicalType::UINT_8 |
+      LogicalType::UINT_16 |
+      LogicalType::UINT_32 |
+      LogicalType::UINT_64 => SortOrder::UNSIGNED,
+
+      // Signed comparison of the represented value.
+      LogicalType::DECIMAL => SortOrder::SIGNED,
+
+      LogicalType::DATE => SortOrder::SIGNED,
+
+      LogicalType::TIME_MILLIS |
+      LogicalType::TIME_MICROS |
+      LogicalType::TIMESTAMP_MILLIS |
+      LogicalType::TIMESTAMP_MICROS => SortOrder::SIGNED,
+
+      LogicalType::INTERVAL => SortOrder::UNSIGNED,
+
+      LogicalType::LIST |
+      LogicalType::MAP |
+      LogicalType::MAP_KEY_VALUE => SortOrder::UNDEFINED,
+
+      // Fall back to physical type.
+      LogicalType::NONE => Self::get_default_sort_order(physical_type)
+    }
+  }
+
+  /// Returns default sort order based on physical type.
+  fn get_default_sort_order(physical_type: Type) -> SortOrder {
+    match physical_type {
+      // Order: false, true
+      Type::BOOLEAN => SortOrder::UNSIGNED,
+      Type::INT32 | Type::INT64 => SortOrder::SIGNED,
+      Type::INT96 => SortOrder::UNDEFINED,
+      // Notes to remember when comparing float/double values:
+      // If the min is a NaN, it should be ignored.
+      // If the max is a NaN, it should be ignored.
+      // If the min is +0, the row group may contain -0 values as well.
+      // If the max is -0, the row group may contain +0 values as well.
+      // When looking for NaN values, min and max should be ignored.
+      Type::FLOAT | Type::DOUBLE => SortOrder::SIGNED,
+      // unsigned byte-wise comparison
+      Type::BYTE_ARRAY | Type::FIXED_LEN_BYTE_ARRAY => SortOrder::UNSIGNED
+    }
+  }
+
+  /// Returns sort order associated with this column order.
+  pub fn sort_order(&self) -> SortOrder {
+    match *self {
+      ColumnOrder::TYPE_DEFINED_ORDER(order) => order,
+      ColumnOrder::UNDEFINED => SortOrder::SIGNED
+    }
+  }
+}
+
 impl fmt::Display for Type {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     write!(f, "{:?}", self)
@@ -279,6 +385,18 @@ impl fmt::Display for Compression {
 }
 
 impl fmt::Display for PageType {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}", self)
+  }
+}
+
+impl fmt::Display for SortOrder {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{:?}", self)
+  }
+}
+
+impl fmt::Display for ColumnOrder {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     write!(f, "{:?}", self)
   }
@@ -849,5 +967,123 @@ mod tests {
       PageType::DICTIONARY_PAGE
     );
     assert_eq!(PageType::from(parquet::PageType::DATA_PAGE_V2), PageType::DATA_PAGE_V2);
+  }
+
+  #[test]
+  fn test_display_sort_order() {
+    assert_eq!(SortOrder::SIGNED.to_string(), "SIGNED");
+    assert_eq!(SortOrder::UNSIGNED.to_string(), "UNSIGNED");
+    assert_eq!(SortOrder::UNDEFINED.to_string(), "UNDEFINED");
+  }
+
+  #[test]
+  fn test_display_column_order() {
+    assert_eq!(
+      ColumnOrder::TYPE_DEFINED_ORDER(SortOrder::SIGNED).to_string(),
+      "TYPE_DEFINED_ORDER(SIGNED)"
+    );
+    assert_eq!(
+      ColumnOrder::TYPE_DEFINED_ORDER(SortOrder::UNSIGNED).to_string(),
+      "TYPE_DEFINED_ORDER(UNSIGNED)"
+    );
+    assert_eq!(
+      ColumnOrder::TYPE_DEFINED_ORDER(SortOrder::UNDEFINED).to_string(),
+      "TYPE_DEFINED_ORDER(UNDEFINED)"
+    );
+    assert_eq!(ColumnOrder::UNDEFINED.to_string(), "UNDEFINED");
+  }
+
+  #[test]
+  fn test_column_order_get_sort_order() {
+    // Helper to check the order in a list of values.
+    // Only logical type is checked.
+    fn check_sort_order(types: Vec<LogicalType>, expected_order: SortOrder) {
+      for tpe in types {
+        assert_eq!(
+          ColumnOrder::get_sort_order(tpe, Type::BYTE_ARRAY),
+          expected_order
+        );
+      }
+    }
+
+    // Unsigned comparison (physical type does not matter)
+    let unsigned = vec![
+      LogicalType::UTF8,
+      LogicalType::JSON,
+      LogicalType::BSON,
+      LogicalType::ENUM,
+      LogicalType::UINT_8,
+      LogicalType::UINT_16,
+      LogicalType::UINT_32,
+      LogicalType::UINT_64,
+      LogicalType::INTERVAL
+    ];
+    check_sort_order(unsigned, SortOrder::UNSIGNED);
+
+    // Signed comparison (physical type does not matter)
+    let signed = vec![
+      LogicalType::INT_8,
+      LogicalType::INT_16,
+      LogicalType::INT_32,
+      LogicalType::INT_64,
+      LogicalType::DECIMAL,
+      LogicalType::DATE,
+      LogicalType::TIME_MILLIS,
+      LogicalType::TIME_MICROS,
+      LogicalType::TIMESTAMP_MILLIS,
+      LogicalType::TIMESTAMP_MICROS
+    ];
+    check_sort_order(signed, SortOrder::SIGNED);
+
+    // Undefined comparison
+    let undefined = vec![
+      LogicalType::LIST,
+      LogicalType::MAP,
+      LogicalType::MAP_KEY_VALUE
+    ];
+    check_sort_order(undefined, SortOrder::UNDEFINED);
+
+    // Check None logical type
+    // This should return a sort order for byte array type.
+    check_sort_order(vec![LogicalType::NONE], SortOrder::UNSIGNED);
+  }
+
+  #[test]
+  fn test_column_order_get_default_sort_order() {
+    // Comparison based on physical type
+    assert_eq!(ColumnOrder::get_default_sort_order(Type::BOOLEAN), SortOrder::UNSIGNED);
+    assert_eq!(ColumnOrder::get_default_sort_order(Type::INT32), SortOrder::SIGNED);
+    assert_eq!(ColumnOrder::get_default_sort_order(Type::INT64), SortOrder::SIGNED);
+    assert_eq!(ColumnOrder::get_default_sort_order(Type::INT96), SortOrder::UNDEFINED);
+    assert_eq!(ColumnOrder::get_default_sort_order(Type::FLOAT), SortOrder::SIGNED);
+    assert_eq!(ColumnOrder::get_default_sort_order(Type::DOUBLE), SortOrder::SIGNED);
+    assert_eq!(
+      ColumnOrder::get_default_sort_order(Type::BYTE_ARRAY),
+      SortOrder::UNSIGNED
+    );
+    assert_eq!(
+      ColumnOrder::get_default_sort_order(Type::FIXED_LEN_BYTE_ARRAY),
+      SortOrder::UNSIGNED
+    );
+  }
+
+  #[test]
+  fn test_column_order_sort_order() {
+    assert_eq!(
+      ColumnOrder::TYPE_DEFINED_ORDER(SortOrder::SIGNED).sort_order(),
+      SortOrder::SIGNED
+    );
+    assert_eq!(
+      ColumnOrder::TYPE_DEFINED_ORDER(SortOrder::UNSIGNED).sort_order(),
+      SortOrder::UNSIGNED
+    );
+    assert_eq!(
+      ColumnOrder::TYPE_DEFINED_ORDER(SortOrder::UNDEFINED).sort_order(),
+      SortOrder::UNDEFINED
+    );
+    assert_eq!(
+      ColumnOrder::UNDEFINED.sort_order(),
+      SortOrder::SIGNED
+    );
   }
 }
