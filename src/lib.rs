@@ -128,6 +128,7 @@ extern crate x86intrin;
 extern crate parquet_format;
 extern crate chrono;
 extern crate lz4;
+extern crate num_bigint;
 
 #[macro_use]
 pub mod errors;

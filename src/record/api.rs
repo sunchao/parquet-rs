@@ -21,8 +21,9 @@ use std::fmt;
 
 use basic::{LogicalType, Type as PhysicalType};
 use chrono::{Local, TimeZone};
-use data_type::{ByteArray, Int96};
+use data_type::{ByteArray, Decimal, Int96};
 use errors::{ParquetError, Result};
+use num_bigint::{BigInt, Sign};
 use schema::types::ColumnDescPtr;
 
 /// Macro as a shortcut to generate 'not yet implemented' panic error.
@@ -60,6 +61,7 @@ pub trait RowAccessor {
   fn get_float(&self, i: usize) -> Result<f32>;
   fn get_double(&self, i: usize) -> Result<f64>;
   fn get_timestamp(&self, i: usize) -> Result<u64>;
+  fn get_decimal(&self, i: usize) -> Result<&Decimal>;
   fn get_string(&self, i: usize) -> Result<&String>;
   fn get_bytes(&self, i: usize) -> Result<&ByteArray>;
   fn get_group(&self, i: usize) -> Result<&Row>;
@@ -104,6 +106,7 @@ impl RowAccessor for Row {
   row_primitive_accessor!(get_float, Float, f32);
   row_primitive_accessor!(get_double, Double, f64);
   row_primitive_accessor!(get_timestamp, Timestamp, u64);
+  row_complex_accessor!(get_decimal, Decimal, Decimal);
   row_complex_accessor!(get_string, Str, String);
   row_complex_accessor!(get_bytes, Bytes, ByteArray);
   row_complex_accessor!(get_group, Group, Row);
@@ -163,6 +166,7 @@ pub trait ListAccessor {
   fn get_float(&self, i: usize) -> Result<f32>;
   fn get_double(&self, i: usize) -> Result<f64>;
   fn get_timestamp(&self, i: usize) -> Result<u64>;
+  fn get_decimal(&self, i: usize) -> Result<&Decimal>;
   fn get_string(&self, i: usize) -> Result<&String>;
   fn get_bytes(&self, i: usize) -> Result<&ByteArray>;
   fn get_group(&self, i: usize) -> Result<&Row>;
@@ -212,6 +216,7 @@ impl ListAccessor for List {
   list_primitive_accessor!(get_float, Float, f32);
   list_primitive_accessor!(get_double, Double, f64);
   list_primitive_accessor!(get_timestamp, Timestamp, u64);
+  list_complex_accessor!(get_decimal, Decimal, Decimal);
   list_complex_accessor!(get_string, Str, String);
   list_complex_accessor!(get_bytes, Bytes, ByteArray);
   list_complex_accessor!(get_group, Group, Row);
@@ -274,6 +279,7 @@ impl<'a> ListAccessor for MapList<'a> {
   map_list_primitive_accessor!(get_float, Float, f32);
   map_list_primitive_accessor!(get_double, Double, f64);
   map_list_primitive_accessor!(get_timestamp, Timestamp, u64);
+  list_complex_accessor!(get_decimal, Decimal, Decimal);
   list_complex_accessor!(get_string, Str, String);
   list_complex_accessor!(get_bytes, Bytes, ByteArray);
   list_complex_accessor!(get_group, Group, Row);
@@ -314,6 +320,8 @@ pub enum Field {
   Float(f32),
   /// IEEE 64-bit floating point value.
   Double(f64),
+  /// Decimal value.
+  Decimal(Decimal),
   /// UTF-8 encoded character string.
   Str(String),
   /// General binary value.
@@ -348,6 +356,7 @@ impl Field {
       Field::Long(_) => "Long",
       Field::Float(_) => "Float",
       Field::Double(_) => "Double",
+      Field::Decimal(_) => "Decimal",
       Field::Date(_) => "Date",
       Field::Str(_) => "Str",
       Field::Bytes(_) => "Bytes",
@@ -382,6 +391,13 @@ impl Field {
       LogicalType::INT_16 => Field::Short(value as i16),
       LogicalType::INT_32 | LogicalType::NONE => Field::Int(value),
       LogicalType::DATE => Field::Date(value as u32),
+      LogicalType::DECIMAL => {
+        Field::Decimal(Decimal::from_i32(
+          value,
+          descr.type_precision(),
+          descr.type_scale()
+        ))
+      },
       _ => nyi!(descr, value)
     }
   }
@@ -391,6 +407,13 @@ impl Field {
   pub fn convert_int64(descr: &ColumnDescPtr, value: i64) -> Self {
     match descr.logical_type() {
       LogicalType::INT_64 | LogicalType::NONE => Field::Long(value),
+      LogicalType::DECIMAL => {
+        Field::Decimal(Decimal::from_i64(
+          value,
+          descr.type_precision(),
+          descr.type_scale()
+        ))
+      },
       _ => nyi!(descr, value)
     }
   }
@@ -435,6 +458,25 @@ impl Field {
             Field::Str(value)
           },
           LogicalType::BSON | LogicalType::NONE => Field::Bytes(value),
+          LogicalType::DECIMAL => {
+            Field::Decimal(Decimal::from_bytes(
+              value,
+              descr.type_precision(),
+              descr.type_scale()
+            ))
+          },
+          _ => nyi!(descr, value)
+        }
+      },
+      PhysicalType::FIXED_LEN_BYTE_ARRAY => {
+        match descr.logical_type() {
+          LogicalType::DECIMAL => {
+            Field::Decimal(Decimal::from_bytes(
+              value,
+              descr.type_precision(),
+              descr.type_scale()
+            ))
+          },
           _ => nyi!(descr, value)
         }
       },
@@ -454,6 +496,7 @@ impl fmt::Display for Field {
       Field::Long(value) => write!(f, "{}", value),
       Field::Float(value) => write!(f, "{:?}", value),
       Field::Double(value) => write!(f, "{:?}", value),
+      Field::Decimal(ref value) => write!(f, "{}", convert_decimal_to_string(value)),
       Field::Str(ref value) => write!(f, "\"{}\"", value),
       Field::Bytes(ref value) => write!(f, "{:?}", value.data()),
       Field::Date(value) => write!(f, "{}", convert_date_to_string(value)),
@@ -506,6 +549,37 @@ fn convert_timestamp_to_string(value: u64) -> String {
   format!("{}", dt.format("%Y-%m-%d %H:%M:%S %:z"))
 }
 
+/// Helper method to convert Parquet decimal into a string.
+/// We assert that `scale >= 0` and `precision > scale`, but this will be enforced
+/// when constructing Parquet schema.
+#[inline]
+fn convert_decimal_to_string(decimal: &Decimal) -> String {
+  assert!(decimal.scale() >= 0 && decimal.precision() > decimal.scale());
+
+  // Specify as signed bytes to resolve sign as part of conversion.
+  let num = BigInt::from_signed_bytes_be(decimal.data());
+
+  // Offset of the first digit in a string.
+  let negative = if num.sign() == Sign::Minus { 1 } else { 0 };
+  let mut num_str = num.to_string();
+  let mut point = num_str.len() as i32 - decimal.scale() - negative;
+
+  // Convert to string form without scientific notation.
+  if point <= 0 {
+    // Zeros need to be prepended to the unscaled value.
+    while point < 0 {
+      num_str.insert(negative as usize, '0');
+      point += 1;
+    }
+    num_str.insert_str(negative as usize, "0.");
+  } else {
+    // No zeroes need to be prepended to the unscaled value, simply insert decimal point.
+    num_str.insert((point + negative) as usize, '.');
+  }
+
+  num_str
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -520,6 +594,16 @@ mod tests {
     ($physical_type:expr, $logical_type:expr) => ({
       let tpe = PrimitiveTypeBuilder::new("col", $physical_type)
         .with_logical_type($logical_type)
+        .build()
+        .unwrap();
+      Rc::new(ColumnDescriptor::new(Rc::new(tpe), None, 0, 0, ColumnPath::from("col")))
+    });
+    ($physical_type:expr, $logical_type:expr, $len:expr, $prec:expr, $scale:expr) => ({
+      let tpe = PrimitiveTypeBuilder::new("col", $physical_type)
+        .with_logical_type($logical_type)
+        .with_length($len)
+        .with_precision($prec)
+        .with_scale($scale)
         .build()
         .unwrap();
       Rc::new(ColumnDescriptor::new(Rc::new(tpe), None, 0, 0, ColumnPath::from("col")))
@@ -559,6 +643,10 @@ mod tests {
     let descr = make_column_descr![PhysicalType::INT32, LogicalType::DATE];
     let row = Field::convert_int32(&descr, 14611);
     assert_eq!(row, Field::Date(14611));
+
+    let descr = make_column_descr![PhysicalType::INT32, LogicalType::DECIMAL, 0, 8, 2];
+    let row = Field::convert_int32(&descr, 444);
+    assert_eq!(row, Field::Decimal(Decimal::from_i32(444, 8, 2)));
   }
 
   #[test]
@@ -570,6 +658,10 @@ mod tests {
     let descr = make_column_descr![PhysicalType::INT64, LogicalType::NONE];
     let row = Field::convert_int64(&descr, 2222);
     assert_eq!(row, Field::Long(2222));
+
+    let descr = make_column_descr![PhysicalType::INT64, LogicalType::DECIMAL, 0, 8, 2];
+    let row = Field::convert_int64(&descr, 3333);
+    assert_eq!(row, Field::Decimal(Decimal::from_i64(3333, 8, 2)));
   }
 
   #[test]
@@ -633,6 +725,20 @@ mod tests {
     let value = ByteArray::from(vec![1, 2, 3, 4, 5]);
     let row = Field::convert_byte_array(&descr, value.clone());
     assert_eq!(row, Field::Bytes(value));
+
+    // DECIMAL
+    let descr = make_column_descr![
+      PhysicalType::BYTE_ARRAY, LogicalType::DECIMAL, 0, 8, 2];
+    let value = ByteArray::from(vec![207, 200]);
+    let row = Field::convert_byte_array(&descr, value.clone());
+    assert_eq!(row, Field::Decimal(Decimal::from_bytes(value, 8, 2)));
+
+    // DECIMAL (FIXED_LEN_BYTE_ARRAY)
+    let descr = make_column_descr![
+      PhysicalType::FIXED_LEN_BYTE_ARRAY, LogicalType::DECIMAL, 8, 17, 5];
+    let value = ByteArray::from(vec![0, 0, 0, 0, 0, 4, 147, 224]);
+    let row = Field::convert_byte_array(&descr, value.clone());
+    assert_eq!(row, Field::Decimal(Decimal::from_bytes(value, 17, 5)));
   }
 
   #[test]
@@ -670,6 +776,29 @@ mod tests {
   }
 
   #[test]
+  fn test_convert_decimal_to_string() {
+    // Helper method to compare decimal
+    fn check_decimal(bytes: Vec<u8>, precision: i32, scale: i32, res: &str) {
+      let decimal = Decimal::from_bytes(ByteArray::from(bytes), precision, scale);
+      assert_eq!(convert_decimal_to_string(&decimal), res);
+    }
+
+    // This example previously used to fail in some engines
+    check_decimal(
+      vec![0, 0, 0, 0, 0, 0, 0, 0, 13, 224, 182, 179, 167, 100, 0, 0], 38, 18,
+      "1.000000000000000000"
+    );
+    check_decimal(
+      vec![249, 233, 247, 16, 185, 192, 202, 223, 215, 165, 192, 166, 67, 72], 36, 28,
+      "-12344.0242342304923409234234293432"
+    );
+    check_decimal(vec![0, 0, 0, 0, 0, 4, 147, 224], 17, 5, "3.00000");
+    check_decimal(vec![0, 0, 0, 0, 1, 201, 195, 140], 18, 2, "300000.12");
+    check_decimal(vec![207, 200], 10, 2, "-123.44");
+    check_decimal(vec![207, 200], 10, 8, "-0.00012344");
+  }
+
+  #[test]
   fn test_row_display() {
     // Primitive types
     assert_eq!(format!("{}", Field::Null), "null");
@@ -689,6 +818,10 @@ mod tests {
     assert_eq!(
       format!("{}", Field::Timestamp(1262391174000)),
       convert_timestamp_to_string(1262391174000)
+    );
+    assert_eq!(
+      format!("{}", Field::Decimal(Decimal::from_i32(4, 8, 2))),
+      convert_decimal_to_string(&Decimal::from_i32(4, 8, 2))
     );
 
     // Complex types
@@ -736,9 +869,7 @@ mod tests {
     assert!(Field::Str("abc".to_string()).is_primitive());
     assert!(Field::Bytes(ByteArray::from(vec![1, 2, 3])).is_primitive());
     assert!(Field::Timestamp(12345678).is_primitive());
-
-    let value = ByteArray::from(vec![1, 2, 3, 4, 5]);
-    assert!(Field::Bytes(value).is_primitive());
+    assert!(Field::Decimal(Decimal::from_i32(4, 8, 2)).is_primitive());
 
     // complex types
     assert_eq!(false, Field::Group(make_row(vec![
@@ -775,7 +906,8 @@ mod tests {
       ("g".to_string(), Field::Float(7.1)),
       ("h".to_string(), Field::Double(8.1)),
       ("i".to_string(), Field::Str("abc".to_string())),
-      ("j".to_string(), Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5])))
+      ("j".to_string(), Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5]))),
+      ("k".to_string(), Field::Decimal(Decimal::from_i32(4, 7, 2)))
     ]);
 
     assert_eq!(false, row.get_bool(1).unwrap());
@@ -785,8 +917,9 @@ mod tests {
     assert_eq!(6, row.get_long(5).unwrap());
     assert_eq!(7.1, row.get_float(6).unwrap());
     assert_eq!(8.1, row.get_double(7).unwrap());
-    assert!("abc".to_string().eq(row.get_string(8).unwrap()));
+    assert_eq!("abc", row.get_string(8).unwrap());
     assert_eq!(5, row.get_bytes(9).unwrap().len());
+    assert_eq!(7, row.get_decimal(10).unwrap().precision());
   }
 
   #[test]
@@ -802,10 +935,11 @@ mod tests {
       ("g".to_string(), Field::Float(7.1)),
       ("h".to_string(), Field::Double(8.1)),
       ("i".to_string(), Field::Str("abc".to_string())),
-      ("j".to_string(), Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5])))
+      ("j".to_string(), Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5]))),
+      ("k".to_string(), Field::Decimal(Decimal::from_i32(4, 7, 2)))
     ]);
 
-    for i in 0..10 {
+    for i in 0..row.len() {
       assert!(row.get_group(i).is_err());
     }
   }
@@ -892,6 +1026,9 @@ mod tests {
 
     let list = make_list(vec![Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5]))]);
     assert_eq!(&[1, 2, 3, 4, 5], list.get_bytes(0).unwrap().data());
+
+    let list = make_list(vec![Field::Decimal(Decimal::from_i32(4, 5, 2))]);
+    assert_eq!(&[0, 0, 0, 4], list.get_decimal(0).unwrap().data());
   }
 
   #[test]
@@ -922,6 +1059,9 @@ mod tests {
     assert!(list.get_bytes(0).is_err());
 
     let list = make_list(vec![Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5]))]);
+    assert!(list.get_bool(0).is_err());
+
+    let list = make_list(vec![Field::Decimal(Decimal::from_i32(4, 5, 2))]);
     assert!(list.get_bool(0).is_err());
   }
 

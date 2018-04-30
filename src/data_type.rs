@@ -21,6 +21,7 @@
 use std::mem;
 
 use basic::Type;
+use byteorder::{BigEndian, ByteOrder};
 use rand::{Rand, Rng};
 use util::memory::{ByteBuffer, ByteBufferPtr};
 
@@ -147,7 +148,6 @@ impl Default for ByteArray {
   }
 }
 
-
 impl PartialEq for ByteArray {
   fn eq(&self, other: &ByteArray) -> bool {
     self.data() == other.data()
@@ -166,6 +166,83 @@ impl Rand for ByteArray {
     result
   }
 }
+
+/// Rust representation for Decimal values.
+///
+/// This is not a representation of Parquet physical type, but rather a wrapper for
+/// DECIMAL logical type, and serves as container for raw parts of decimal values:
+/// unscaled value in bytes, precision and scale.
+#[derive(Clone, Debug)]
+pub enum Decimal {
+  /// Decimal backed by `i32`.
+  Int32 { value: [u8; 4], precision: i32, scale: i32 },
+  /// Decimal backed by `i64`.
+  Int64 { value: [u8; 8], precision: i32, scale: i32 },
+  /// Decimal backed by byte array.
+  Bytes { value: ByteArray, precision: i32, scale: i32 }
+}
+
+impl Decimal {
+  /// Creates new decimal value from `i32`.
+  pub fn from_i32(value: i32, precision: i32, scale: i32) -> Self {
+    let mut bytes = [0; 4];
+    BigEndian::write_i32(&mut bytes, value);
+    Decimal::Int32 { value: bytes, precision: precision, scale: scale }
+  }
+
+  /// Creates new decimal value from `i64`.
+  pub fn from_i64(value: i64, precision: i32, scale: i32) -> Self {
+    let mut bytes = [0; 8];
+    BigEndian::write_i64(&mut bytes, value);
+    Decimal::Int64 { value: bytes, precision: precision, scale: scale }
+  }
+
+  /// Creates new decimal value from `ByteArray`.
+  pub fn from_bytes(value: ByteArray, precision: i32, scale: i32) -> Self {
+    Decimal::Bytes { value: value, precision: precision, scale: scale }
+  }
+
+  /// Returns bytes of unscaled value.
+  pub fn data(&self) -> &[u8] {
+    match *self {
+      Decimal::Int32 { ref value, .. } => value,
+      Decimal::Int64 { ref value, .. } => value,
+      Decimal::Bytes { ref value, .. } => value.data()
+    }
+  }
+
+  /// Returns decimal precision.
+  pub fn precision(&self) -> i32 {
+    match *self {
+      Decimal::Int32 { precision, .. } => precision,
+      Decimal::Int64 { precision, .. } => precision,
+      Decimal::Bytes { precision, .. } => precision
+    }
+  }
+
+  /// Returns decimal scale.
+  pub fn scale(&self) -> i32 {
+    match *self {
+      Decimal::Int32 { scale, .. } => scale,
+      Decimal::Int64 { scale, .. } => scale,
+      Decimal::Bytes { scale, .. } => scale
+    }
+  }
+}
+
+impl Default for Decimal {
+  fn default() -> Self {
+    Self::from_i32(0, 0, 0)
+  }
+}
+
+impl PartialEq for Decimal {
+  fn eq(&self, other: &Decimal) -> bool {
+    self.precision() == other.precision() && self.scale() == other.scale() &&
+      self.data() == other.data()
+  }
+}
+
 
 /// Converts an instance of data type to a slice of bytes as `u8`.
 pub trait AsBytes {
@@ -205,6 +282,12 @@ impl AsBytes for Int96 {
 }
 
 impl AsBytes for ByteArray {
+  fn as_bytes(&self) -> &[u8] {
+    self.data()
+  }
+}
+
+impl AsBytes for Decimal {
   fn as_bytes(&self) -> &[u8] {
     self.data()
   }
@@ -306,6 +389,14 @@ mod tests {
     // Test ByteArray
     let ba = ByteArray::from(vec![1, 2, 3]);
     assert_eq!(ba.as_bytes(), &[1, 2, 3]);
+
+    // Test Decimal
+    let decimal = Decimal::from_i32(123, 5, 2);
+    assert_eq!(decimal.as_bytes(), &[0, 0, 0, 123]);
+    let decimal = Decimal::from_i64(123, 5, 2);
+    assert_eq!(decimal.as_bytes(), &[0, 0, 0, 0, 0, 0, 0, 123]);
+    let decimal = Decimal::from_bytes(ByteArray::from(vec![1, 2, 3]), 5, 2);
+    assert_eq!(decimal.as_bytes(), &[1, 2, 3]);
   }
 
   #[test]
@@ -327,5 +418,21 @@ mod tests {
     let mut buf = ByteBuffer::new();
     buf.set_data(vec![6u8, 7u8, 8u8, 9u8, 10u8]);
     assert_eq!(ByteArray::from(buf).data(), &[6u8, 7u8, 8u8, 9u8, 10u8]);
+  }
+
+  #[test]
+  fn test_decimal_partial_eq() {
+    assert_eq!(Decimal::default(), Decimal::from_i32(0, 0, 0));
+    assert_eq!(Decimal::from_i32(222, 5, 2), Decimal::from_i32(222, 5, 2));
+    assert_eq!(
+      Decimal::from_bytes(ByteArray::from(vec![0, 0, 0, 3]), 5, 2),
+      Decimal::from_i32(3, 5, 2)
+    );
+
+    assert!(Decimal::from_i32(222, 5, 2) != Decimal::from_i32(111, 5, 2));
+    assert!(Decimal::from_i32(222, 5, 2) != Decimal::from_i32(222, 6, 2));
+    assert!(Decimal::from_i32(222, 5, 2) != Decimal::from_i32(222, 5, 3));
+
+    assert!(Decimal::from_i64(222, 5, 2) != Decimal::from_i32(222, 5, 2));
   }
 }

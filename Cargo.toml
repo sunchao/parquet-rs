@@ -23,6 +23,7 @@ thrift = "0.0.4"
 x86intrin = "0.4.3"
 chrono = "0.4"
 lz4 = "1.22"
+num-bigint = "0.1"
 
 [dev-dependencies]
 lazy_static = "1"
