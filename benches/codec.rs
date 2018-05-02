@@ -146,6 +146,15 @@ compress!(compress_lz4_double, Compression::LZ4, 5);
 compress!(compress_lz4_fixed, Compression::LZ4, 6);
 compress!(compress_lz4_int96, Compression::LZ4, 7);
 
+compress!(compress_zstd_binary, Compression::ZSTD, 0);
+compress!(compress_zstd_int32, Compression::ZSTD, 1);
+compress!(compress_zstd_int64, Compression::ZSTD, 2);
+compress!(compress_zstd_boolean, Compression::ZSTD, 3);
+compress!(compress_zstd_float, Compression::ZSTD, 4);
+compress!(compress_zstd_double, Compression::ZSTD, 5);
+compress!(compress_zstd_fixed, Compression::ZSTD, 6);
+compress!(compress_zstd_int96, Compression::ZSTD, 7);
+
 decompress!(decompress_brotli_binary, Compression::BROTLI, 0);
 decompress!(decompress_brotli_int32, Compression::BROTLI, 1);
 decompress!(decompress_brotli_int64, Compression::BROTLI, 2);
@@ -181,3 +190,12 @@ decompress!(decompress_lz4_float, Compression::LZ4, 4);
 decompress!(decompress_lz4_double, Compression::LZ4, 5);
 decompress!(decompress_lz4_fixed, Compression::LZ4, 6);
 decompress!(decompress_lz4_int96, Compression::LZ4, 7);
+
+decompress!(decompress_zstd_binary, Compression::ZSTD, 0);
+decompress!(decompress_zstd_int32, Compression::ZSTD, 1);
+decompress!(decompress_zstd_int64, Compression::ZSTD, 2);
+decompress!(decompress_zstd_boolean, Compression::ZSTD, 3);
+decompress!(decompress_zstd_float, Compression::ZSTD, 4);
+decompress!(decompress_zstd_double, Compression::ZSTD, 5);
+decompress!(decompress_zstd_fixed, Compression::ZSTD, 6);
+decompress!(decompress_zstd_int96, Compression::ZSTD, 7);

@@ -40,7 +40,7 @@
 //! assert_eq!(output, data);
 //! ```
 
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 
 use basic::Compression as CodecType;
 use errors::{Result, ParquetError};
@@ -50,6 +50,7 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use snap::{decompress_len, Decoder, Encoder};
 use lz4;
+use zstd;
 
 /// Parquet compression codec interface.
 pub trait Codec {
@@ -73,6 +74,7 @@ pub fn create_codec(codec: CodecType) -> Result<Option<Box<Codec>>> {
     CodecType::GZIP => Ok(Some(Box::new(GZipCodec::new()))),
     CodecType::SNAPPY => Ok(Some(Box::new(SnappyCodec::new()))),
     CodecType::LZ4 => Ok(Some(Box::new(LZ4Codec::new()))),
+    CodecType::ZSTD => Ok(Some(Box::new(ZSTDCodec::new()))),
     CodecType::UNCOMPRESSED => Ok(None),
     _ => Err(nyi_err!("The codec type {} is not supported yet", codec))
   }
@@ -217,6 +219,37 @@ impl Codec for LZ4Codec {
   }
 }
 
+/// Codec for Zstandard compression algorithm.
+pub struct ZSTDCodec {
+}
+
+impl ZSTDCodec {
+  /// Creates new Zstandard compression codec.
+  fn new() -> Self {
+    Self { }
+  }
+}
+
+/// Compression level (1-21) for ZSTD. Choose 1 here for better compression speed.
+const ZSTD_COMPRESSION_LEVEL: i32 = 1;
+
+impl Codec for ZSTDCodec {
+  fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
+    let mut decoder = zstd::Decoder::new(input_buf)?;
+    match io::copy(&mut decoder, output_buf) {
+      Ok(n) => Ok(n as usize),
+      e => Err(general_err!("Error when decompressing with ZSTD: {:?}", e))
+    }
+  }
+
+  fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
+    let output = Vec::new();
+    let mut encoder = zstd::Encoder::new(output, ZSTD_COMPRESSION_LEVEL)?;
+    encoder.write_all(&input_buf[..])?;
+    encoder.finish()
+      .map_err(|e| general_err!("Error when compressing using ZSTD: {}", e))
+  }
+}
 
 #[cfg(test)]
 mod tests {
@@ -278,4 +311,10 @@ mod tests {
   fn test_codec_lz4() {
     test_codec(CodecType::LZ4);
   }
+
+  #[test]
+  fn test_codec_zstd() {
+    test_codec(CodecType::ZSTD);
+  }
+
 }

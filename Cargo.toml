@@ -24,6 +24,7 @@ x86intrin = "0.4.3"
 chrono = "0.4"
 lz4 = "1.22"
 num-bigint = "0.1"
+zstd = "0.4"
 
 [dev-dependencies]
 lazy_static = "1"

@@ -135,6 +135,7 @@ extern crate parquet_format;
 extern crate chrono;
 extern crate lz4;
 extern crate num_bigint;
+extern crate zstd;
 
 #[macro_use]
 pub mod errors;
