@@ -5,6 +5,8 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![](http://meritbadge.herokuapp.com/parquet)](https://crates.io/crates/parquet)
 [![Documentation](https://docs.rs/parquet/badge.svg)](https://docs.rs/parquet)
+[![Master API docs](https://img.shields.io/badge/docs-master-green.svg)](https://sunchao.github.io/parquet-rs/master/parquet/)
+
 
 An [Apache Parquet](https://parquet.apache.org/) implementation in Rust (work in progress)
 
