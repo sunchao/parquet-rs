@@ -138,7 +138,7 @@ impl Codec for GZipCodec {
 }
 
 const BROTLI_DEFAULT_BUFFER_SIZE: usize = 4096;
-const BROTLI_DEFAULT_COMPRESSION_QUALITY: u32 = 9; // supported levels 0-9
+const BROTLI_DEFAULT_COMPRESSION_QUALITY: u32 = 1; // supported levels 0-9
 const BROTLI_DEFAULT_LG_WINDOW_SIZE: u32 = 22; // recommended between 20-22
 
 /// Codec for Brotli compression algorithm.
@@ -159,15 +159,21 @@ impl Codec for BrotliCodec {
   }
 
   fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
-    let mut buffer = Vec::new();
-    let mut reader = brotli::CompressorReader::new(
-      input_buf,
-      BROTLI_DEFAULT_BUFFER_SIZE,
-      BROTLI_DEFAULT_COMPRESSION_QUALITY,
-      BROTLI_DEFAULT_LG_WINDOW_SIZE
-    );
-    reader.read_to_end(&mut buffer)?;
-    Ok(buffer)
+    let mut output = Vec::new();
+    let result = {
+      let mut encoder = brotli::CompressorWriter::new(
+        &mut output,
+        BROTLI_DEFAULT_BUFFER_SIZE,
+        BROTLI_DEFAULT_COMPRESSION_QUALITY,
+        BROTLI_DEFAULT_LG_WINDOW_SIZE
+      );
+      encoder.write_all(&input_buf[..])?;
+      encoder.flush()
+    };
+    match result {
+      Ok(_) => Ok(output),
+      e => Err(general_err!("Error when compressing with Brotli: {:?}", e))
+    }
   }
 }
 
