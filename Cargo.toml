@@ -1,6 +1,6 @@
 [package]
 name = "parquet"
-version = "0.2.0"
+version = "0.3.0"
 license = "Apache-2.0"
 description = "Apache Parquet implementation in Rust"
 authors = [
