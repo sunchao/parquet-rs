@@ -35,7 +35,7 @@ while let Some(record) = iter.next() {
   println!("{}", record);
 }
 ```
-See crate documentation on available API.
+See [crate documentation](https://sunchao.github.io/parquet-rs/master) on available API.
 
 ## Supported Parquet Version
 - Parquet-format 2.4.0
@@ -51,6 +51,9 @@ to install nightly toolchain and set it as default.
 
 ## Build
 Run `cargo build` or `cargo build --release` to build in release mode.
+Some features take advantage of SSE4.2 instructions, which can be
+enabled by adding `RUSTFLAGS="-C target-feature=+sse4.2"` before the
+`cargo build` command.
 
 ## Test
 Run `cargo test` for unit tests.
@@ -66,6 +69,11 @@ and optional `verbose` is the boolean flag that allows to print full metadata or
 `Usage: parquet-read <file-path> [num-records]`, where `file-path` is the path to a Parquet file,
 and `num-records` is the number of records to read from a file (when not specified all records will
 be printed).
+
+If you see `Library not loaded` error, please make sure `LD_LIBRARY_PATH` is set properly:
+```
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(rustc --print sysroot)/lib
+```
 
 ## Benchmarks
 Run `cargo bench` for benchmarks.
