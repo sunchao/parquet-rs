@@ -79,9 +79,10 @@ macro_rules! compress {
       }
 
       let mut codec = create_codec($codec).unwrap().unwrap();
+      let mut v = vec![];
       bench.bytes = DATA.len() as u64;
       bench.iter(|| {
-        let _ = codec.compress(&DATA[..]).unwrap();
+        codec.compress(&DATA[..], &mut v).unwrap();
       })
     }
   }
@@ -95,7 +96,9 @@ macro_rules! decompress {
         static ref COMPRESSED_PAGES: Vec<u8> = {
           let mut codec = create_codec($codec).unwrap().unwrap();
           let raw_data = get_pages_bytes($col_idx);
-          codec.compress(&raw_data[..]).unwrap()
+          let mut v = vec![];
+          codec.compress(&raw_data[..], &mut v).unwrap();
+          v
         };
       }
 

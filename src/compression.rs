@@ -32,7 +32,8 @@
 //! };
 //!
 //! let data = vec![b'p', b'a', b'r', b'q', b'u', b'e', b't'];
-//! let compressed = codec.compress(&data[..]).unwrap();
+//! let mut compressed = vec![];
+//! codec.compress(&data[..], &mut compressed).unwrap();
 //!
 //! let mut output = vec![];
 //! codec.decompress(&compressed[..], &mut output).unwrap();
@@ -48,17 +49,17 @@ use brotli;
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
-use snap::{decompress_len, Decoder, Encoder};
+use snap::{decompress_len, max_compress_len, Decoder, Encoder};
 use lz4;
 use zstd;
 
 /// Parquet compression codec interface.
 pub trait Codec {
-  /// Compresses data stored in slice `input_buf` and returns a new vector with the
-  /// compressed data.
-  /// TODO: it's better to pass in vec here (e.g., allow reuse),
-  ///   but flate2 api doesn't support this.
-  fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>>;
+  /// Compresses data stored in slice `input_buf` and writes the compressed result
+  /// to `output_buf`.
+  /// Note that you'll need to call `clear()` before reusing the same `output_buf` across
+  /// different `compress` calls.
+  fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()>;
 
   /// Decompresses data stored in slice `input_buf` and writes output to `output_buf`.
   /// Returns the total number of bytes written.
@@ -100,13 +101,17 @@ impl Codec for SnappyCodec {
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
     let len = decompress_len(input_buf)?;
     output_buf.resize(len, 0);
-    self.decoder.decompress(input_buf, output_buf)
-      .map_err(|e| general_err!("Error when decompressing using Snappy: {}", e))
+    self.decoder.decompress(input_buf, output_buf).map_err(|e| e.into())
   }
 
-  fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
-    self.encoder.compress_vec(input_buf)
-      .map_err(|e| general_err!("Error when compressing using Snappy: {}", e))
+  fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+    let required_len = max_compress_len(input_buf.len());
+    if output_buf.len() < required_len {
+      output_buf.resize(required_len, 0);
+    }
+    let n = self.encoder.compress(input_buf, &mut output_buf[..])?;
+    output_buf.truncate(n);
+    Ok(())
   }
 }
 
@@ -123,17 +128,13 @@ impl GZipCodec {
 impl Codec for GZipCodec {
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
     let mut decoder = GzDecoder::new(input_buf)?;
-    decoder
-      .read_to_end(output_buf)
-      .map_err(|e| general_err!("Error when decompressing using GZip: {}", e))
+    decoder.read_to_end(output_buf).map_err(|e| e.into())
   }
 
-  fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::Default);
+  fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+    let mut encoder = GzEncoder::new(output_buf, Compression::Default);
     encoder.write_all(input_buf)?;
-    encoder
-      .finish()
-      .map_err(|e| general_err!("Error when compressing using GZip: {}", e))
+    encoder.try_finish().map_err(|e| e.into())
   }
 }
 
@@ -154,26 +155,18 @@ impl BrotliCodec {
 impl Codec for BrotliCodec {
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
     brotli::Decompressor::new(input_buf, BROTLI_DEFAULT_BUFFER_SIZE)
-      .read_to_end(output_buf)
-      .map_err(|e| general_err!("Error when decompressing using Brotli: {}", e))
+      .read_to_end(output_buf).map_err(|e| e.into())
   }
 
-  fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
-    let mut output = Vec::new();
-    let result = {
-      let mut encoder = brotli::CompressorWriter::new(
-        &mut output,
-        BROTLI_DEFAULT_BUFFER_SIZE,
-        BROTLI_DEFAULT_COMPRESSION_QUALITY,
-        BROTLI_DEFAULT_LG_WINDOW_SIZE
-      );
-      encoder.write_all(&input_buf[..])?;
-      encoder.flush()
-    };
-    match result {
-      Ok(_) => Ok(output),
-      e => Err(general_err!("Error when compressing with Brotli: {:?}", e))
-    }
+  fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+    let mut encoder = brotli::CompressorWriter::new(
+      output_buf,
+      BROTLI_DEFAULT_BUFFER_SIZE,
+      BROTLI_DEFAULT_COMPRESSION_QUALITY,
+      BROTLI_DEFAULT_LG_WINDOW_SIZE
+    );
+    encoder.write_all(&input_buf[..])?;
+    encoder.flush().map_err(|e| e.into())
   }
 }
 
@@ -206,8 +199,8 @@ impl Codec for LZ4Codec {
     Ok(total_len)
   }
 
-  fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
-    let mut encoder = lz4::EncoderBuilder::new().build(Vec::new())?;
+  fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+    let mut encoder = lz4::EncoderBuilder::new().build(output_buf)?;
     let mut from = 0;
     loop {
       let to = ::std::cmp::min(from + LZ4_BUFFER_SIZE, input_buf.len());
@@ -217,11 +210,7 @@ impl Codec for LZ4Codec {
         break;
       }
     }
-    let (v, result) = encoder.finish();
-    match result {
-      Ok(_) => Ok(v),
-      e => Err(general_err!("Error when finishing compressing with LZ4: {:?}", e))
-    }
+    encoder.finish().1.map_err(|e| e.into())
   }
 }
 
@@ -244,16 +233,17 @@ impl Codec for ZSTDCodec {
     let mut decoder = zstd::Decoder::new(input_buf)?;
     match io::copy(&mut decoder, output_buf) {
       Ok(n) => Ok(n as usize),
-      e => Err(general_err!("Error when decompressing with ZSTD: {:?}", e))
+      Err(e) => Err(e.into())
     }
   }
 
-  fn compress(&mut self, input_buf: &[u8]) -> Result<Vec<u8>> {
-    let output = Vec::new();
-    let mut encoder = zstd::Encoder::new(output, ZSTD_COMPRESSION_LEVEL)?;
+  fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
+    let mut encoder = zstd::Encoder::new(output_buf, ZSTD_COMPRESSION_LEVEL)?;
     encoder.write_all(&input_buf[..])?;
-    encoder.finish()
-      .map_err(|e| general_err!("Error when compressing using ZSTD: {}", e))
+    match encoder.finish() {
+      Ok(_) => Ok(()),
+      Err(e) => Err(e.into())
+    }
   }
 }
 
@@ -267,27 +257,28 @@ mod tests {
     let mut c2 = create_codec(c).unwrap().unwrap();
 
     // Compress with c1
+    let mut compressed = Vec::new();
     let mut decompressed = Vec::new();
-    let mut compressed_res = c1.compress(data.as_slice());
-    assert!(compressed_res.is_ok());
-    let mut compressed = compressed_res.unwrap();
+    c1.compress(data.as_slice(), &mut compressed).expect("Error when compressing");
 
     // Decompress with c2
-    let mut decompressed_size = c2.decompress(compressed.as_slice(), &mut decompressed);
-    assert!(decompressed_size.is_ok());
-    decompressed.truncate(decompressed_size.unwrap());
-    assert!(*data == decompressed);
+    let mut decompressed_size = c2.decompress(compressed.as_slice(), &mut decompressed)
+      .expect("Error when decompressing");
+    assert_eq!(data.len(), decompressed_size);
+    decompressed.truncate(decompressed_size);
+    assert_eq!(*data, decompressed);
+
+    compressed.clear();
 
     // Compress with c2
-    compressed_res = c2.compress(data.as_slice());
-    assert!(compressed_res.is_ok());
-    compressed = compressed_res.unwrap();
+    c2.compress(data.as_slice(), &mut compressed).expect("Error when compressing");
 
     // Decompress with c1
-    decompressed_size = c1.decompress(compressed.as_slice(), &mut decompressed);
-    assert!(decompressed_size.is_ok());
-    decompressed.truncate(decompressed_size.unwrap());
-    assert!(*data == decompressed);
+    decompressed_size = c1.decompress(compressed.as_slice(), &mut decompressed)
+      .expect("Error when decompressing");
+    assert_eq!(data.len(), decompressed_size);
+    decompressed.truncate(decompressed_size);
+    assert_eq!(*data, decompressed);
   }
 
   fn test_codec(c: CodecType) {

@@ -421,7 +421,7 @@ impl PageReader for SerializedPageReader {
       // page header size and abort if that is exceeded.
       if let Some(decompressor) = self.decompressor.as_mut() {
         if can_decompress {
-          let mut decompressed_buffer = vec![];
+          let mut decompressed_buffer = Vec::with_capacity(uncompressed_len);
           let decompressed_size =
             decompressor.decompress(&buffer[offset..], &mut decompressed_buffer)?;
           if decompressed_size != uncompressed_len {
