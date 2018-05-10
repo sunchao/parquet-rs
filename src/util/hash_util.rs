@@ -17,17 +17,16 @@
 
 use data_type::AsBytes;
 
-#[cfg(target_feature = "sse4.2")]
-use x86intrin::sse42;
-
 /// Computes hash value for `data`, with a seed value `seed`.
 /// The data type `T` must implement the `AsBytes` trait.
 pub fn hash<T: AsBytes>(data: &T, seed: u32) -> u32 {
-  #[cfg(target_feature = "sse4.2")] {
-    crc32_hash(data, seed)
-  }
-  #[cfg(not(target_feature = "sse4.2"))] {
-    murmur_hash2_64a(data, seed as u64) as u32
+  #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+  {
+    if is_x86_feature_detected!("sse4.2") {
+      unsafe { crc32_hash(data, seed) }
+    } else {
+      murmur_hash2_64a(data, seed as u64) as u32
+    }
   }
 }
 
@@ -75,32 +74,36 @@ fn murmur_hash2_64a<T: AsBytes>(data: &T, seed: u64) -> u64 {
 }
 
 /// CRC32 hash implementation using SSE4 instructions. Borrowed from Impala.
-#[cfg(target_feature = "sse4.2")]
-pub fn crc32_hash<T: AsBytes>(data: &T, seed: u32) -> u32 {
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[target_feature(enable = "sse4.2")]
+unsafe fn crc32_hash<T: AsBytes>(data: &T, seed: u32) -> u32 {
+  #[cfg(target_arch = "x86")]
+  use std::arch::x86::*;
+  #[cfg(target_arch = "x86_64")]
+  use std::arch::x86_64::*;
+
   let bytes: &[u8] = data.as_bytes();
   let u32_num_bytes = ::std::mem::size_of::<u32>();
   let mut num_bytes = bytes.len();
   let num_words = num_bytes / u32_num_bytes;
   num_bytes %= u32_num_bytes;
 
-  let bytes_u32: &[u32] = unsafe {
+  let bytes_u32: &[u32] =
     ::std::slice::from_raw_parts(
       &bytes[0..num_words * u32_num_bytes]
         as *const [u8] as *const u32,
-      num_words
-    )
-  };
+      num_words);
 
   let mut offset = 0;
   let mut hash = seed;
   while offset < num_words {
-    hash = sse42::mm_crc32_u32(hash, bytes_u32[offset]);
+    hash = _mm_crc32_u32(hash, bytes_u32[offset]);
     offset += 1;
   }
 
   offset = num_words * u32_num_bytes;
   while offset < num_bytes {
-    hash = sse42::mm_crc32_u8(hash, bytes[offset]);
+    hash = _mm_crc32_u8(hash, bytes[offset]);
     offset += 1;
   }
 
@@ -128,15 +131,19 @@ mod tests {
   }
 
   #[test]
-  #[cfg(target_feature = "sse4.2")]
+  #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
   fn test_crc32() {
-    let result = crc32_hash(&"hello", 123);
-    assert_eq!(result, 2927487359);
+    if is_x86_feature_detected!("sse4.2") {
+      unsafe {
+        let result = crc32_hash(&"hello", 123);
+        assert_eq!(result, 2927487359);
 
-    let result = crc32_hash(&"helloworld", 123);
-    assert_eq!(result, 314229527);
+        let result = crc32_hash(&"helloworld", 123);
+        assert_eq!(result, 314229527);
 
-    let result = crc32_hash(&"helloworldparquet", 123);
-    assert_eq!(result, 667078870);
+        let result = crc32_hash(&"helloworldparquet", 123);
+        assert_eq!(result, 667078870);
+      }
+    }
   }
 }
