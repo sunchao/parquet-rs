@@ -43,6 +43,18 @@ See [crate documentation](https://sunchao.github.io/parquet-rs/master) on availa
 To update Parquet format to a newer version, check if [parquet-format](https://github.com/sunchao/parquet-format-rs)
 version is available. Then simply update version of `parquet-format` crate in Cargo.toml.
 
+## Features
+- [X] All encodings supported
+- [X] All compression codecs supported
+- [X] Read support
+  - [X] Primitive column value readers
+  - [X] Row record reader
+  - [ ] Arrow record reader
+- [X] Statistics support
+- [ ] Write support
+- [ ] Predicate pushdown
+- [ ] Parquet format 2.5 support
+
 ## Requirements
 - Rust nightly
 
