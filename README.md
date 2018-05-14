@@ -54,6 +54,7 @@ version is available. Then simply update version of `parquet-format` crate in Ca
 - [ ] Write support
 - [ ] Predicate pushdown
 - [ ] Parquet format 2.5 support
+- [ ] HDFS support
 
 ## Requirements
 - Rust nightly
