@@ -154,6 +154,8 @@
 <span id="154">154</span>
 <span id="155">155</span>
 <span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -286,12 +288,14 @@
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">snap</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">brotli</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">flate2</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">rand</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">parquet_format</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">chrono</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">lz4</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">num_bigint</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">zstd</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">rand</span>;
 
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">errors</span>;
