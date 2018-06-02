@@ -129,12 +129,14 @@ extern crate arena;
 extern crate snap;
 extern crate brotli;
 extern crate flate2;
-extern crate rand;
 extern crate parquet_format;
 extern crate chrono;
 extern crate lz4;
 extern crate num_bigint;
 extern crate zstd;
+
+#[cfg(test)]
+extern crate rand;
 
 #[macro_use]
 pub mod errors;

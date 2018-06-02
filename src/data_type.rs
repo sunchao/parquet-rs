@@ -22,7 +22,6 @@ use std::mem;
 
 use basic::Type;
 use byteorder::{BigEndian, ByteOrder};
-use rand::{Rand, Rng};
 use util::memory::{ByteBuffer, ByteBufferPtr};
 
 /// Rust representation for logical type INT96, value is backed by an array of `u32`.
@@ -67,14 +66,6 @@ impl From<Vec<u32>> for Int96 {
     assert_eq!(buf.len(), 3);
     let mut result = Self::new();
     result.set_data(buf[0], buf[1], buf[2]);
-    result
-  }
-}
-
-impl Rand for Int96 {
-  fn rand<R: Rng>(rng: &mut R) -> Self {
-    let mut result = Self::new();
-    result.set_data(rng.gen::<u32>(), rng.gen::<u32>(), rng.gen::<u32>());
     result
   }
 }
@@ -151,19 +142,6 @@ impl Default for ByteArray {
 impl PartialEq for ByteArray {
   fn eq(&self, other: &ByteArray) -> bool {
     self.data() == other.data()
-  }
-}
-
-impl Rand for ByteArray {
-  fn rand<R: Rng>(rng: &mut R) -> Self {
-    let mut result = ByteArray::new();
-    let mut value = vec![];
-    let len = rng.gen_range::<usize>(0, 128);
-    for _ in 0..len {
-      value.push(rng.gen_range(0, 255) & 0xFF);
-    }
-    result.set_data(ByteBufferPtr::new(value));
-    result
   }
 }
 
@@ -315,7 +293,7 @@ impl AsBytes for str {
 /// presentation.
 pub trait DataType {
   type T: ::std::cmp::PartialEq + ::std::fmt::Debug + ::std::default::Default
-    + ::std::clone::Clone + Rand + AsBytes;
+    + ::std::clone::Clone + AsBytes;
 
   /// Returns Parquet physical type.
   fn get_physical_type() -> Type;

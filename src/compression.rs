@@ -46,9 +46,7 @@ use std::io::{self, Read, Write};
 use basic::Compression as CodecType;
 use errors::{Result, ParquetError};
 use brotli;
-use flate2::Compression;
-use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
+use flate2::{Compression, read, write};
 use snap::{decompress_len, max_compress_len, Decoder, Encoder};
 use lz4;
 use zstd;
@@ -127,12 +125,12 @@ impl GZipCodec {
 
 impl Codec for GZipCodec {
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
-    let mut decoder = GzDecoder::new(input_buf)?;
+    let mut decoder = read::GzDecoder::new(input_buf);
     decoder.read_to_end(output_buf).map_err(|e| e.into())
   }
 
   fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
-    let mut encoder = GzEncoder::new(output_buf, Compression::Default);
+    let mut encoder = write::GzEncoder::new(output_buf, Compression::default());
     encoder.write_all(input_buf)?;
     encoder.try_finish().map_err(|e| e.into())
   }

@@ -14,16 +14,16 @@ keywords = ["parquet", "hadoop"]
 
 [dependencies]
 parquet-format = "2.4.0"
-quick-error = "1.2.1"
+quick-error = "1.2.2"
 byteorder = "1"
-snap = "0.2"
-brotli = "2.0.1"
-flate2 = "0.2"
 thrift = "0.0.4"
-chrono = "0.4"
+snap = "0.2"
+brotli = "2.2.1"
+flate2 = "1.0.1"
 lz4 = "1.22"
-num-bigint = "0.1"
 zstd = "0.4"
+chrono = "0.4"
+num-bigint = "0.2"
 
 [dev-dependencies]
 lazy_static = "1"
