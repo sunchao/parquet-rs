@@ -1125,6 +1125,7 @@
 <span id="1125">1125</span>
 <span id="1126">1126</span>
 <span id="1127">1127</span>
+<span id="1128">1128</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -1191,7 +1192,7 @@
       <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PlainEncoder</span>::<span class="ident">new</span>(<span class="ident">desc</span>, <span class="ident">mem_tracker</span>, <span class="macro">vec</span><span class="macro">!</span>[]))
     },
     <span class="ident">Encoding</span>::<span class="ident">RLE_DICTIONARY</span> <span class="op">|</span> <span class="ident">Encoding</span>::<span class="ident">PLAIN_DICTIONARY</span> <span class="op">=&gt;</span> {
-      <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DictEncoder</span>::<span class="ident">new</span>(<span class="ident">desc</span>, <span class="ident">mem_tracker</span>))
+      <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;Cannot initialize this encoding through this function&quot;</span>))
     },
     <span class="ident">Encoding</span>::<span class="ident">RLE</span> <span class="op">=&gt;</span> {
       <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">RleValueEncoder</span>::<span class="ident">new</span>())
@@ -1205,7 +1206,7 @@
     <span class="ident">Encoding</span>::<span class="ident">DELTA_BYTE_ARRAY</span> <span class="op">=&gt;</span> {
       <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaByteArrayEncoder</span>::<span class="ident">new</span>())
     },
-    <span class="ident">e</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">nyi_err</span><span class="macro">!</span>(<span class="string">&quot;Encoding {} is not supported.&quot;</span>, <span class="ident">e</span>))
+    <span class="ident">e</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">nyi_err</span><span class="macro">!</span>(<span class="string">&quot;Encoding {} is not supported&quot;</span>, <span class="ident">e</span>))
   };
   <span class="prelude-val">Ok</span>(<span class="ident">encoder</span>)
 }
@@ -2028,12 +2029,38 @@
 <span class="kw">mod</span> <span class="ident">tests</span> {
   <span class="kw">use</span> <span class="kw">super</span>::<span class="kw">super</span>::<span class="ident">decoding</span>::<span class="kw-2">*</span>;
   <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-  <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">types</span>::{<span class="ident">ColumnDescriptor</span>, <span class="ident">ColumnPath</span>, <span class="ident">Type</span> <span class="kw">as</span> <span class="ident">SchemaType</span>};
+  <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">types</span>::{<span class="ident">ColumnDescriptor</span>, <span class="ident">ColumnDescPtr</span>, <span class="ident">ColumnPath</span>, <span class="ident">Type</span> <span class="kw">as</span> <span class="ident">SchemaType</span>};
   <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
   <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">memory</span>::<span class="ident">MemTracker</span>;
   <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">test_common</span>::<span class="ident">RandGen</span>;
 
   <span class="kw">const</span> <span class="ident">TEST_SET_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">1024</span>;
+
+  <span class="attribute">#[<span class="ident">test</span>]</span>
+  <span class="kw">fn</span> <span class="ident">test_get_encoders</span>() {
+    <span class="comment">// supported encodings</span>
+    <span class="ident">create_and_check_encoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(<span class="ident">Encoding</span>::<span class="ident">PLAIN</span>, <span class="prelude-val">None</span>);
+    <span class="ident">create_and_check_encoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(<span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span>, <span class="prelude-val">None</span>);
+    <span class="ident">create_and_check_encoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(<span class="ident">Encoding</span>::<span class="ident">DELTA_LENGTH_BYTE_ARRAY</span>, <span class="prelude-val">None</span>);
+    <span class="ident">create_and_check_encoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(<span class="ident">Encoding</span>::<span class="ident">DELTA_BYTE_ARRAY</span>, <span class="prelude-val">None</span>);
+    <span class="ident">create_and_check_encoder</span>::<span class="op">&lt;</span><span class="ident">BoolType</span><span class="op">&gt;</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="prelude-val">None</span>);
+
+    <span class="comment">// error when initializing</span>
+    <span class="ident">create_and_check_encoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(
+      <span class="ident">Encoding</span>::<span class="ident">RLE_DICTIONARY</span>,
+      <span class="prelude-val">Some</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;Cannot initialize this encoding through this function&quot;</span>))
+    );
+    <span class="ident">create_and_check_encoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(
+      <span class="ident">Encoding</span>::<span class="ident">PLAIN_DICTIONARY</span>,
+      <span class="prelude-val">Some</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;Cannot initialize this encoding through this function&quot;</span>))
+    );
+
+    <span class="comment">// unsupported</span>
+    <span class="ident">create_and_check_encoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(
+      <span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>,
+      <span class="prelude-val">Some</span>(<span class="macro">nyi_err</span><span class="macro">!</span>(<span class="string">&quot;Encoding BIT_PACKED is not supported&quot;</span>))
+    );
+  }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_bool</span>() {
@@ -2092,7 +2119,9 @@
   <span class="kw">trait</span> <span class="ident">EncodingTester</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">test</span>(<span class="ident">enc</span>: <span class="ident">Encoding</span>, <span class="ident">total</span>: <span class="ident">usize</span>, <span class="ident">type_length</span>: <span class="ident">i32</span>) {
       <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">enc</span> {
-        <span class="ident">Encoding</span>::<span class="ident">PLAIN_DICTIONARY</span> <span class="op">=&gt;</span> <span class="self">Self</span>::<span class="ident">test_dict_internal</span>(<span class="ident">total</span>, <span class="ident">type_length</span>),
+        <span class="ident">Encoding</span>::<span class="ident">PLAIN_DICTIONARY</span> <span class="op">|</span> <span class="ident">Encoding</span>::<span class="ident">RLE_DICTIONARY</span> <span class="op">=&gt;</span>{
+          <span class="self">Self</span>::<span class="ident">test_dict_internal</span>(<span class="ident">total</span>, <span class="ident">type_length</span>)
+        },
         <span class="ident">enc</span> @ <span class="kw">_</span> <span class="op">=&gt;</span> <span class="self">Self</span>::<span class="ident">test_internal</span>(<span class="ident">enc</span>, <span class="ident">total</span>, <span class="ident">type_length</span>)
       };
 
@@ -2174,79 +2203,52 @@
     }
   }
 
-  <span class="kw">fn</span> <span class="ident">create_test_col_desc</span>(<span class="ident">type_len</span>: <span class="ident">i32</span>, <span class="ident">t</span>: <span class="ident">Type</span>) <span class="op">-&gt;</span> <span class="ident">ColumnDescriptor</span> {
+  <span class="kw">fn</span> <span class="ident">create_and_check_encoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">DataType</span><span class="op">&gt;</span>(
+    <span class="ident">encoding</span>: <span class="ident">Encoding</span>, <span class="ident">err</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ParquetError</span><span class="op">&gt;</span>
+  ) {
+    <span class="kw">let</span> <span class="ident">descr</span> <span class="op">=</span> <span class="ident">create_test_col_desc_ptr</span>(<span class="op">-</span><span class="number">1</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
+    <span class="kw">let</span> <span class="ident">mem_tracker</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">MemTracker</span>::<span class="ident">new</span>());
+    <span class="kw">let</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">get_encoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">descr</span>, <span class="ident">encoding</span>, <span class="ident">mem_tracker</span>);
+    <span class="kw">match</span> <span class="ident">err</span> {
+      <span class="prelude-val">Some</span>(<span class="ident">parquet_error</span>) <span class="op">=&gt;</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">encoder</span>.<span class="ident">is_err</span>());
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">encoder</span>.<span class="ident">err</span>().<span class="ident">unwrap</span>(), <span class="ident">parquet_error</span>);
+      },
+      <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">encoder</span>.<span class="ident">is_ok</span>());
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">encoder</span>.<span class="ident">unwrap</span>().<span class="ident">encoding</span>(), <span class="ident">encoding</span>);
+      }
+    }
+  }
+
+  <span class="comment">// Creates test column descriptor.</span>
+  <span class="kw">fn</span> <span class="ident">create_test_col_desc_ptr</span>(<span class="ident">type_len</span>: <span class="ident">i32</span>, <span class="ident">t</span>: <span class="ident">Type</span>) <span class="op">-&gt;</span> <span class="ident">ColumnDescPtr</span> {
     <span class="kw">let</span> <span class="ident">ty</span> <span class="op">=</span> <span class="ident">SchemaType</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;t&quot;</span>, <span class="ident">t</span>)
       .<span class="ident">with_length</span>(<span class="ident">type_len</span>)
       .<span class="ident">build</span>()
       .<span class="ident">unwrap</span>();
-    <span class="ident">ColumnDescriptor</span>::<span class="ident">new</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">ty</span>), <span class="prelude-val">None</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="ident">ColumnPath</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[]))
+    <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">ColumnDescriptor</span>::<span class="ident">new</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">ty</span>), <span class="prelude-val">None</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="ident">ColumnPath</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[])))
   }
 
   <span class="kw">fn</span> <span class="ident">create_test_encoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
     <span class="ident">type_len</span>: <span class="ident">i32</span>, <span class="ident">enc</span>: <span class="ident">Encoding</span>
   ) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Encoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="lifetime">&#39;static</span> {
-    <span class="kw">let</span> <span class="ident">desc</span> <span class="op">=</span> <span class="ident">create_test_col_desc</span>(<span class="ident">type_len</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
+    <span class="kw">let</span> <span class="ident">desc</span> <span class="op">=</span> <span class="ident">create_test_col_desc_ptr</span>(<span class="ident">type_len</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
     <span class="kw">let</span> <span class="ident">mem_tracker</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">MemTracker</span>::<span class="ident">new</span>());
-    <span class="kw">let</span> <span class="ident">encoder</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Encoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">enc</span> {
-      <span class="ident">Encoding</span>::<span class="ident">PLAIN</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PlainEncoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">desc</span>), <span class="ident">mem_tracker</span>, <span class="macro">vec</span><span class="macro">!</span>[]))
-      },
-      <span class="ident">Encoding</span>::<span class="ident">PLAIN_DICTIONARY</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DictEncoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">desc</span>), <span class="ident">mem_tracker</span>))
-      },
-      <span class="ident">Encoding</span>::<span class="ident">RLE</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">RleValueEncoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>())
-      },
-      <span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaBitPackEncoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>())
-      },
-      <span class="ident">Encoding</span>::<span class="ident">DELTA_LENGTH_BYTE_ARRAY</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaLengthByteArrayEncoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>())
-      },
-      <span class="ident">Encoding</span>::<span class="ident">DELTA_BYTE_ARRAY</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaByteArrayEncoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>())
-      },
-      <span class="kw">_</span> <span class="op">=&gt;</span> {
-        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Not implemented yet.&quot;</span>);
-      }
-    };
-    <span class="ident">encoder</span>
+    <span class="ident">get_encoder</span>(<span class="ident">desc</span>, <span class="ident">enc</span>, <span class="ident">mem_tracker</span>).<span class="ident">unwrap</span>()
   }
 
   <span class="kw">fn</span> <span class="ident">create_test_decoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
     <span class="ident">type_len</span>: <span class="ident">i32</span>, <span class="ident">enc</span>: <span class="ident">Encoding</span>
   ) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="lifetime">&#39;static</span> {
-    <span class="kw">let</span> <span class="ident">desc</span> <span class="op">=</span> <span class="ident">create_test_col_desc</span>(<span class="ident">type_len</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
-    <span class="kw">let</span> <span class="ident">decoder</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">enc</span> {
-      <span class="ident">Encoding</span>::<span class="ident">PLAIN</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PlainDecoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">desc</span>.<span class="ident">type_length</span>()))
-      },
-      <span class="ident">Encoding</span>::<span class="ident">PLAIN_DICTIONARY</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DictDecoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>())
-      },
-      <span class="ident">Encoding</span>::<span class="ident">RLE</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">RleValueDecoder</span>::<span class="ident">new</span>())
-      },
-      <span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaBitPackDecoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>())
-      },
-      <span class="ident">Encoding</span>::<span class="ident">DELTA_LENGTH_BYTE_ARRAY</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaLengthByteArrayDecoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>())
-      },
-      <span class="ident">Encoding</span>::<span class="ident">DELTA_BYTE_ARRAY</span> <span class="op">=&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaByteArrayDecoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>())
-      },
-      <span class="kw">_</span> <span class="op">=&gt;</span> {
-        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Not implemented yet.&quot;</span>);
-      }
-    };
-    <span class="ident">decoder</span>
+    <span class="kw">let</span> <span class="ident">desc</span> <span class="op">=</span> <span class="ident">create_test_col_desc_ptr</span>(<span class="ident">type_len</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
+    <span class="ident">get_decoder</span>(<span class="ident">desc</span>, <span class="ident">enc</span>).<span class="ident">unwrap</span>()
   }
 
   <span class="kw">fn</span> <span class="ident">create_test_dict_encoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(<span class="ident">type_len</span>: <span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="ident">DictEncoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">desc</span> <span class="op">=</span> <span class="ident">create_test_col_desc</span>(<span class="ident">type_len</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
+    <span class="kw">let</span> <span class="ident">desc</span> <span class="op">=</span> <span class="ident">create_test_col_desc_ptr</span>(<span class="ident">type_len</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
     <span class="kw">let</span> <span class="ident">mem_tracker</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">MemTracker</span>::<span class="ident">new</span>());
-    <span class="ident">DictEncoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">desc</span>), <span class="ident">mem_tracker</span>)
+    <span class="ident">DictEncoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">desc</span>, <span class="ident">mem_tracker</span>)
   }
 
   <span class="kw">fn</span> <span class="ident">create_test_dict_decoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>() <span class="op">-&gt;</span> <span class="ident">DictDecoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
