@@ -862,7 +862,7 @@ impl<> Decoder<FixedLenByteArrayType> for DeltaByteArrayDecoder<FixedLenByteArra
 mod tests {
   use super::super::encoding::*;
   use super::*;
-  use schema::types::{ColumnDescriptor, ColumnPath, Type as Tpe};
+  use schema::types::{ColumnDescriptor, ColumnDescPtr, ColumnPath, Type as SchemaType};
   use std::mem;
   use std::rc::Rc;
   use util::bit_util::set_array_bit;
@@ -872,24 +872,24 @@ mod tests {
   #[test]
   fn test_get_decoders() {
     // supported encodings
-    test_get_decoder::<Int32Type>(Encoding::PLAIN, None);
-    test_get_decoder::<Int32Type>(Encoding::DELTA_BINARY_PACKED, None);
-    test_get_decoder::<Int32Type>(Encoding::DELTA_LENGTH_BYTE_ARRAY, None);
-    test_get_decoder::<Int32Type>(Encoding::DELTA_BYTE_ARRAY, None);
-    test_get_decoder::<BoolType>(Encoding::RLE, None);
+    create_and_check_decoder::<Int32Type>(Encoding::PLAIN, None);
+    create_and_check_decoder::<Int32Type>(Encoding::DELTA_BINARY_PACKED, None);
+    create_and_check_decoder::<Int32Type>(Encoding::DELTA_LENGTH_BYTE_ARRAY, None);
+    create_and_check_decoder::<Int32Type>(Encoding::DELTA_BYTE_ARRAY, None);
+    create_and_check_decoder::<BoolType>(Encoding::RLE, None);
 
     // error when initializing
-    test_get_decoder::<Int32Type>(
+    create_and_check_decoder::<Int32Type>(
       Encoding::RLE_DICTIONARY,
       Some(general_err!("Cannot initialize this encoding through this function"))
     );
-    test_get_decoder::<Int32Type>(
+    create_and_check_decoder::<Int32Type>(
       Encoding::PLAIN_DICTIONARY,
       Some(general_err!("Cannot initialize this encoding through this function"))
     );
 
     // unsupported
-    test_get_decoder::<Int32Type>(
+    create_and_check_decoder::<Int32Type>(
       Encoding::BIT_PACKED,
       Some(nyi_err!("Encoding BIT_PACKED is not supported"))
     );
@@ -1189,31 +1189,6 @@ mod tests {
     test_delta_byte_array_decode(data);
   }
 
-  // Test column descriptor for the column.
-  // Used for testing of Int32Type decoders and as a placeholder for delta encodings.
-  fn get_test_column_desc_ptr() -> ColumnDescPtr {
-    let type_ptr =
-      Rc::new(Tpe::primitive_type_builder("col", Type::INT32).build().unwrap());
-    Rc::new(ColumnDescriptor::new(type_ptr, None, 0, 0, ColumnPath::from("col")))
-  }
-
-  fn test_get_decoder<T: 'static + DataType>(
-    encoding: Encoding, err: Option<ParquetError>
-  ) {
-    let descr = get_test_column_desc_ptr();
-    let decoder = get_decoder::<T>(descr, encoding);
-    match err {
-      Some(parquet_error) => {
-        assert!(decoder.is_err());
-        assert_eq!(decoder.err().unwrap(), parquet_error);
-      },
-      None => {
-        assert!(decoder.is_ok());
-        assert_eq!(decoder.unwrap().encoding(), encoding);
-      }
-    }
-  }
-
   fn test_plain_decode<T: DataType>(
     data: ByteBufferPtr,
     num_values: usize,
@@ -1250,8 +1225,12 @@ mod tests {
     data: Vec<Vec<T::T>>,
     encoding: Encoding
   ) {
+    // Type length should not really matter for encode/decode test,
+    // otherwise change it based on type
+    let col_descr = create_test_col_desc_ptr(-1, T::get_physical_type());
+
     // Encode data
-    let mut encoder = get_encoder::<T>(get_test_column_desc_ptr(), encoding,
+    let mut encoder = get_encoder::<T>(col_descr.clone(), encoding,
       Rc::new(MemTracker::new())).expect("get encoder");
 
     for v in &data[..] {
@@ -1263,7 +1242,7 @@ mod tests {
     let expected: Vec<T::T> = data.iter().flat_map(|s| s.clone()).collect();
 
     // Decode data and compare with original
-    let mut decoder = get_decoder::<T>(get_test_column_desc_ptr(), encoding)
+    let mut decoder = get_decoder::<T>(col_descr.clone(), encoding)
       .expect("get decoder");
 
     let mut result = vec![T::T::default(); expected.len()];
@@ -1275,6 +1254,32 @@ mod tests {
     }
     assert_eq!(result_num_values, expected.len());
     assert_eq!(result, expected);
+  }
+
+  fn create_and_check_decoder<T: 'static + DataType>(
+    encoding: Encoding, err: Option<ParquetError>
+  ) {
+    let descr = create_test_col_desc_ptr(-1, T::get_physical_type());
+    let decoder = get_decoder::<T>(descr, encoding);
+    match err {
+      Some(parquet_error) => {
+        assert!(decoder.is_err());
+        assert_eq!(decoder.err().unwrap(), parquet_error);
+      },
+      None => {
+        assert!(decoder.is_ok());
+        assert_eq!(decoder.unwrap().encoding(), encoding);
+      }
+    }
+  }
+
+  // Creates test column descriptor.
+  fn create_test_col_desc_ptr(type_len: i32, t: Type) -> ColumnDescPtr {
+    let ty = SchemaType::primitive_type_builder("t", t)
+      .with_length(type_len)
+      .build()
+      .unwrap();
+    Rc::new(ColumnDescriptor::new(Rc::new(ty), None, 0, 0, ColumnPath::new(vec![])))
   }
 
   fn usize_to_bytes(v: usize) -> [u8; 4] {

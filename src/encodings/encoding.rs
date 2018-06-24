@@ -63,7 +63,7 @@ pub fn get_encoder<T: DataType>(
       Box::new(PlainEncoder::new(desc, mem_tracker, vec![]))
     },
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
-      Box::new(DictEncoder::new(desc, mem_tracker))
+      return Err(general_err!("Cannot initialize this encoding through this function"))
     },
     Encoding::RLE => {
       Box::new(RleValueEncoder::new())
@@ -77,7 +77,7 @@ pub fn get_encoder<T: DataType>(
     Encoding::DELTA_BYTE_ARRAY => {
       Box::new(DeltaByteArrayEncoder::new())
     },
-    e => return Err(nyi_err!("Encoding {} is not supported.", e))
+    e => return Err(nyi_err!("Encoding {} is not supported", e))
   };
   Ok(encoder)
 }
@@ -900,12 +900,38 @@ impl Encoder<FixedLenByteArrayType> for DeltaByteArrayEncoder<FixedLenByteArrayT
 mod tests {
   use super::super::decoding::*;
   use super::*;
-  use schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
+  use schema::types::{ColumnDescriptor, ColumnDescPtr, ColumnPath, Type as SchemaType};
   use std::rc::Rc;
   use util::memory::MemTracker;
   use util::test_common::RandGen;
 
   const TEST_SET_SIZE: usize = 1024;
+
+  #[test]
+  fn test_get_encoders() {
+    // supported encodings
+    create_and_check_encoder::<Int32Type>(Encoding::PLAIN, None);
+    create_and_check_encoder::<Int32Type>(Encoding::DELTA_BINARY_PACKED, None);
+    create_and_check_encoder::<Int32Type>(Encoding::DELTA_LENGTH_BYTE_ARRAY, None);
+    create_and_check_encoder::<Int32Type>(Encoding::DELTA_BYTE_ARRAY, None);
+    create_and_check_encoder::<BoolType>(Encoding::RLE, None);
+
+    // error when initializing
+    create_and_check_encoder::<Int32Type>(
+      Encoding::RLE_DICTIONARY,
+      Some(general_err!("Cannot initialize this encoding through this function"))
+    );
+    create_and_check_encoder::<Int32Type>(
+      Encoding::PLAIN_DICTIONARY,
+      Some(general_err!("Cannot initialize this encoding through this function"))
+    );
+
+    // unsupported
+    create_and_check_encoder::<Int32Type>(
+      Encoding::BIT_PACKED,
+      Some(nyi_err!("Encoding BIT_PACKED is not supported"))
+    );
+  }
 
   #[test]
   fn test_bool() {
@@ -964,7 +990,9 @@ mod tests {
   trait EncodingTester<T: DataType> {
     fn test(enc: Encoding, total: usize, type_length: i32) {
       let result = match enc {
-        Encoding::PLAIN_DICTIONARY => Self::test_dict_internal(total, type_length),
+        Encoding::PLAIN_DICTIONARY | Encoding::RLE_DICTIONARY =>{
+          Self::test_dict_internal(total, type_length)
+        },
         enc @ _ => Self::test_internal(enc, total, type_length)
       };
 
@@ -1046,79 +1074,52 @@ mod tests {
     }
   }
 
-  fn create_test_col_desc(type_len: i32, t: Type) -> ColumnDescriptor {
+  fn create_and_check_encoder<T: 'static + DataType>(
+    encoding: Encoding, err: Option<ParquetError>
+  ) {
+    let descr = create_test_col_desc_ptr(-1, T::get_physical_type());
+    let mem_tracker = Rc::new(MemTracker::new());
+    let encoder = get_encoder::<T>(descr, encoding, mem_tracker);
+    match err {
+      Some(parquet_error) => {
+        assert!(encoder.is_err());
+        assert_eq!(encoder.err().unwrap(), parquet_error);
+      },
+      None => {
+        assert!(encoder.is_ok());
+        assert_eq!(encoder.unwrap().encoding(), encoding);
+      }
+    }
+  }
+
+  // Creates test column descriptor.
+  fn create_test_col_desc_ptr(type_len: i32, t: Type) -> ColumnDescPtr {
     let ty = SchemaType::primitive_type_builder("t", t)
       .with_length(type_len)
       .build()
       .unwrap();
-    ColumnDescriptor::new(Rc::new(ty), None, 0, 0, ColumnPath::new(vec![]))
+    Rc::new(ColumnDescriptor::new(Rc::new(ty), None, 0, 0, ColumnPath::new(vec![])))
   }
 
   fn create_test_encoder<T: DataType>(
     type_len: i32, enc: Encoding
   ) -> Box<Encoder<T>> where T: 'static {
-    let desc = create_test_col_desc(type_len, T::get_physical_type());
+    let desc = create_test_col_desc_ptr(type_len, T::get_physical_type());
     let mem_tracker = Rc::new(MemTracker::new());
-    let encoder: Box<Encoder<T>> = match enc {
-      Encoding::PLAIN => {
-        Box::new(PlainEncoder::<T>::new(Rc::new(desc), mem_tracker, vec![]))
-      },
-      Encoding::PLAIN_DICTIONARY => {
-        Box::new(DictEncoder::<T>::new(Rc::new(desc), mem_tracker))
-      },
-      Encoding::RLE => {
-        Box::new(RleValueEncoder::<T>::new())
-      },
-      Encoding::DELTA_BINARY_PACKED => {
-        Box::new(DeltaBitPackEncoder::<T>::new())
-      },
-      Encoding::DELTA_LENGTH_BYTE_ARRAY => {
-        Box::new(DeltaLengthByteArrayEncoder::<T>::new())
-      },
-      Encoding::DELTA_BYTE_ARRAY => {
-        Box::new(DeltaByteArrayEncoder::<T>::new())
-      },
-      _ => {
-        panic!("Not implemented yet.");
-      }
-    };
-    encoder
+    get_encoder(desc, enc, mem_tracker).unwrap()
   }
 
   fn create_test_decoder<T: DataType>(
     type_len: i32, enc: Encoding
   ) -> Box<Decoder<T>> where T: 'static {
-    let desc = create_test_col_desc(type_len, T::get_physical_type());
-    let decoder: Box<Decoder<T>> = match enc {
-      Encoding::PLAIN => {
-        Box::new(PlainDecoder::<T>::new(desc.type_length()))
-      },
-      Encoding::PLAIN_DICTIONARY => {
-        Box::new(DictDecoder::<T>::new())
-      },
-      Encoding::RLE => {
-        Box::new(RleValueDecoder::new())
-      },
-      Encoding::DELTA_BINARY_PACKED => {
-        Box::new(DeltaBitPackDecoder::<T>::new())
-      },
-      Encoding::DELTA_LENGTH_BYTE_ARRAY => {
-        Box::new(DeltaLengthByteArrayDecoder::<T>::new())
-      },
-      Encoding::DELTA_BYTE_ARRAY => {
-        Box::new(DeltaByteArrayDecoder::<T>::new())
-      },
-      _ => {
-        panic!("Not implemented yet.");
-      }
-    };
-    decoder
+    let desc = create_test_col_desc_ptr(type_len, T::get_physical_type());
+    get_decoder(desc, enc).unwrap()
   }
 
   fn create_test_dict_encoder<T: DataType>(type_len: i32) -> DictEncoder<T> {
-    let desc = create_test_col_desc(type_len, T::get_physical_type());
+    let desc = create_test_col_desc_ptr(type_len, T::get_physical_type());
     let mem_tracker = Rc::new(MemTracker::new());
-    DictEncoder::<T>::new(Rc::new(desc), mem_tracker)
+    DictEncoder::<T>::new(desc, mem_tracker)
   }
 
   fn create_test_dict_decoder<T: DataType>() -> DictDecoder<T> {
