@@ -46,6 +46,10 @@ pub trait Encoder<T: DataType> {
   /// Returns the encoding type of this encoder.
   fn encoding(&self) -> Encoding;
 
+  /// Returns an estimate of the encoded data, in bytes.
+  /// Method call must be O(1).
+  fn estimated_data_encoded_size(&self) -> u64;
+
   /// Flushes the underlying byte buffer that's being processed by this encoder, and
   /// return the immutable copy of it. This will also reset the internal state.
   fn flush_buffer(&mut self) -> Result<ByteBufferPtr>;
@@ -131,6 +135,10 @@ impl<T: DataType> Encoder<T> for PlainEncoder<T> {
 
   fn encoding(&self) -> Encoding {
     Encoding::PLAIN
+  }
+
+  fn estimated_data_encoded_size(&self) -> u64 {
+    (self.buffer.size() + self.bit_writer.bytes_written()) as u64
   }
 
   #[inline]
@@ -222,8 +230,8 @@ pub struct DictEncoder<T: DataType> {
   // The unique observed values.
   uniques: Buffer<T::T>,
 
-  // The number of bytes needed to encode this dictionary
-  dict_encoded_size: u64,
+  // Size in bytes needed to encode this dictionary.
+  uniques_size_in_bytes: u64,
 
   // Tracking memory usage for the various data structures in this struct.
   mem_tracker: MemTrackerPtr
@@ -241,14 +249,19 @@ impl<T: DataType> DictEncoder<T> {
       hash_slots: slots,
       buffered_indices: Buffer::new().with_mem_tracker(mem_tracker.clone()),
       uniques: Buffer::new().with_mem_tracker(mem_tracker.clone()),
-      dict_encoded_size: 0,
+      uniques_size_in_bytes: 0,
       mem_tracker: mem_tracker
     }
   }
 
-  /// Returns number of unique entries in the dictionary.
+  /// Returns number of unique values (keys) in the dictionary.
   pub fn num_entries(&self) -> usize {
     self.uniques.size()
+  }
+
+  /// Returns size of unique values (keys) in the dictionary, in bytes.
+  pub fn dict_encoded_size(&self) -> u64 {
+    self.uniques_size_in_bytes
   }
 
   /// Writes out the dictionary values with PLAIN encoding in a byte buffer, and return
@@ -265,12 +278,10 @@ impl<T: DataType> DictEncoder<T> {
   /// result.
   #[inline]
   pub fn write_indices(&mut self) -> Result<ByteBufferPtr> {
-    let bit_width = self.bit_width();
     // TODO: the caller should allocate the buffer
-    let buffer_len = 1 + RleEncoder::min_buffer_size(bit_width) +
-      RleEncoder::max_buffer_size(bit_width, self.buffered_indices.size());
+    let buffer_len = self.estimated_data_encoded_size();
     let mut buffer: Vec<u8> = vec![0; buffer_len as usize];
-    buffer[0] = bit_width as u8;
+    buffer[0] = self.bit_width() as u8;
     self.mem_tracker.alloc(buffer.capacity() as i64);
 
     // Write bit width in the first byte
@@ -314,8 +325,8 @@ impl<T: DataType> DictEncoder<T> {
 
   #[inline]
   fn add_dict_key(&mut self, value: T::T) {
+    self.uniques_size_in_bytes += self.get_encoded_size(&value);
     self.uniques.push(value);
-    self.dict_encoded_size += mem::size_of::<T::T>() as u64;
   }
 
   #[inline]
@@ -371,8 +382,43 @@ impl<T: DataType> Encoder<T> for DictEncoder<T> {
   }
 
   #[inline]
+  fn estimated_data_encoded_size(&self) -> u64 {
+    let bit_width = self.bit_width();
+    (1 + RleEncoder::min_buffer_size(bit_width) +
+      RleEncoder::max_buffer_size(bit_width, self.buffered_indices.size())) as u64
+  }
+
+  #[inline]
   fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
     self.write_indices()
+  }
+}
+
+/// Provides encoded size for a data type.
+/// This is a workaround to calculate dictionary size in bytes.
+trait DictEncodedSize<T: DataType> {
+  #[inline]
+  fn get_encoded_size(&self, value: &T::T) -> u64;
+}
+
+impl<T: DataType> DictEncodedSize<T> for DictEncoder<T> {
+  #[inline]
+  default fn get_encoded_size(&self, _: &T::T) -> u64 {
+    mem::size_of::<T::T>() as u64
+  }
+}
+
+impl DictEncodedSize<ByteArrayType> for DictEncoder<ByteArrayType> {
+  #[inline]
+  fn get_encoded_size(&self, value: &ByteArray) -> u64 {
+    (mem::size_of::<u32>() + value.len()) as u64
+  }
+}
+
+impl DictEncodedSize<FixedLenByteArrayType> for DictEncoder<FixedLenByteArrayType> {
+  #[inline]
+  fn get_encoded_size(&self, _value: &ByteArray) -> u64 {
+    self.desc.type_length() as u64
   }
 }
 
@@ -408,6 +454,14 @@ impl<T: DataType> Encoder<T> for RleValueEncoder<T> {
 
   fn encoding(&self) -> Encoding {
     Encoding::RLE
+  }
+
+  #[inline]
+  default fn estimated_data_encoded_size(&self) -> u64 {
+    match self.encoder {
+      Some(ref enc) => enc.len() as u64,
+      None => 0
+    }
   }
 
   #[inline]
@@ -641,6 +695,10 @@ impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
     Encoding::DELTA_BINARY_PACKED
   }
 
+  fn estimated_data_encoded_size(&self) -> u64 {
+    self.bit_writer.bytes_written() as u64
+  }
+
   fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
     // Write remaining values
     self.flush_block_values()?;
@@ -755,6 +813,8 @@ pub struct DeltaLengthByteArrayEncoder<T: DataType> {
   len_encoder: DeltaBitPackEncoder<Int32Type>,
   // byte array data
   data: Vec<ByteArray>,
+  // data size in bytes of encoded values
+  encoded_size: u64,
   _phantom: PhantomData<T>
 }
 
@@ -764,6 +824,7 @@ impl<T: DataType> DeltaLengthByteArrayEncoder<T> {
     Self {
       len_encoder: DeltaBitPackEncoder::new(),
       data: vec![],
+      encoded_size: 0,
       _phantom: PhantomData
     }
   }
@@ -778,6 +839,10 @@ impl<T: DataType> Encoder<T> for DeltaLengthByteArrayEncoder<T> {
     Encoding::DELTA_LENGTH_BYTE_ARRAY
   }
 
+  fn estimated_data_encoded_size(&self) -> u64 {
+    self.len_encoder.estimated_data_encoded_size() + self.encoded_size
+  }
+
   default fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
     panic!("DeltaLengthByteArrayEncoder only supports ByteArrayType");
   }
@@ -789,6 +854,7 @@ impl Encoder<ByteArrayType> for DeltaLengthByteArrayEncoder<ByteArrayType> {
       values.iter().map(|byte_array| byte_array.len() as i32).collect();
     self.len_encoder.put(&lengths)?;
     for byte_array in values {
+      self.encoded_size += byte_array.len() as u64;
       self.data.push(byte_array.clone());
     }
     Ok(())
@@ -802,6 +868,7 @@ impl Encoder<ByteArrayType> for DeltaLengthByteArrayEncoder<ByteArrayType> {
       total_bytes.extend_from_slice(byte_array.data());
     });
     self.data.clear();
+    self.encoded_size = 0;
     Ok(ByteBufferPtr::new(total_bytes))
   }
 }
@@ -837,6 +904,11 @@ impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
 
   fn encoding(&self) -> Encoding {
     Encoding::DELTA_BYTE_ARRAY
+  }
+
+  fn estimated_data_encoded_size(&self) -> u64 {
+    self.prefix_len_encoder.estimated_data_encoded_size() +
+      self.suffix_writer.estimated_data_encoded_size()
   }
 
   default fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
@@ -985,6 +1057,96 @@ mod tests {
     FixedLenByteArrayType::test(Encoding::PLAIN, TEST_SET_SIZE, 100);
     FixedLenByteArrayType::test(Encoding::PLAIN_DICTIONARY, TEST_SET_SIZE, 100);
     FixedLenByteArrayType::test(Encoding::DELTA_BYTE_ARRAY, TEST_SET_SIZE, 100);
+  }
+
+  #[test]
+  fn test_dict_encoded_size() {
+    fn run_test<T: DataType>(type_length: i32, values: &[T::T], expected_size: u64) {
+      let mut encoder = create_test_dict_encoder::<T>(type_length);
+      assert_eq!(encoder.dict_encoded_size(), 0);
+      encoder.put(values).unwrap();
+      assert_eq!(encoder.dict_encoded_size(), expected_size);
+      // We do not reset encoded size of the dictionary keys after flush_buffer
+      encoder.flush_buffer().unwrap();
+      assert_eq!(encoder.dict_encoded_size(), expected_size);
+    }
+
+    // Only 2 variations of values 1 byte each
+    run_test::<BoolType>(-1, &[true, false, true, false, true], 2);
+    run_test::<Int32Type>(-1, &[1i32, 2i32, 3i32, 4i32, 5i32], 20);
+    run_test::<Int64Type>(-1, &[1i64, 2i64, 3i64, 4i64, 5i64], 40);
+    run_test::<FloatType>(-1, &[1f32, 2f32, 3f32, 4f32, 5f32], 20);
+    run_test::<DoubleType>(-1, &[1f64, 2f64, 3f64, 4f64, 5f64], 40);
+    // Int96: len + reference
+    run_test::<Int96Type>(
+      -1, &[Int96::from(vec![1, 2, 3]), Int96::from(vec![2, 3, 4])], 32);
+    run_test::<ByteArrayType>(
+      -1, &[ByteArray::from("abcd"), ByteArray::from("efj")], 15);
+    run_test::<FixedLenByteArrayType>(
+      2, &[ByteArray::from("ab"), ByteArray::from("bc")], 4);
+  }
+
+  #[test]
+  fn test_estimated_data_encoded_size() {
+    fn run_test<T: DataType + 'static>(
+      encoding: Encoding,
+      type_length: i32,
+      values: &[T::T],
+      initial_size: u64,
+      max_size: u64,
+      flush_size: u64
+    ) {
+      let mut encoder = match encoding {
+        Encoding::PLAIN_DICTIONARY | Encoding::RLE_DICTIONARY => {
+          Box::new(create_test_dict_encoder::<T>(type_length))
+        },
+        _ => create_test_encoder::<T>(type_length, encoding)
+      };
+      assert_eq!(encoder.estimated_data_encoded_size(), initial_size);
+
+      encoder.put(values).unwrap();
+      assert_eq!(encoder.estimated_data_encoded_size(), max_size);
+
+      encoder.flush_buffer().unwrap();
+      assert_eq!(encoder.estimated_data_encoded_size(), flush_size);
+    }
+
+    // PLAIN
+    run_test::<Int32Type>(Encoding::PLAIN, -1, &vec![123; 1024], 0, 4096, 0);
+
+    // DICTIONARY
+    // NOTE: The final size is almost the same because the dictionary entries are
+    // preserved after encoded values have been written.
+    run_test::<Int32Type>(Encoding::RLE_DICTIONARY, -1, &vec![123, 1024], 11, 68, 66);
+
+    // DELTA_BINARY_PACKED
+    run_test::<Int32Type>(Encoding::DELTA_BINARY_PACKED, -1, &vec![123; 1024], 0, 35, 0);
+
+    // RLE
+    let mut values = vec![];
+    values.extend_from_slice(&vec![true; 16]);
+    values.extend_from_slice(&vec![false; 16]);
+    run_test::<BoolType>(Encoding::RLE, -1, &values, 0, 2, 0);
+
+    // DELTA_LENGTH_BYTE_ARRAY
+    run_test::<ByteArrayType>(
+      Encoding::DELTA_LENGTH_BYTE_ARRAY,
+      -1,
+      &[ByteArray::from("ab"), ByteArray::from("abc")],
+      0,
+      5, // only value bytes, length encoder is not flushed yet
+      0
+    );
+
+    // DELTA_BYTE_ARRAY
+    run_test::<ByteArrayType>(
+      Encoding::DELTA_BYTE_ARRAY,
+      -1,
+      &[ByteArray::from("ab"), ByteArray::from("abc")],
+      0,
+      3, // only suffix bytes, length encoder is not flushed yet
+      0
+    );
   }
 
   trait EncodingTester<T: DataType> {
