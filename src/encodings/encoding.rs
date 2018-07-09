@@ -48,7 +48,7 @@ pub trait Encoder<T: DataType> {
 
   /// Returns an estimate of the encoded data, in bytes.
   /// Method call must be O(1).
-  fn estimated_data_encoded_size(&self) -> u64;
+  fn estimated_data_encoded_size(&self) -> usize;
 
   /// Flushes the underlying byte buffer that's being processed by this encoder, and
   /// return the immutable copy of it. This will also reset the internal state.
@@ -137,8 +137,8 @@ impl<T: DataType> Encoder<T> for PlainEncoder<T> {
     Encoding::PLAIN
   }
 
-  fn estimated_data_encoded_size(&self) -> u64 {
-    (self.buffer.size() + self.bit_writer.bytes_written()) as u64
+  fn estimated_data_encoded_size(&self) -> usize {
+    self.buffer.size() + self.bit_writer.bytes_written()
   }
 
   #[inline]
@@ -231,7 +231,7 @@ pub struct DictEncoder<T: DataType> {
   uniques: Buffer<T::T>,
 
   // Size in bytes needed to encode this dictionary.
-  uniques_size_in_bytes: u64,
+  uniques_size_in_bytes: usize,
 
   // Tracking memory usage for the various data structures in this struct.
   mem_tracker: MemTrackerPtr
@@ -260,7 +260,7 @@ impl<T: DataType> DictEncoder<T> {
   }
 
   /// Returns size of unique values (keys) in the dictionary, in bytes.
-  pub fn dict_encoded_size(&self) -> u64 {
+  pub fn dict_encoded_size(&self) -> usize {
     self.uniques_size_in_bytes
   }
 
@@ -382,10 +382,10 @@ impl<T: DataType> Encoder<T> for DictEncoder<T> {
   }
 
   #[inline]
-  fn estimated_data_encoded_size(&self) -> u64 {
+  fn estimated_data_encoded_size(&self) -> usize {
     let bit_width = self.bit_width();
-    (1 + RleEncoder::min_buffer_size(bit_width) +
-      RleEncoder::max_buffer_size(bit_width, self.buffered_indices.size())) as u64
+    1 + RleEncoder::min_buffer_size(bit_width) +
+      RleEncoder::max_buffer_size(bit_width, self.buffered_indices.size())
   }
 
   #[inline]
@@ -398,27 +398,27 @@ impl<T: DataType> Encoder<T> for DictEncoder<T> {
 /// This is a workaround to calculate dictionary size in bytes.
 trait DictEncodedSize<T: DataType> {
   #[inline]
-  fn get_encoded_size(&self, value: &T::T) -> u64;
+  fn get_encoded_size(&self, value: &T::T) -> usize;
 }
 
 impl<T: DataType> DictEncodedSize<T> for DictEncoder<T> {
   #[inline]
-  default fn get_encoded_size(&self, _: &T::T) -> u64 {
-    mem::size_of::<T::T>() as u64
+  default fn get_encoded_size(&self, _: &T::T) -> usize {
+    mem::size_of::<T::T>()
   }
 }
 
 impl DictEncodedSize<ByteArrayType> for DictEncoder<ByteArrayType> {
   #[inline]
-  fn get_encoded_size(&self, value: &ByteArray) -> u64 {
-    (mem::size_of::<u32>() + value.len()) as u64
+  fn get_encoded_size(&self, value: &ByteArray) -> usize {
+    mem::size_of::<u32>() + value.len()
   }
 }
 
 impl DictEncodedSize<FixedLenByteArrayType> for DictEncoder<FixedLenByteArrayType> {
   #[inline]
-  fn get_encoded_size(&self, _value: &ByteArray) -> u64 {
-    self.desc.type_length() as u64
+  fn get_encoded_size(&self, _value: &ByteArray) -> usize {
+    self.desc.type_length() as usize
   }
 }
 
@@ -457,9 +457,9 @@ impl<T: DataType> Encoder<T> for RleValueEncoder<T> {
   }
 
   #[inline]
-  default fn estimated_data_encoded_size(&self) -> u64 {
+  default fn estimated_data_encoded_size(&self) -> usize {
     match self.encoder {
-      Some(ref enc) => enc.len() as u64,
+      Some(ref enc) => enc.len(),
       None => 0
     }
   }
@@ -695,8 +695,8 @@ impl<T: DataType> Encoder<T> for DeltaBitPackEncoder<T> {
     Encoding::DELTA_BINARY_PACKED
   }
 
-  fn estimated_data_encoded_size(&self) -> u64 {
-    self.bit_writer.bytes_written() as u64
+  fn estimated_data_encoded_size(&self) -> usize {
+    self.bit_writer.bytes_written()
   }
 
   fn flush_buffer(&mut self) -> Result<ByteBufferPtr> {
@@ -814,7 +814,7 @@ pub struct DeltaLengthByteArrayEncoder<T: DataType> {
   // byte array data
   data: Vec<ByteArray>,
   // data size in bytes of encoded values
-  encoded_size: u64,
+  encoded_size: usize,
   _phantom: PhantomData<T>
 }
 
@@ -839,7 +839,7 @@ impl<T: DataType> Encoder<T> for DeltaLengthByteArrayEncoder<T> {
     Encoding::DELTA_LENGTH_BYTE_ARRAY
   }
 
-  fn estimated_data_encoded_size(&self) -> u64 {
+  fn estimated_data_encoded_size(&self) -> usize {
     self.len_encoder.estimated_data_encoded_size() + self.encoded_size
   }
 
@@ -854,7 +854,7 @@ impl Encoder<ByteArrayType> for DeltaLengthByteArrayEncoder<ByteArrayType> {
       values.iter().map(|byte_array| byte_array.len() as i32).collect();
     self.len_encoder.put(&lengths)?;
     for byte_array in values {
-      self.encoded_size += byte_array.len() as u64;
+      self.encoded_size += byte_array.len();
       self.data.push(byte_array.clone());
     }
     Ok(())
@@ -906,7 +906,7 @@ impl<T: DataType> Encoder<T> for DeltaByteArrayEncoder<T> {
     Encoding::DELTA_BYTE_ARRAY
   }
 
-  fn estimated_data_encoded_size(&self) -> u64 {
+  fn estimated_data_encoded_size(&self) -> usize {
     self.prefix_len_encoder.estimated_data_encoded_size() +
       self.suffix_writer.estimated_data_encoded_size()
   }
@@ -1061,7 +1061,7 @@ mod tests {
 
   #[test]
   fn test_dict_encoded_size() {
-    fn run_test<T: DataType>(type_length: i32, values: &[T::T], expected_size: u64) {
+    fn run_test<T: DataType>(type_length: i32, values: &[T::T], expected_size: usize) {
       let mut encoder = create_test_dict_encoder::<T>(type_length);
       assert_eq!(encoder.dict_encoded_size(), 0);
       encoder.put(values).unwrap();
@@ -1092,9 +1092,9 @@ mod tests {
       encoding: Encoding,
       type_length: i32,
       values: &[T::T],
-      initial_size: u64,
-      max_size: u64,
-      flush_size: u64
+      initial_size: usize,
+      max_size: usize,
+      flush_size: usize
     ) {
       let mut encoder = match encoding {
         Encoding::PLAIN_DICTIONARY | Encoding::RLE_DICTIONARY => {
