@@ -41,5 +41,6 @@
 //! ```
 
 pub mod metadata;
+pub mod properties;
 pub mod reader;
 pub mod statistics;
