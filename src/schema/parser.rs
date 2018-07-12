@@ -246,8 +246,8 @@ impl<'a> Parser<'a> {
     repetition: Repetition,
     physical_type: PhysicalType
   ) -> Result<Type> {
-    let mut length = 0;
     // Read type length if the type is FIXED_LEN_BYTE_ARRAY.
+    let mut length: i32 = -1;
     if physical_type == PhysicalType::FIXED_LEN_BYTE_ARRAY {
       assert_token(self.tokenizer.next(), "(")?;
       length = parse_i32(self.tokenizer.next(),
@@ -266,8 +266,8 @@ impl<'a> Parser<'a> {
         .and_then(|v| v.to_uppercase().parse::<LogicalType>())?;
 
       // Parse precision and scale for decimals
-      let mut precision: i32 = 0;
-      let mut scale: i32 = 0;
+      let mut precision: i32 = -1;
+      let mut scale: i32 = -1;
 
       if tpe == LogicalType::DECIMAL {
         if let Some("(") = self.tokenizer.next() {
@@ -284,6 +284,7 @@ impl<'a> Parser<'a> {
               "Failed to parse scale for DECIMAL type"
             )?
           } else {
+            // Scale is not provided, set it to 0.
             self.tokenizer.backtrack();
             0
           };
@@ -298,7 +299,7 @@ impl<'a> Parser<'a> {
       (tpe, precision, scale)
     } else {
       self.tokenizer.backtrack();
-      (LogicalType::NONE, 0, 0)
+      (LogicalType::NONE, -1, -1)
     };
 
     // Parse optional id

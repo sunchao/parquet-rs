@@ -181,9 +181,9 @@ impl<'a> PrimitiveTypeBuilder<'a> {
       repetition: Repetition::OPTIONAL,
       physical_type: physical_type,
       logical_type: LogicalType::NONE,
-      length: 0,
-      precision: 0,
-      scale: 0,
+      length: -1,
+      precision: -1,
+      scale: -1,
       id: None
     }
   }
@@ -333,7 +333,7 @@ impl<'a> PrimitiveTypeBuilder<'a> {
       }
       LogicalType::INTERVAL => {
         if self.physical_type != PhysicalType::FIXED_LEN_BYTE_ARRAY || self.length != 12 {
-          return Err(general_err!("INTERVAL can only annotate FIXED(12)"));
+          return Err(general_err!("INTERVAL can only annotate FIXED_LEN_BYTE_ARRAY(12)"));
         }
       }
       LogicalType::ENUM => {
@@ -782,7 +782,7 @@ fn build_tree(
 }
 
 /// Method to convert from Thrift.
-pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<TypePtr> {
+pub fn from_thrift(elements: &[SchemaElement]) -> Result<TypePtr> {
   let mut index = 0;
   let mut schema_nodes = Vec::new();
   while index < elements.len() {
@@ -805,7 +805,7 @@ pub fn from_thrift(elements: &mut [SchemaElement]) -> Result<TypePtr> {
 /// equal to `elements.len()`, then this Type is the last one.
 /// The second result is the result Type.
 fn from_thrift_helper(
-  elements: &mut [SchemaElement],
+  elements: &[SchemaElement],
   index: usize
 ) -> Result<(usize, TypePtr)> {
   if index > elements.len() {
@@ -860,6 +860,72 @@ fn from_thrift_helper(
         builder = builder.with_id(id);
       }
       Ok((next_index, Rc::new(builder.build().unwrap())))
+    }
+  }
+}
+
+/// Method to convert to Thrift.
+pub fn to_thrift(schema: &Type) -> Result<Vec<SchemaElement>> {
+  if !schema.is_group() {
+    return Err(general_err!("Root schema must be Group type"));
+  }
+  let mut elements: Vec<SchemaElement> = Vec::new();
+  to_thrift_helper(schema, &mut elements);
+  Ok(elements)
+}
+
+/// Constructs list of `SchemaElement` from the schema using depth-first traversal.
+/// Here we assume that schema is always valid and starts with group type.
+fn to_thrift_helper(schema: &Type, elements: &mut Vec<SchemaElement>) {
+  match *schema {
+    Type::PrimitiveType {
+      ref basic_info,
+      physical_type,
+      type_length,
+      scale,
+      precision
+    } => {
+      let element = SchemaElement {
+        type_: Some(physical_type.into()),
+        type_length: if type_length >= 0 { Some(type_length) } else { None },
+        repetition_type: Some(basic_info.repetition().into()),
+        name: basic_info.name().to_owned(),
+        num_children: None,
+        converted_type: basic_info.logical_type().into(),
+        scale: if scale >= 0 { Some(scale) } else { None },
+        precision: if precision >= 0 { Some(precision) } else { None },
+        field_id: if basic_info.has_id() { Some(basic_info.id()) } else { None },
+        logical_type: None
+      };
+
+      elements.push(element);
+    },
+    Type::GroupType { ref basic_info, ref fields } => {
+      let repetition = if basic_info.has_repetition() {
+        Some(basic_info.repetition().into())
+      } else {
+        None
+      };
+
+      let element = SchemaElement {
+        type_: None,
+        type_length: None,
+        repetition_type: repetition,
+        name: basic_info.name().to_owned(),
+        num_children: Some(fields.len() as i32),
+        converted_type: basic_info.logical_type().into(),
+        scale: None,
+        precision: None,
+        field_id: if basic_info.has_id() { Some(basic_info.id()) } else { None },
+        logical_type: None
+      };
+
+      elements.push(element);
+
+      // Add child elements for a group
+      for field in fields {
+        to_thrift_helper(field, elements);
+      }
     }
   }
 }
@@ -1032,16 +1098,17 @@ mod tests {
       .build();
     assert!(result.is_err());
     if let Err(e) = result {
-      assert_eq!(e.description(), "INTERVAL can only annotate FIXED(12)");
+      assert_eq!(e.description(), "INTERVAL can only annotate FIXED_LEN_BYTE_ARRAY(12)");
     }
 
     result = Type::primitive_type_builder("foo", PhysicalType::FIXED_LEN_BYTE_ARRAY)
       .with_repetition(Repetition::REQUIRED)
       .with_logical_type(LogicalType::INTERVAL)
+      .with_length(1)
       .build();
     assert!(result.is_err());
     if let Err(e) = result {
-      assert_eq!(e.description(), "INTERVAL can only annotate FIXED(12)");
+      assert_eq!(e.description(), "INTERVAL can only annotate FIXED_LEN_BYTE_ARRAY(12)");
     }
 
     result = Type::primitive_type_builder("foo", PhysicalType::INT32)
@@ -1138,9 +1205,9 @@ mod tests {
     assert_eq!(descr.max_def_level(), 4);
     assert_eq!(descr.max_rep_level(), 1);
     assert_eq!(descr.name(), "name");
-    assert_eq!(descr.type_length(), 0);
-    assert_eq!(descr.type_precision(), 0);
-    assert_eq!(descr.type_scale(), 0);
+    assert_eq!(descr.type_length(), -1);
+    assert_eq!(descr.type_precision(), -1);
+    assert_eq!(descr.type_scale(), -1);
     assert_eq!(descr.root_type(), root_tp_rc.as_ref());
 
     Ok(())
@@ -1426,5 +1493,86 @@ mod tests {
     ]);
     assert!(f1.check_contains(&f2)); // should match
     assert!(!f2.check_contains(&f1)); // should fail
+  }
+
+  #[test]
+  fn test_schema_type_thrift_conversion_err() {
+    let schema = Type::primitive_type_builder("col", PhysicalType::INT32)
+      .build().unwrap();
+    let thrift_schema = to_thrift(&schema);
+    assert!(thrift_schema.is_err());
+    if let Err(e) = thrift_schema {
+      assert_eq!(e.description(), "Root schema must be Group type");
+    }
+  }
+
+  #[test]
+  fn test_schema_type_thrift_conversion() {
+    let message_type = "
+    message conversions {
+      REQUIRED INT64 id;
+      OPTIONAL group int_array_Array (LIST) {
+        REPEATED group list {
+          OPTIONAL group element (LIST) {
+            REPEATED group list {
+              OPTIONAL INT32 element;
+            }
+          }
+        }
+      }
+      OPTIONAL group int_map (MAP) {
+        REPEATED group map (MAP_KEY_VALUE) {
+          REQUIRED BYTE_ARRAY key (UTF8);
+          OPTIONAL INT32 value;
+        }
+      }
+      OPTIONAL group int_Map_Array (LIST) {
+        REPEATED group list {
+          OPTIONAL group g (MAP) {
+            REPEATED group map (MAP_KEY_VALUE) {
+              REQUIRED BYTE_ARRAY key (UTF8);
+              OPTIONAL group value {
+                OPTIONAL group H {
+                  OPTIONAL group i (LIST) {
+                    REPEATED group list {
+                      OPTIONAL DOUBLE element;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      OPTIONAL group nested_struct {
+        OPTIONAL INT32 A;
+        OPTIONAL group b (LIST) {
+          REPEATED group list {
+            REQUIRED FIXED_LEN_BYTE_ARRAY (16) element;
+          }
+        }
+      }
+    }
+    ";
+    let expected_schema = parse_message_type(message_type).unwrap();
+    let thrift_schema = to_thrift(&expected_schema).unwrap();
+    let result_schema = from_thrift(&thrift_schema).unwrap();
+    assert_eq!(result_schema, Rc::new(expected_schema));
+  }
+
+  #[test]
+  fn test_schema_type_thrift_conversion_decimal() {
+    let message_type = "
+    message decimals {
+      OPTIONAL INT32 field0;
+      OPTIONAL INT64 field1 (DECIMAL (18, 2));
+      OPTIONAL FIXED_LEN_BYTE_ARRAY (16) field2 (DECIMAL (38, 18));
+      OPTIONAL BYTE_ARRAY field3 (DECIMAL (9));
+    }
+    ";
+    let expected_schema = parse_message_type(message_type).unwrap();
+    let thrift_schema = to_thrift(&expected_schema).unwrap();
+    let result_schema = from_thrift(&thrift_schema).unwrap();
+    assert_eq!(result_schema, Rc::new(expected_schema));
   }
 }

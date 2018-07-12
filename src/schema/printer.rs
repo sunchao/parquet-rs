@@ -426,6 +426,7 @@ mod tests {
       .with_repetition(Repetition::OPTIONAL)
       .with_logical_type(LogicalType::DECIMAL)
       .with_precision(9)
+      .with_scale(0)
       .build().unwrap();
 
     let message = Type::group_type_builder("schema")
