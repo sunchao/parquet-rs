@@ -679,6 +679,7 @@
 <span id="679">679</span>
 <span id="680">680</span>
 <span id="681">681</span>
+<span id="682">682</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -928,8 +929,8 @@
     <span class="ident">repetition</span>: <span class="ident">Repetition</span>,
     <span class="ident">physical_type</span>: <span class="ident">PhysicalType</span>
   ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Type</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">length</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="comment">// Read type length if the type is FIXED_LEN_BYTE_ARRAY.</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">length</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>;
     <span class="kw">if</span> <span class="ident">physical_type</span> <span class="op">==</span> <span class="ident">PhysicalType</span>::<span class="ident">FIXED_LEN_BYTE_ARRAY</span> {
       <span class="ident">assert_token</span>(<span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">next</span>(), <span class="string">&quot;(&quot;</span>)<span class="question-mark">?</span>;
       <span class="ident">length</span> <span class="op">=</span> <span class="ident">parse_i32</span>(<span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">next</span>(),
@@ -948,8 +949,8 @@
         .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="ident">v</span>.<span class="ident">to_uppercase</span>().<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">LogicalType</span><span class="op">&gt;</span>())<span class="question-mark">?</span>;
 
       <span class="comment">// Parse precision and scale for decimals</span>
-      <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">precision</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="number">0</span>;
-      <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scale</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="number">0</span>;
+      <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">precision</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>;
+      <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scale</span>: <span class="ident">i32</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>;
 
       <span class="kw">if</span> <span class="ident">tpe</span> <span class="op">==</span> <span class="ident">LogicalType</span>::<span class="ident">DECIMAL</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="string">&quot;(&quot;</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">next</span>() {
@@ -966,6 +967,7 @@
               <span class="string">&quot;Failed to parse scale for DECIMAL type&quot;</span>
             )<span class="question-mark">?</span>
           } <span class="kw">else</span> {
+            <span class="comment">// Scale is not provided, set it to 0.</span>
             <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">backtrack</span>();
             <span class="number">0</span>
           };
@@ -980,7 +982,7 @@
       (<span class="ident">tpe</span>, <span class="ident">precision</span>, <span class="ident">scale</span>)
     } <span class="kw">else</span> {
       <span class="self">self</span>.<span class="ident">tokenizer</span>.<span class="ident">backtrack</span>();
-      (<span class="ident">LogicalType</span>::<span class="ident">NONE</span>, <span class="number">0</span>, <span class="number">0</span>)
+      (<span class="ident">LogicalType</span>::<span class="ident">NONE</span>, <span class="op">-</span><span class="number">1</span>, <span class="op">-</span><span class="number">1</span>)
     };
 
     <span class="comment">// Parse optional id</span>

@@ -435,6 +435,7 @@
 <span id="435">435</span>
 <span id="436">436</span>
 <span id="437">437</span>
+<span id="438">438</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -864,6 +865,7 @@
       .<span class="ident">with_repetition</span>(<span class="ident">Repetition</span>::<span class="ident">OPTIONAL</span>)
       .<span class="ident">with_logical_type</span>(<span class="ident">LogicalType</span>::<span class="ident">DECIMAL</span>)
       .<span class="ident">with_precision</span>(<span class="number">9</span>)
+      .<span class="ident">with_scale</span>(<span class="number">0</span>)
       .<span class="ident">build</span>().<span class="ident">unwrap</span>();
 
     <span class="kw">let</span> <span class="ident">message</span> <span class="op">=</span> <span class="ident">Type</span>::<span class="ident">group_type_builder</span>(<span class="string">&quot;schema&quot;</span>)
