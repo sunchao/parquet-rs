@@ -20,7 +20,7 @@
 
 use std::convert::TryFrom;
 use std::fs::File;
-use std::io::{self, BufReader, Read, Seek, SeekFrom};
+use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -37,7 +37,7 @@ use parquet_format::{PageType, PageHeader};
 use record::reader::RowIter;
 use schema::types::{self, SchemaDescriptor, Type as SchemaType};
 use thrift::protocol::TCompactInputProtocol;
-use util::io::FileChunk;
+use util::io::FileSource;
 use util::memory::ByteBufferPtr;
 
 // ----------------------------------------------------------------------
@@ -84,24 +84,6 @@ pub trait RowGroupReader {
   /// Projected schema can be a subset of or equal to the file schema, when it is None,
   /// full file schema is assumed.
   fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter>;
-}
-
-/// A thin wrapper on `T: Read` to be used by Thrift transport. Write is not supported.
-struct TMemoryBuffer<'a, T> where T: 'a + Read {
-  data: &'a mut T
-}
-
-impl<'a, T: 'a + Read> TMemoryBuffer<'a, T> {
-  fn new(data: &'a mut T) -> Self {
-    Self { data: data }
-  }
-}
-
-impl<'a, T: 'a + Read> Read for TMemoryBuffer<'a, T> {
-  fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-    let bytes_read = self.data.read(buf)?;
-    Ok(bytes_read)
-  }
 }
 
 // ----------------------------------------------------------------------
@@ -159,10 +141,9 @@ impl SerializedFileReader {
     }
     buf.seek(SeekFrom::Start(metadata_start as u64))?;
     let metadata_buf = buf.take(metadata_len as u64).into_inner();
-    let transport = TMemoryBuffer::new(metadata_buf);
 
     // TODO: row group filtering
-    let mut prot = TCompactInputProtocol::new(transport);
+    let mut prot = TCompactInputProtocol::new(metadata_buf);
     let mut t_file_metadata: TFileMetaData =
       TFileMetaData::read_from_in_protocol(&mut prot)
         .map_err(|e| ParquetError::General(format!("Could not parse metadata: {}", e)))?;
@@ -301,8 +282,8 @@ impl RowGroupReader for SerializedRowGroupReader {
       col_start = col.dictionary_page_offset().unwrap();
     }
     let col_length = col.compressed_size();
-    let file_chunk = FileChunk::new(
-      self.buf.get_ref(), col_start as usize, col_length as usize);
+    let file_chunk = FileSource::new(
+      self.buf.get_ref(), col_start as u64, col_length as usize);
     let page_reader = SerializedPageReader::new(
       file_chunk,
       col.num_values(),
@@ -344,9 +325,9 @@ impl RowGroupReader for SerializedRowGroupReader {
 
 /// A serialized implementation for Parquet [`PageReader`].
 pub struct SerializedPageReader {
-  // The file chunk buffer which references exactly the bytes for the column trunk
+  // The file source buffer which references exactly the bytes for the column trunk
   // to be read by this page reader.
-  buf: FileChunk,
+  buf: FileSource,
 
   // The compression codec for this column chunk. Only set for non-PLAIN codec.
   decompressor: Option<Box<Codec>>,
@@ -362,9 +343,9 @@ pub struct SerializedPageReader {
 }
 
 impl SerializedPageReader {
-  /// Creates a new serialized page reader from file chunk.
+  /// Creates a new serialized page reader from file source.
   fn new(
-    buf: FileChunk,
+    buf: FileSource,
     total_num_values: i64,
     compression: Compression,
     physical_type: Type
@@ -382,8 +363,7 @@ impl SerializedPageReader {
 
   /// Reads Page header from Thrift.
   fn read_page_header(&mut self) -> Result<PageHeader> {
-    let transport = TMemoryBuffer::new(&mut self.buf);
-    let mut prot = TCompactInputProtocol::new(transport);
+    let mut prot = TCompactInputProtocol::new(&mut self.buf);
     let page_header = PageHeader::read_from_in_protocol(&mut prot)?;
     Ok(page_header)
   }
