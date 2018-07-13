@@ -806,26 +806,6 @@
 <span id="806">806</span>
 <span id="807">807</span>
 <span id="808">808</span>
-<span id="809">809</span>
-<span id="810">810</span>
-<span id="811">811</span>
-<span id="812">812</span>
-<span id="813">813</span>
-<span id="814">814</span>
-<span id="815">815</span>
-<span id="816">816</span>
-<span id="817">817</span>
-<span id="818">818</span>
-<span id="819">819</span>
-<span id="820">820</span>
-<span id="821">821</span>
-<span id="822">822</span>
-<span id="823">823</span>
-<span id="824">824</span>
-<span id="825">825</span>
-<span id="826">826</span>
-<span id="827">827</span>
-<span id="828">828</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -849,7 +829,7 @@
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">convert</span>::<span class="ident">TryFrom</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">File</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">BufReader</span>, <span class="ident">Read</span>, <span class="ident">Seek</span>, <span class="ident">SeekFrom</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">BufReader</span>, <span class="ident">Read</span>, <span class="ident">Seek</span>, <span class="ident">SeekFrom</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
 
@@ -866,7 +846,7 @@
 <span class="kw">use</span> <span class="ident">record</span>::<span class="ident">reader</span>::<span class="ident">RowIter</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">types</span>::{<span class="self">self</span>, <span class="ident">SchemaDescriptor</span>, <span class="ident">Type</span> <span class="kw">as</span> <span class="ident">SchemaType</span>};
 <span class="kw">use</span> <span class="ident">thrift</span>::<span class="ident">protocol</span>::<span class="ident">TCompactInputProtocol</span>;
-<span class="kw">use</span> <span class="ident">util</span>::<span class="ident">io</span>::<span class="ident">FileChunk</span>;
+<span class="kw">use</span> <span class="ident">util</span>::<span class="ident">io</span>::<span class="ident">FileSource</span>;
 <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">memory</span>::<span class="ident">ByteBufferPtr</span>;
 
 <span class="comment">// ----------------------------------------------------------------------</span>
@@ -913,24 +893,6 @@
   <span class="doccomment">/// Projected schema can be a subset of or equal to the file schema, when it is None,</span>
   <span class="doccomment">/// full file schema is assumed.</span>
   <span class="kw">fn</span> <span class="ident">get_row_iter</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">projection</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SchemaType</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RowIter</span><span class="op">&gt;</span>;
-}
-
-<span class="doccomment">/// A thin wrapper on `T: Read` to be used by Thrift transport. Write is not supported.</span>
-<span class="kw">struct</span> <span class="ident">TMemoryBuffer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="lifetime">&#39;a</span> <span class="op">+</span> <span class="ident">Read</span> {
-  <span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">T</span>
-}
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="lifetime">&#39;a</span> <span class="op">+</span> <span class="ident">Read</span><span class="op">&gt;</span> <span class="ident">TMemoryBuffer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
-  <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-    <span class="self">Self</span> { <span class="ident">data</span>: <span class="ident">data</span> }
-  }
-}
-
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="lifetime">&#39;a</span> <span class="op">+</span> <span class="ident">Read</span><span class="op">&gt;</span> <span class="ident">Read</span> <span class="kw">for</span> <span class="ident">TMemoryBuffer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
-  <span class="kw">fn</span> <span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">bytes_read</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">read</span>(<span class="ident">buf</span>)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(<span class="ident">bytes_read</span>)
-  }
 }
 
 <span class="comment">// ----------------------------------------------------------------------</span>
@@ -988,10 +950,9 @@
     }
     <span class="ident">buf</span>.<span class="ident">seek</span>(<span class="ident">SeekFrom</span>::<span class="ident">Start</span>(<span class="ident">metadata_start</span> <span class="kw">as</span> <span class="ident">u64</span>))<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">metadata_buf</span> <span class="op">=</span> <span class="ident">buf</span>.<span class="ident">take</span>(<span class="ident">metadata_len</span> <span class="kw">as</span> <span class="ident">u64</span>).<span class="ident">into_inner</span>();
-    <span class="kw">let</span> <span class="ident">transport</span> <span class="op">=</span> <span class="ident">TMemoryBuffer</span>::<span class="ident">new</span>(<span class="ident">metadata_buf</span>);
 
     <span class="comment">// TODO: row group filtering</span>
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prot</span> <span class="op">=</span> <span class="ident">TCompactInputProtocol</span>::<span class="ident">new</span>(<span class="ident">transport</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prot</span> <span class="op">=</span> <span class="ident">TCompactInputProtocol</span>::<span class="ident">new</span>(<span class="ident">metadata_buf</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">t_file_metadata</span>: <span class="ident">TFileMetaData</span> <span class="op">=</span>
       <span class="ident">TFileMetaData</span>::<span class="ident">read_from_in_protocol</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">prot</span>)
         .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">ParquetError</span>::<span class="ident">General</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Could not parse metadata: {}&quot;</span>, <span class="ident">e</span>)))<span class="question-mark">?</span>;
@@ -1130,8 +1091,8 @@
       <span class="ident">col_start</span> <span class="op">=</span> <span class="ident">col</span>.<span class="ident">dictionary_page_offset</span>().<span class="ident">unwrap</span>();
     }
     <span class="kw">let</span> <span class="ident">col_length</span> <span class="op">=</span> <span class="ident">col</span>.<span class="ident">compressed_size</span>();
-    <span class="kw">let</span> <span class="ident">file_chunk</span> <span class="op">=</span> <span class="ident">FileChunk</span>::<span class="ident">new</span>(
-      <span class="self">self</span>.<span class="ident">buf</span>.<span class="ident">get_ref</span>(), <span class="ident">col_start</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">col_length</span> <span class="kw">as</span> <span class="ident">usize</span>);
+    <span class="kw">let</span> <span class="ident">file_chunk</span> <span class="op">=</span> <span class="ident">FileSource</span>::<span class="ident">new</span>(
+      <span class="self">self</span>.<span class="ident">buf</span>.<span class="ident">get_ref</span>(), <span class="ident">col_start</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">col_length</span> <span class="kw">as</span> <span class="ident">usize</span>);
     <span class="kw">let</span> <span class="ident">page_reader</span> <span class="op">=</span> <span class="ident">SerializedPageReader</span>::<span class="ident">new</span>(
       <span class="ident">file_chunk</span>,
       <span class="ident">col</span>.<span class="ident">num_values</span>(),
@@ -1173,9 +1134,9 @@
 
 <span class="doccomment">/// A serialized implementation for Parquet [`PageReader`].</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializedPageReader</span> {
-  <span class="comment">// The file chunk buffer which references exactly the bytes for the column trunk</span>
+  <span class="comment">// The file source buffer which references exactly the bytes for the column trunk</span>
   <span class="comment">// to be read by this page reader.</span>
-  <span class="ident">buf</span>: <span class="ident">FileChunk</span>,
+  <span class="ident">buf</span>: <span class="ident">FileSource</span>,
 
   <span class="comment">// The compression codec for this column chunk. Only set for non-PLAIN codec.</span>
   <span class="ident">decompressor</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Codec</span><span class="op">&gt;&gt;</span>,
@@ -1191,9 +1152,9 @@
 }
 
 <span class="kw">impl</span> <span class="ident">SerializedPageReader</span> {
-  <span class="doccomment">/// Creates a new serialized page reader from file chunk.</span>
+  <span class="doccomment">/// Creates a new serialized page reader from file source.</span>
   <span class="kw">fn</span> <span class="ident">new</span>(
-    <span class="ident">buf</span>: <span class="ident">FileChunk</span>,
+    <span class="ident">buf</span>: <span class="ident">FileSource</span>,
     <span class="ident">total_num_values</span>: <span class="ident">i64</span>,
     <span class="ident">compression</span>: <span class="ident">Compression</span>,
     <span class="ident">physical_type</span>: <span class="ident">Type</span>
@@ -1211,8 +1172,7 @@
 
   <span class="doccomment">/// Reads Page header from Thrift.</span>
   <span class="kw">fn</span> <span class="ident">read_page_header</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">PageHeader</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">transport</span> <span class="op">=</span> <span class="ident">TMemoryBuffer</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">buf</span>);
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prot</span> <span class="op">=</span> <span class="ident">TCompactInputProtocol</span>::<span class="ident">new</span>(<span class="ident">transport</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prot</span> <span class="op">=</span> <span class="ident">TCompactInputProtocol</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">buf</span>);
     <span class="kw">let</span> <span class="ident">page_header</span> <span class="op">=</span> <span class="ident">PageHeader</span>::<span class="ident">read_from_in_protocol</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">prot</span>)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="ident">page_header</span>)
   }
