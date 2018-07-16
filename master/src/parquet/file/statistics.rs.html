@@ -542,6 +542,35 @@
 <span id="542">542</span>
 <span id="543">543</span>
 <span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -735,6 +764,41 @@
   }
 }
 
+<span class="comment">// Convert Statistics into Thrift definition.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_thrift</span>(<span class="ident">stats</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Statistics</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TStatistics</span><span class="op">&gt;</span> {
+  <span class="kw">if</span> <span class="ident">stats</span>.<span class="ident">is_none</span>() {
+    <span class="kw">return</span> <span class="prelude-val">None</span>;
+  }
+
+  <span class="kw">let</span> <span class="ident">stats</span> <span class="op">=</span> <span class="ident">stats</span>.<span class="ident">unwrap</span>();
+
+  <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">thrift_stats</span> <span class="op">=</span> <span class="ident">TStatistics</span> {
+    <span class="ident">max</span>: <span class="prelude-val">None</span>,
+    <span class="ident">min</span>: <span class="prelude-val">None</span>,
+    <span class="ident">null_count</span>: <span class="kw">if</span> <span class="ident">stats</span>.<span class="ident">has_nulls</span>() { <span class="prelude-val">Some</span>(<span class="ident">stats</span>.<span class="ident">null_count</span>() <span class="kw">as</span> <span class="ident">i64</span>) } <span class="kw">else</span> { <span class="prelude-val">None</span> },
+    <span class="ident">distinct_count</span>: <span class="ident">stats</span>.<span class="ident">distinct_count</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">value</span><span class="op">|</span> <span class="ident">value</span> <span class="kw">as</span> <span class="ident">i64</span>),
+    <span class="ident">max_value</span>: <span class="prelude-val">None</span>,
+    <span class="ident">min_value</span>: <span class="prelude-val">None</span>
+  };
+
+  <span class="comment">// Get min/max if set.</span>
+  <span class="kw">let</span> (<span class="ident">min</span>, <span class="ident">max</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">stats</span>.<span class="ident">has_min_max_set</span>() {
+    (<span class="prelude-val">Some</span>(<span class="ident">stats</span>.<span class="ident">min_bytes</span>().<span class="ident">to_vec</span>()), <span class="prelude-val">Some</span>(<span class="ident">stats</span>.<span class="ident">max_bytes</span>().<span class="ident">to_vec</span>()))
+  } <span class="kw">else</span> {
+    (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
+  };
+
+  <span class="kw">if</span> <span class="ident">stats</span>.<span class="ident">is_min_max_deprecated</span>() {
+    <span class="ident">thrift_stats</span>.<span class="ident">min</span> <span class="op">=</span> <span class="ident">min</span>;
+    <span class="ident">thrift_stats</span>.<span class="ident">max</span> <span class="op">=</span> <span class="ident">max</span>;
+  } <span class="kw">else</span> {
+    <span class="ident">thrift_stats</span>.<span class="ident">min_value</span> <span class="op">=</span> <span class="ident">min</span>;
+    <span class="ident">thrift_stats</span>.<span class="ident">max_value</span> <span class="op">=</span> <span class="ident">max</span>;
+  }
+
+  <span class="prelude-val">Some</span>(<span class="ident">thrift_stats</span>)
+}
+
 <span class="doccomment">/// Statistics for a column chunk and data page.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Statistics</span> {
@@ -797,6 +861,32 @@
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_min_max_set</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
     <span class="macro">statistics_enum_func</span><span class="macro">!</span>[<span class="self">self</span>, <span class="ident">has_min_max_set</span>]
   }
+
+  <span class="doccomment">/// Returns slice of bytes that represent min value.</span>
+  <span class="doccomment">/// Panics if min value is not set.</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">min_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+    <span class="macro">statistics_enum_func</span><span class="macro">!</span>[<span class="self">self</span>, <span class="ident">min_bytes</span>]
+  }
+
+  <span class="doccomment">/// Returns slice of bytes that represent max value.</span>
+  <span class="doccomment">/// Panics if max value is not set.</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+    <span class="macro">statistics_enum_func</span><span class="macro">!</span>[<span class="self">self</span>, <span class="ident">max_bytes</span>]
+  }
+
+  <span class="doccomment">/// Returns physical type associated with statistics.</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">physical_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Type</span> {
+    <span class="kw">match</span> <span class="self">self</span> {
+      <span class="ident">Statistics</span>::<span class="ident">Boolean</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">BOOLEAN</span>,
+      <span class="ident">Statistics</span>::<span class="ident">Int32</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">INT32</span>,
+      <span class="ident">Statistics</span>::<span class="ident">Int64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">INT64</span>,
+      <span class="ident">Statistics</span>::<span class="ident">Int96</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">INT96</span>,
+      <span class="ident">Statistics</span>::<span class="ident">Float</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">FLOAT</span>,
+      <span class="ident">Statistics</span>::<span class="ident">Double</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">DOUBLE</span>,
+      <span class="ident">Statistics</span>::<span class="ident">ByteArray</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">BYTE_ARRAY</span>,
+      <span class="ident">Statistics</span>::<span class="ident">FixedLenByteArray</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">FIXED_LEN_BYTE_ARRAY</span>
+    }
+  }
 }
 
 <span class="doccomment">/// Typed implementation for [`Statistics`].</span>
@@ -841,6 +931,22 @@
   <span class="doccomment">/// Use `has_min_max_set` method to check that.</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">T</span>::<span class="ident">T</span> {
     <span class="self">self</span>.<span class="ident">max</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>()
+  }
+
+  <span class="doccomment">/// Returns min value as bytes of the statistics.</span>
+  <span class="doccomment">///</span>
+  <span class="doccomment">/// Panics if min value is not set, use `has_min_max_set` method to check</span>
+  <span class="doccomment">/// if values are set.</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">min_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+    <span class="self">self</span>.<span class="ident">min</span>().<span class="ident">as_bytes</span>()
+  }
+
+  <span class="doccomment">/// Returns max value as bytes of the statistics.</span>
+  <span class="doccomment">///</span>
+  <span class="doccomment">/// Panics if max value is not set, use `has_min_max_set` method to check</span>
+  <span class="doccomment">/// if values are set.</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
+    <span class="self">self</span>.<span class="ident">max</span>().<span class="ident">as_bytes</span>()
   }
 
   <span class="doccomment">/// Whether or not min and max values are set.</span>
@@ -890,7 +996,24 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
   <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-  <span class="kw">use</span> <span class="ident">data_type</span>::<span class="ident">AsBytes</span>;
+
+  <span class="attribute">#[<span class="ident">test</span>]</span>
+  <span class="kw">fn</span> <span class="ident">test_statistics_min_max_bytes</span>() {
+    <span class="kw">let</span> <span class="ident">stats</span> <span class="op">=</span> <span class="ident">Statistics</span>::<span class="ident">int32</span>(<span class="prelude-val">Some</span>(<span class="op">-</span><span class="number">123</span>), <span class="prelude-val">Some</span>(<span class="number">234</span>), <span class="prelude-val">None</span>, <span class="number">1</span>, <span class="bool-val">false</span>);
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">stats</span>.<span class="ident">has_min_max_set</span>());
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">stats</span>.<span class="ident">min_bytes</span>(), (<span class="op">-</span><span class="number">123</span>).<span class="ident">as_bytes</span>());
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">stats</span>.<span class="ident">max_bytes</span>(), <span class="number">234</span>.<span class="ident">as_bytes</span>());
+
+    <span class="kw">let</span> <span class="ident">stats</span> <span class="op">=</span> <span class="ident">Statistics</span>::<span class="ident">byte_array</span>(
+      <span class="prelude-val">Some</span>(<span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>])),
+      <span class="prelude-val">Some</span>(<span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>])),
+      <span class="prelude-val">None</span>, <span class="number">1</span>,
+      <span class="bool-val">true</span>
+    );
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">stats</span>.<span class="ident">has_min_max_set</span>());
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">stats</span>.<span class="ident">min_bytes</span>(), <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>]);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">stats</span>.<span class="ident">max_bytes</span>(), <span class="kw-2">&amp;</span>[<span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>]);
+  }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="attribute">#[<span class="ident">should_panic</span>(<span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;Statistics null count is negative (-10)&quot;</span>)]</span>
@@ -971,7 +1094,8 @@
   <span class="kw">fn</span> <span class="ident">test_statistics_from_thrift</span>() {
     <span class="comment">// Helper method to check statistics conversion.</span>
     <span class="kw">fn</span> <span class="ident">check_stats</span>(<span class="ident">stats</span>: <span class="ident">Statistics</span>) {
-      <span class="kw">let</span> (<span class="ident">tpe</span>, <span class="ident">thrift_stats</span>) <span class="op">=</span> <span class="ident">to_thrift</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">stats</span>));
+      <span class="kw">let</span> <span class="ident">tpe</span> <span class="op">=</span> <span class="ident">stats</span>.<span class="ident">physical_type</span>();
+      <span class="kw">let</span> <span class="ident">thrift_stats</span> <span class="op">=</span> <span class="ident">to_thrift</span>(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">stats</span>));
       <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">from_thrift</span>(<span class="ident">tpe</span>, <span class="ident">thrift_stats</span>), <span class="prelude-val">Some</span>(<span class="ident">stats</span>));
     }
 
@@ -1019,72 +1143,6 @@
       )
     );
     <span class="ident">check_stats</span>(<span class="ident">Statistics</span>::<span class="ident">fixed_len_byte_array</span>(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="number">7</span>, <span class="bool-val">true</span>));
-  }
-
-  <span class="comment">// Convert Statistics into Thrift definition.</span>
-  <span class="kw">fn</span> <span class="ident">to_thrift</span>(<span class="ident">stats</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Statistics</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> (<span class="ident">Type</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TStatistics</span><span class="op">&gt;</span>) {
-    <span class="kw">if</span> <span class="ident">stats</span>.<span class="ident">is_none</span>() {
-      <span class="comment">// In this case type does not matter.</span>
-      <span class="kw">return</span> (<span class="ident">Type</span>::<span class="ident">BOOLEAN</span>, <span class="prelude-val">None</span>);
-    }
-
-    <span class="kw">let</span> <span class="ident">stats</span> <span class="op">=</span> <span class="ident">stats</span>.<span class="ident">unwrap</span>();
-
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">thrift_stats</span> <span class="op">=</span> <span class="ident">TStatistics</span> {
-      <span class="ident">max</span>: <span class="prelude-val">None</span>,
-      <span class="ident">min</span>: <span class="prelude-val">None</span>,
-      <span class="ident">null_count</span>: <span class="kw">if</span> <span class="ident">stats</span>.<span class="ident">has_nulls</span>() { <span class="prelude-val">Some</span>(<span class="ident">stats</span>.<span class="ident">null_count</span>() <span class="kw">as</span> <span class="ident">i64</span>) } <span class="kw">else</span> { <span class="prelude-val">None</span> },
-      <span class="ident">distinct_count</span>: <span class="ident">stats</span>.<span class="ident">distinct_count</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">value</span><span class="op">|</span> <span class="ident">value</span> <span class="kw">as</span> <span class="ident">i64</span>),
-      <span class="ident">max_value</span>: <span class="prelude-val">None</span>,
-      <span class="ident">min_value</span>: <span class="prelude-val">None</span>
-    };
-
-    <span class="comment">// Get physical type.</span>
-    <span class="kw">let</span> <span class="ident">tpe</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">stats</span> {
-      <span class="ident">Statistics</span>::<span class="ident">Boolean</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">BOOLEAN</span>,
-      <span class="ident">Statistics</span>::<span class="ident">Int32</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">INT32</span>,
-      <span class="ident">Statistics</span>::<span class="ident">Int64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">INT64</span>,
-      <span class="ident">Statistics</span>::<span class="ident">Int96</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">INT96</span>,
-      <span class="ident">Statistics</span>::<span class="ident">Float</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">FLOAT</span>,
-      <span class="ident">Statistics</span>::<span class="ident">Double</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">DOUBLE</span>,
-      <span class="ident">Statistics</span>::<span class="ident">ByteArray</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">BYTE_ARRAY</span>,
-      <span class="ident">Statistics</span>::<span class="ident">FixedLenByteArray</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">FIXED_LEN_BYTE_ARRAY</span>
-    };
-
-    <span class="comment">// Get min/max if set.</span>
-    <span class="kw">let</span> (<span class="ident">min</span>, <span class="ident">max</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">stats</span>.<span class="ident">has_min_max_set</span>() {
-      <span class="kw">let</span> (<span class="ident">min</span>, <span class="ident">max</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">stats</span> {
-        <span class="ident">Statistics</span>::<span class="ident">Boolean</span>(<span class="kw-2">ref</span> <span class="ident">typed</span>) <span class="op">=&gt;</span>
-          (<span class="ident">typed</span>.<span class="ident">min</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>(), <span class="ident">typed</span>.<span class="ident">max</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>()),
-        <span class="ident">Statistics</span>::<span class="ident">Int32</span>(<span class="kw-2">ref</span> <span class="ident">typed</span>) <span class="op">=&gt;</span>
-          (<span class="ident">typed</span>.<span class="ident">min</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>(), <span class="ident">typed</span>.<span class="ident">max</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>()),
-        <span class="ident">Statistics</span>::<span class="ident">Int64</span>(<span class="kw-2">ref</span> <span class="ident">typed</span>) <span class="op">=&gt;</span>
-          (<span class="ident">typed</span>.<span class="ident">min</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>(), <span class="ident">typed</span>.<span class="ident">max</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>()),
-        <span class="ident">Statistics</span>::<span class="ident">Int96</span>(<span class="kw-2">ref</span> <span class="ident">typed</span>) <span class="op">=&gt;</span>
-          (<span class="ident">typed</span>.<span class="ident">min</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>(), <span class="ident">typed</span>.<span class="ident">max</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>()),
-        <span class="ident">Statistics</span>::<span class="ident">Float</span>(<span class="kw-2">ref</span> <span class="ident">typed</span>) <span class="op">=&gt;</span>
-          (<span class="ident">typed</span>.<span class="ident">min</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>(), <span class="ident">typed</span>.<span class="ident">max</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>()),
-        <span class="ident">Statistics</span>::<span class="ident">Double</span>(<span class="kw-2">ref</span> <span class="ident">typed</span>) <span class="op">=&gt;</span>
-          (<span class="ident">typed</span>.<span class="ident">min</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>(), <span class="ident">typed</span>.<span class="ident">max</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>()),
-        <span class="ident">Statistics</span>::<span class="ident">ByteArray</span>(<span class="kw-2">ref</span> <span class="ident">typed</span>) <span class="op">=&gt;</span>
-          (<span class="ident">typed</span>.<span class="ident">min</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>(), <span class="ident">typed</span>.<span class="ident">max</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>()),
-        <span class="ident">Statistics</span>::<span class="ident">FixedLenByteArray</span>(<span class="kw-2">ref</span> <span class="ident">typed</span>) <span class="op">=&gt;</span>
-          (<span class="ident">typed</span>.<span class="ident">min</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>(), <span class="ident">typed</span>.<span class="ident">max</span>().<span class="ident">as_bytes</span>().<span class="ident">to_vec</span>())
-      };
-      (<span class="prelude-val">Some</span>(<span class="ident">min</span>), <span class="prelude-val">Some</span>(<span class="ident">max</span>))
-    } <span class="kw">else</span> {
-      (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
-    };
-
-    <span class="kw">if</span> <span class="ident">stats</span>.<span class="ident">is_min_max_deprecated</span>() {
-      <span class="ident">thrift_stats</span>.<span class="ident">min</span> <span class="op">=</span> <span class="ident">min</span>;
-      <span class="ident">thrift_stats</span>.<span class="ident">max</span> <span class="op">=</span> <span class="ident">max</span>;
-    } <span class="kw">else</span> {
-      <span class="ident">thrift_stats</span>.<span class="ident">min_value</span> <span class="op">=</span> <span class="ident">min</span>;
-      <span class="ident">thrift_stats</span>.<span class="ident">max_value</span> <span class="op">=</span> <span class="ident">max</span>;
-    }
-
-    (<span class="ident">tpe</span>, <span class="prelude-val">Some</span>(<span class="ident">thrift_stats</span>))
   }
 }
 </pre>

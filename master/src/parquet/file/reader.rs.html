@@ -960,7 +960,7 @@
     <span class="kw">let</span> <span class="ident">schema_descr</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">SchemaDescriptor</span>::<span class="ident">new</span>(<span class="ident">schema</span>.<span class="ident">clone</span>()));
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">row_groups</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
     <span class="kw">for</span> <span class="ident">rg</span> <span class="kw">in</span> <span class="ident">t_file_metadata</span>.<span class="ident">row_groups</span> {
-      <span class="ident">row_groups</span>.<span class="ident">push</span>(<span class="ident">RowGroupMetaData</span>::<span class="ident">from_thrift</span>(<span class="ident">schema_descr</span>.<span class="ident">clone</span>(), <span class="ident">rg</span>)<span class="question-mark">?</span>);
+      <span class="ident">row_groups</span>.<span class="ident">push</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RowGroupMetaData</span>::<span class="ident">from_thrift</span>(<span class="ident">schema_descr</span>.<span class="ident">clone</span>(), <span class="ident">rg</span>)<span class="question-mark">?</span>));
     }
     <span class="kw">let</span> <span class="ident">column_orders</span> <span class="op">=</span>
       <span class="self">Self</span>::<span class="ident">parse_column_orders</span>(<span class="ident">t_file_metadata</span>.<span class="ident">column_orders</span>, <span class="kw-2">&amp;</span><span class="ident">schema_descr</span>);

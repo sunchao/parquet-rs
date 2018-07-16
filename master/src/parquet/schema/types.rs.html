@@ -1576,6 +1576,12 @@
 <span id="1576">1576</span>
 <span id="1577">1577</span>
 <span id="1578">1578</span>
+<span id="1579">1579</span>
+<span id="1580">1580</span>
+<span id="1581">1581</span>
+<span id="1582">1582</span>
+<span id="1583">1583</span>
+<span id="1584">1584</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -2102,6 +2108,12 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
     <span class="ident">v</span>.<span class="ident">push</span>(<span class="ident">single_path</span>);
     <span class="ident">ColumnPath</span> { <span class="ident">parts</span>: <span class="ident">v</span> }
+  }
+}
+
+<span class="kw">impl</span> <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">String</span>]<span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">ColumnPath</span> {
+  <span class="kw">fn</span> <span class="ident">as_ref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">String</span>] {
+    <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">parts</span>
   }
 }
 
