@@ -49,12 +49,15 @@ pub struct ParquetMetaData {
 }
 
 impl ParquetMetaData {
-  /// Creates Parquet metadata from file metadata and a list of row group metadata for
-  /// each available row group.
-  pub fn new(file_metadata: FileMetaData, row_groups: Vec<RowGroupMetaData>) -> Self {
+  /// Creates Parquet metadata from file metadata and a list of row group metadata `Rc`s
+  /// for each available row group.
+  pub fn new(
+    file_metadata: FileMetaData,
+    row_group_ptrs: Vec<RowGroupMetaDataPtr>
+  ) -> Self {
     ParquetMetaData {
       file_metadata: Rc::new(file_metadata),
-      row_groups: row_groups.into_iter().map(|r| Rc::new(r)).collect()
+      row_groups: row_group_ptrs
     }
   }
 
@@ -180,6 +183,11 @@ pub struct RowGroupMetaData {
 }
 
 impl RowGroupMetaData {
+  /// Returns builer for row group metadata.
+  pub fn builder(schema_descr: SchemaDescPtr) -> RowGroupMetaDataBuilder {
+    RowGroupMetaDataBuilder::new(schema_descr)
+  }
+
   /// Number of columns in this row group.
   pub fn num_columns(&self) -> usize {
     self.columns.len()
@@ -235,6 +243,72 @@ impl RowGroupMetaData {
       schema_descr
     })
   }
+
+  /// Method to convert to Thrift.
+  pub fn to_thrift(&self) -> RowGroup {
+    RowGroup {
+      columns: self.columns().into_iter().map(|v| v.to_thrift()).collect(),
+      total_byte_size: self.total_byte_size,
+      num_rows: self.num_rows,
+      sorting_columns: None
+    }
+  }
+}
+
+/// Builder for row group metadata.
+pub struct RowGroupMetaDataBuilder {
+  columns: Vec<ColumnChunkMetaDataPtr>,
+  schema_descr: SchemaDescPtr,
+  num_rows: i64,
+  total_byte_size: i64
+}
+
+impl RowGroupMetaDataBuilder {
+  /// Creates new builder from schema descriptor.
+  fn new(schema_descr: SchemaDescPtr) -> Self {
+    Self {
+      columns: Vec::with_capacity(schema_descr.num_columns()),
+      schema_descr: schema_descr,
+      num_rows: 0,
+      total_byte_size: 0
+    }
+  }
+
+  /// Sets number of rows in this row group.
+  pub fn set_num_rows(mut self, value: i64) -> Self {
+    self.num_rows = value;
+    self
+  }
+
+  /// Sets total size in bytes for this row group.
+  pub fn set_total_byte_size(mut self, value: i64) -> Self {
+    self.total_byte_size = value;
+    self
+  }
+
+  /// Sets column metadata for this row group.
+  pub fn set_column_metadata(mut self, value: Vec<ColumnChunkMetaDataPtr>) -> Self {
+    self.columns = value;
+    self
+  }
+
+  /// Builds row group metadata.
+  pub fn build(self) -> Result<RowGroupMetaData> {
+    if self.schema_descr.num_columns() != self.columns.len() {
+      return Err(general_err!(
+        "Column length mismatch: {} != {}",
+        self.schema_descr.num_columns(),
+        self.columns.len()
+      ));
+    }
+
+    Ok(RowGroupMetaData {
+      columns: self.columns,
+      num_rows: self.num_rows,
+      total_byte_size: self.total_byte_size,
+      schema_descr: self.schema_descr
+    })
+  }
 }
 
 /// Reference counted pointer for [`ColumnChunkMetaData`].
@@ -260,6 +334,11 @@ pub struct ColumnChunkMetaData {
 
 /// Represents common operations for a column chunk.
 impl ColumnChunkMetaData {
+  /// Returns builder for column chunk metadata.
+  pub fn builder(column_descr: ColumnDescPtr) -> ColumnChunkMetaDataBuilder {
+    ColumnChunkMetaDataBuilder::new(column_descr)
+  }
+
   /// File where the column chunk is stored.
   ///
   /// If not set, assumed to belong to the same file as the metadata.
@@ -350,7 +429,7 @@ impl ColumnChunkMetaData {
   }
 
   /// Method to convert from Thrift.
-  fn from_thrift(column_descr: ColumnDescPtr, cc: ColumnChunk) -> Result<Self> {
+  pub fn from_thrift(column_descr: ColumnDescPtr, cc: ColumnChunk) -> Result<Self> {
     if cc.meta_data.is_none() {
       return Err(general_err!("Expected to have column metadata"));
     }
@@ -385,5 +464,254 @@ impl ColumnChunkMetaData {
       statistics
     };
     Ok(result)
+  }
+
+  /// Method to convert to Thrift.
+  pub fn to_thrift(&self) -> ColumnChunk {
+    let column_metadata = ColumnMetaData {
+      type_: self.column_type.into(),
+      encodings: self.encodings().into_iter().map(|&v| v.into()).collect(),
+      path_in_schema: Vec::from(self.column_path.as_ref()),
+      codec: self.compression.into(),
+      num_values: self.num_values,
+      total_uncompressed_size: self.total_uncompressed_size,
+      total_compressed_size: self.total_compressed_size,
+      key_value_metadata: None,
+      data_page_offset: self.data_page_offset,
+      index_page_offset: self.index_page_offset,
+      dictionary_page_offset: self.dictionary_page_offset,
+      statistics: statistics::to_thrift(self.statistics.as_ref()),
+      encoding_stats: None
+    };
+
+    ColumnChunk {
+      file_path: self.file_path().map(|v| v.clone()),
+      file_offset: self.file_offset,
+      meta_data: Some(column_metadata),
+      offset_index_offset: None,
+      offset_index_length: None,
+      column_index_offset: None,
+      column_index_length: None
+    }
+  }
+}
+
+/// Builder for column chunk metadata.
+pub struct ColumnChunkMetaDataBuilder {
+  column_descr: ColumnDescPtr,
+  encodings: Vec<Encoding>,
+  file_path: Option<String>,
+  file_offset: i64,
+  num_values: i64,
+  compression: Compression,
+  total_compressed_size: i64,
+  total_uncompressed_size: i64,
+  data_page_offset: i64,
+  index_page_offset: Option<i64>,
+  dictionary_page_offset: Option<i64>,
+  statistics: Option<Statistics>
+}
+
+impl ColumnChunkMetaDataBuilder {
+  /// Creates new column chunk metadata builder.
+  fn new(column_descr: ColumnDescPtr) -> Self {
+    Self {
+      column_descr: column_descr,
+      encodings: Vec::new(),
+      file_path: None,
+      file_offset: 0,
+      num_values: 0,
+      compression: Compression::UNCOMPRESSED,
+      total_compressed_size: 0,
+      total_uncompressed_size: 0,
+      data_page_offset: 0,
+      index_page_offset: None,
+      dictionary_page_offset: None,
+      statistics: None
+    }
+  }
+
+  /// Sets list of encodings for this column chunk.
+  pub fn set_encodings(mut self, encodings: Vec<Encoding>) -> Self {
+    self.encodings = encodings;
+    self
+  }
+
+  /// Sets optional file path for this column chunk.
+  pub fn set_file_path(mut self, value: String) -> Self {
+    self.file_path = Some(value);
+    self
+  }
+
+  /// Sets file offset in bytes.
+  pub fn set_file_offset(mut self, value: i64) -> Self {
+    self.file_offset = value;
+    self
+  }
+
+  /// Sets number of values.
+  pub fn set_num_values(mut self, value: i64) -> Self {
+    self.num_values = value;
+    self
+  }
+
+  /// Sets compression.
+  pub fn set_compression(mut self, value: Compression) -> Self {
+    self.compression = value;
+    self
+  }
+
+  /// Sets total compressed size in bytes.
+  pub fn set_total_compressed_size(mut self, value: i64) -> Self {
+    self.total_compressed_size = value;
+    self
+  }
+
+  /// Sets total uncompressed size in bytes.
+  pub fn set_total_uncompressed_size(mut self, value: i64) -> Self {
+    self.total_uncompressed_size = value;
+    self
+  }
+
+  /// Sets data page offset in bytes.
+  pub fn set_data_page_offset(mut self, value: i64) -> Self {
+    self.data_page_offset = value;
+    self
+  }
+
+  /// Sets optional dictionary page ofset in bytes.
+  pub fn set_dictionary_page_offset(mut self, value: Option<i64>) -> Self {
+    self.dictionary_page_offset = value;
+    self
+  }
+
+  /// Sets optional index page offset in bytes.
+  pub fn set_index_page_offset(mut self, value: Option<i64>) -> Self {
+    self.index_page_offset = value;
+    self
+  }
+
+  /// Sets statistics for this column chunk.
+  pub fn set_statistics(mut self, value: Statistics) -> Self {
+    self.statistics = Some(value);
+    self
+  }
+
+  /// Builds column chunk metadata.
+  pub fn build(self) -> Result<ColumnChunkMetaData> {
+    Ok(ColumnChunkMetaData {
+      column_type: self.column_descr.physical_type(),
+      column_path: self.column_descr.path().clone(),
+      column_descr: self.column_descr,
+      encodings: self.encodings,
+      file_path: self.file_path,
+      file_offset: self.file_offset,
+      num_values: self.num_values,
+      compression: self.compression,
+      total_compressed_size: self.total_compressed_size,
+      total_uncompressed_size: self.total_uncompressed_size,
+      data_page_offset: self.data_page_offset,
+      index_page_offset: self.index_page_offset,
+      dictionary_page_offset: self.dictionary_page_offset,
+      statistics: self.statistics
+    })
+  }
+}
+
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_row_group_metadata_thrift_conversion() {
+    let schema_descr = get_test_schema_descr();
+
+    let mut columns = vec![];
+    for ptr in schema_descr.columns() {
+      let column = ColumnChunkMetaData::builder(ptr.clone()).build().unwrap();
+      columns.push(Rc::new(column));
+    }
+    let row_group_meta = RowGroupMetaData::builder(schema_descr.clone())
+      .set_num_rows(1000)
+      .set_total_byte_size(2000)
+      .set_column_metadata(columns)
+      .build()
+      .unwrap();
+
+    let row_group_exp = row_group_meta.to_thrift();
+    let row_group_res = RowGroupMetaData::from_thrift(
+      schema_descr.clone(),
+      row_group_exp.clone()
+    ).unwrap().to_thrift();
+
+    assert_eq!(row_group_res, row_group_exp);
+  }
+
+  #[test]
+  fn test_row_group_metadata_thrift_conversion_empty() {
+    let schema_descr = get_test_schema_descr();
+
+    let row_group_meta = RowGroupMetaData::builder(schema_descr.clone()).build();
+
+    assert!(row_group_meta.is_err());
+    if let Err(e) = row_group_meta {
+      assert_eq!(e.to_string(), "Parquet error: Column length mismatch: 2 != 0");
+    }
+  }
+
+  #[test]
+  fn test_column_chunk_metadata_thrift_conversion() {
+    let column_descr = get_test_schema_descr().column(0);
+
+    let col_metadata = ColumnChunkMetaData::builder(column_descr.clone())
+      .set_encodings(vec![Encoding::PLAIN, Encoding::RLE])
+      .set_file_path("file_path".to_owned())
+      .set_file_offset(100)
+      .set_num_values(1000)
+      .set_compression(Compression::SNAPPY)
+      .set_total_compressed_size(2000)
+      .set_total_uncompressed_size(3000)
+      .set_data_page_offset(4000)
+      .set_dictionary_page_offset(Some(5000))
+      .build()
+      .unwrap();
+
+    let col_chunk_exp = col_metadata.to_thrift();
+
+    let col_chunk_res = ColumnChunkMetaData::from_thrift(
+      column_descr.clone(), col_chunk_exp.clone()
+    ).unwrap().to_thrift();
+
+    assert_eq!(col_chunk_res, col_chunk_exp);
+  }
+
+  #[test]
+  fn test_column_chunk_metadata_thrift_conversion_empty() {
+    let column_descr = get_test_schema_descr().column(0);
+
+    let col_metadata = ColumnChunkMetaData::builder(column_descr.clone())
+      .build()
+      .unwrap();
+
+    let col_chunk_exp = col_metadata.to_thrift();
+    let col_chunk_res = ColumnChunkMetaData::from_thrift(
+      column_descr.clone(), col_chunk_exp.clone()
+    ).unwrap().to_thrift();
+
+    assert_eq!(col_chunk_res, col_chunk_exp);
+  }
+
+  /// Returns sample schema descriptor so we can create column metadata.
+  fn get_test_schema_descr() -> SchemaDescPtr {
+    let schema = SchemaType::group_type_builder("schema")
+      .with_fields(&mut vec![
+        Rc::new(SchemaType::primitive_type_builder("a", Type::INT32).build().unwrap()),
+        Rc::new(SchemaType::primitive_type_builder("b", Type::INT32).build().unwrap())
+      ])
+      .build()
+      .unwrap();
+
+    Rc::new(SchemaDescriptor::new(Rc::new(schema)))
   }
 }

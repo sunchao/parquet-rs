@@ -151,7 +151,7 @@ impl SerializedFileReader {
     let schema_descr = Rc::new(SchemaDescriptor::new(schema.clone()));
     let mut row_groups = Vec::new();
     for rg in t_file_metadata.row_groups {
-      row_groups.push(RowGroupMetaData::from_thrift(schema_descr.clone(), rg)?);
+      row_groups.push(Rc::new(RowGroupMetaData::from_thrift(schema_descr.clone(), rg)?));
     }
     let column_orders =
       Self::parse_column_orders(t_file_metadata.column_orders, &schema_descr);

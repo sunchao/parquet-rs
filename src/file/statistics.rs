@@ -190,6 +190,41 @@ pub fn from_thrift(
   }
 }
 
+// Convert Statistics into Thrift definition.
+pub fn to_thrift(stats: Option<&Statistics>) -> Option<TStatistics> {
+  if stats.is_none() {
+    return None;
+  }
+
+  let stats = stats.unwrap();
+
+  let mut thrift_stats = TStatistics {
+    max: None,
+    min: None,
+    null_count: if stats.has_nulls() { Some(stats.null_count() as i64) } else { None },
+    distinct_count: stats.distinct_count().map(|value| value as i64),
+    max_value: None,
+    min_value: None
+  };
+
+  // Get min/max if set.
+  let (min, max) = if stats.has_min_max_set() {
+    (Some(stats.min_bytes().to_vec()), Some(stats.max_bytes().to_vec()))
+  } else {
+    (None, None)
+  };
+
+  if stats.is_min_max_deprecated() {
+    thrift_stats.min = min;
+    thrift_stats.max = max;
+  } else {
+    thrift_stats.min_value = min;
+    thrift_stats.max_value = max;
+  }
+
+  Some(thrift_stats)
+}
+
 /// Statistics for a column chunk and data page.
 #[derive(Debug, PartialEq)]
 pub enum Statistics {
@@ -252,6 +287,32 @@ impl Statistics {
   pub fn has_min_max_set(&self) -> bool {
     statistics_enum_func![self, has_min_max_set]
   }
+
+  /// Returns slice of bytes that represent min value.
+  /// Panics if min value is not set.
+  pub fn min_bytes(&self) -> &[u8] {
+    statistics_enum_func![self, min_bytes]
+  }
+
+  /// Returns slice of bytes that represent max value.
+  /// Panics if max value is not set.
+  pub fn max_bytes(&self) -> &[u8] {
+    statistics_enum_func![self, max_bytes]
+  }
+
+  /// Returns physical type associated with statistics.
+  pub fn physical_type(&self) -> Type {
+    match self {
+      Statistics::Boolean(_) => Type::BOOLEAN,
+      Statistics::Int32(_) => Type::INT32,
+      Statistics::Int64(_) => Type::INT64,
+      Statistics::Int96(_) => Type::INT96,
+      Statistics::Float(_) => Type::FLOAT,
+      Statistics::Double(_) => Type::DOUBLE,
+      Statistics::ByteArray(_) => Type::BYTE_ARRAY,
+      Statistics::FixedLenByteArray(_) => Type::FIXED_LEN_BYTE_ARRAY
+    }
+  }
 }
 
 /// Typed implementation for [`Statistics`].
@@ -296,6 +357,22 @@ impl<T: DataType> TypedStatistics<T> {
   /// Use `has_min_max_set` method to check that.
   pub fn max(&self) -> &T::T {
     self.max.as_ref().unwrap()
+  }
+
+  /// Returns min value as bytes of the statistics.
+  ///
+  /// Panics if min value is not set, use `has_min_max_set` method to check
+  /// if values are set.
+  pub fn min_bytes(&self) -> &[u8] {
+    self.min().as_bytes()
+  }
+
+  /// Returns max value as bytes of the statistics.
+  ///
+  /// Panics if max value is not set, use `has_min_max_set` method to check
+  /// if values are set.
+  pub fn max_bytes(&self) -> &[u8] {
+    self.max().as_bytes()
   }
 
   /// Whether or not min and max values are set.
@@ -345,7 +422,24 @@ impl<T: DataType> cmp::PartialEq for TypedStatistics<T> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use data_type::AsBytes;
+
+  #[test]
+  fn test_statistics_min_max_bytes() {
+    let stats = Statistics::int32(Some(-123), Some(234), None, 1, false);
+    assert!(stats.has_min_max_set());
+    assert_eq!(stats.min_bytes(), (-123).as_bytes());
+    assert_eq!(stats.max_bytes(), 234.as_bytes());
+
+    let stats = Statistics::byte_array(
+      Some(ByteArray::from(vec![1, 2, 3])),
+      Some(ByteArray::from(vec![3, 4, 5])),
+      None, 1,
+      true
+    );
+    assert!(stats.has_min_max_set());
+    assert_eq!(stats.min_bytes(), &[1, 2, 3]);
+    assert_eq!(stats.max_bytes(), &[3, 4, 5]);
+  }
 
   #[test]
   #[should_panic(expected = "Statistics null count is negative (-10)")]
@@ -426,7 +520,8 @@ mod tests {
   fn test_statistics_from_thrift() {
     // Helper method to check statistics conversion.
     fn check_stats(stats: Statistics) {
-      let (tpe, thrift_stats) = to_thrift(Some(&stats));
+      let tpe = stats.physical_type();
+      let thrift_stats = to_thrift(Some(&stats));
       assert_eq!(from_thrift(tpe, thrift_stats), Some(stats));
     }
 
@@ -474,71 +569,5 @@ mod tests {
       )
     );
     check_stats(Statistics::fixed_len_byte_array(None, None, None, 7, true));
-  }
-
-  // Convert Statistics into Thrift definition.
-  fn to_thrift(stats: Option<&Statistics>) -> (Type, Option<TStatistics>) {
-    if stats.is_none() {
-      // In this case type does not matter.
-      return (Type::BOOLEAN, None);
-    }
-
-    let stats = stats.unwrap();
-
-    let mut thrift_stats = TStatistics {
-      max: None,
-      min: None,
-      null_count: if stats.has_nulls() { Some(stats.null_count() as i64) } else { None },
-      distinct_count: stats.distinct_count().map(|value| value as i64),
-      max_value: None,
-      min_value: None
-    };
-
-    // Get physical type.
-    let tpe = match stats {
-      Statistics::Boolean(_) => Type::BOOLEAN,
-      Statistics::Int32(_) => Type::INT32,
-      Statistics::Int64(_) => Type::INT64,
-      Statistics::Int96(_) => Type::INT96,
-      Statistics::Float(_) => Type::FLOAT,
-      Statistics::Double(_) => Type::DOUBLE,
-      Statistics::ByteArray(_) => Type::BYTE_ARRAY,
-      Statistics::FixedLenByteArray(_) => Type::FIXED_LEN_BYTE_ARRAY
-    };
-
-    // Get min/max if set.
-    let (min, max) = if stats.has_min_max_set() {
-      let (min, max) = match stats {
-        Statistics::Boolean(ref typed) =>
-          (typed.min().as_bytes().to_vec(), typed.max().as_bytes().to_vec()),
-        Statistics::Int32(ref typed) =>
-          (typed.min().as_bytes().to_vec(), typed.max().as_bytes().to_vec()),
-        Statistics::Int64(ref typed) =>
-          (typed.min().as_bytes().to_vec(), typed.max().as_bytes().to_vec()),
-        Statistics::Int96(ref typed) =>
-          (typed.min().as_bytes().to_vec(), typed.max().as_bytes().to_vec()),
-        Statistics::Float(ref typed) =>
-          (typed.min().as_bytes().to_vec(), typed.max().as_bytes().to_vec()),
-        Statistics::Double(ref typed) =>
-          (typed.min().as_bytes().to_vec(), typed.max().as_bytes().to_vec()),
-        Statistics::ByteArray(ref typed) =>
-          (typed.min().as_bytes().to_vec(), typed.max().as_bytes().to_vec()),
-        Statistics::FixedLenByteArray(ref typed) =>
-          (typed.min().as_bytes().to_vec(), typed.max().as_bytes().to_vec())
-      };
-      (Some(min), Some(max))
-    } else {
-      (None, None)
-    };
-
-    if stats.is_min_max_deprecated() {
-      thrift_stats.min = min;
-      thrift_stats.max = max;
-    } else {
-      thrift_stats.min_value = min;
-      thrift_stats.max_value = max;
-    }
-
-    (tpe, Some(thrift_stats))
   }
 }

@@ -526,6 +526,12 @@ impl From<String> for ColumnPath {
   }
 }
 
+impl AsRef<[String]> for ColumnPath {
+  fn as_ref(&self) -> &[String] {
+    &self.parts
+  }
+}
+
 /// A descriptor for leaf-level primitive columns.
 /// This encapsulates information such as definition and repetition levels and is used to
 /// re-assemble nested data.
