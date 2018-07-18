@@ -951,6 +951,7 @@ impl Encoder<ByteArrayType> for DeltaByteArrayEncoder<ByteArrayType> {
     let suffixes = self.suffix_writer.flush_buffer()?;
     total_bytes.extend_from_slice(suffixes.data());
 
+    self.previous.clear();
     Ok(ByteBufferPtr::new(total_bytes))
   }
 }
@@ -1149,6 +1150,27 @@ mod tests {
     );
   }
 
+  // See: https://github.com/sunchao/parquet-rs/issues/47
+  #[test]
+  fn test_issue_47() {
+    let mut encoder = create_test_encoder::<ByteArrayType>(0, Encoding::DELTA_BYTE_ARRAY);
+    let mut decoder = create_test_decoder::<ByteArrayType>(0, Encoding::DELTA_BYTE_ARRAY);
+
+    let mut input = vec![];
+    input.push(ByteArray::from("aa"));
+    input.push(ByteArray::from("aaa"));
+    input.push(ByteArray::from("aa"));
+    input.push(ByteArray::from("aaa"));
+    let mut output = vec![ByteArray::default(); input.len()];
+
+    let mut result = put_and_get(
+      &mut encoder, &mut decoder, &input[..2], &mut output[..2]);
+    assert!(result.is_ok(), "first put_and_get() failed with: {}", result.unwrap_err());
+    result = put_and_get(&mut encoder, &mut decoder, &input[2..], &mut output[2..]);
+    assert!(result.is_ok(), "second put_and_get() failed with: {}", result.unwrap_err());
+    assert_eq!(output, input);
+  }
+
   trait EncodingTester<T: DataType> {
     fn test(enc: Encoding, total: usize, type_length: i32) {
       let result = match enc {
@@ -1173,27 +1195,20 @@ mod tests {
   impl<T: DataType> EncodingTester<T> for T where T: 'static {
     fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()> {
       let mut encoder = create_test_encoder::<T>(type_length, enc);
-      let mut values = <T as RandGen<T>>::gen_vec(type_length, total);
-      encoder.put(&values[..])?;
-
-      let mut data = encoder.flush_buffer()?;
       let mut decoder = create_test_decoder::<T>(type_length, enc);
+      let mut values = <T as RandGen<T>>::gen_vec(type_length, total);
       let mut result_data = vec![T::T::default(); total];
-      decoder.set_data(data, total)?;
-      let mut actual_total = decoder.get(&mut result_data)?;
 
+      let mut actual_total = put_and_get(
+        &mut encoder, &mut decoder, &values[..], &mut result_data[..])?;
       assert_eq!(actual_total, total);
       assert_eq!(result_data, values);
 
       // Encode more data after flush and test with decoder
 
       values = <T as RandGen<T>>::gen_vec(type_length, total);
-      encoder.put(&values[..])?;
-      data = encoder.flush_buffer()?;
-
-      decoder.set_data(data, total)?;
-      actual_total = decoder.get(&mut result_data)?;
-
+      actual_total = put_and_get(
+        &mut encoder, &mut decoder, &values[..], &mut result_data[..])?;
       assert_eq!(actual_total, total);
       assert_eq!(result_data, values);
 
@@ -1234,6 +1249,16 @@ mod tests {
 
       Ok(())
     }
+  }
+
+  fn put_and_get<T: 'static + DataType>(
+    encoder: &mut Box<Encoder<T>>, decoder: &mut Box<Decoder<T>>,
+    input: &[T::T], output: &mut [T::T]
+  ) -> Result<usize> {
+    encoder.put(input)?;
+    let data = encoder.flush_buffer()?;
+    decoder.set_data(data, input.len())?;
+    decoder.get(output)
   }
 
   fn create_and_check_encoder<T: 'static + DataType>(
