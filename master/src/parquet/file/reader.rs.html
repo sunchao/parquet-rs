@@ -1133,10 +1133,10 @@
 }
 
 <span class="doccomment">/// A serialized implementation for Parquet [`PageReader`].</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializedPageReader</span> {
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializedPageReader</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Read</span><span class="op">&gt;</span> {
   <span class="comment">// The file source buffer which references exactly the bytes for the column trunk</span>
   <span class="comment">// to be read by this page reader.</span>
-  <span class="ident">buf</span>: <span class="ident">FileSource</span>,
+  <span class="ident">buf</span>: <span class="ident">T</span>,
 
   <span class="comment">// The compression codec for this column chunk. Only set for non-PLAIN codec.</span>
   <span class="ident">decompressor</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Codec</span><span class="op">&gt;&gt;</span>,
@@ -1151,10 +1151,10 @@
   <span class="ident">physical_type</span>: <span class="ident">Type</span>
 }
 
-<span class="kw">impl</span> <span class="ident">SerializedPageReader</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Read</span><span class="op">&gt;</span> <span class="ident">SerializedPageReader</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
   <span class="doccomment">/// Creates a new serialized page reader from file source.</span>
-  <span class="kw">fn</span> <span class="ident">new</span>(
-    <span class="ident">buf</span>: <span class="ident">FileSource</span>,
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
+    <span class="ident">buf</span>: <span class="ident">T</span>,
     <span class="ident">total_num_values</span>: <span class="ident">i64</span>,
     <span class="ident">compression</span>: <span class="ident">Compression</span>,
     <span class="ident">physical_type</span>: <span class="ident">Type</span>
@@ -1178,7 +1178,7 @@
   }
 }
 
-<span class="kw">impl</span> <span class="ident">PageReader</span> <span class="kw">for</span> <span class="ident">SerializedPageReader</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Read</span><span class="op">&gt;</span> <span class="ident">PageReader</span> <span class="kw">for</span> <span class="ident">SerializedPageReader</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
   <span class="kw">fn</span> <span class="ident">get_next_page</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Page</span><span class="op">&gt;&gt;</span> {
     <span class="kw">while</span> <span class="self">self</span>.<span class="ident">seen_num_values</span> <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">total_num_values</span> {
       <span class="kw">let</span> <span class="ident">page_header</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read_page_header</span>()<span class="question-mark">?</span>;
