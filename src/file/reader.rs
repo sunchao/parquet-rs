@@ -324,10 +324,10 @@ impl RowGroupReader for SerializedRowGroupReader {
 }
 
 /// A serialized implementation for Parquet [`PageReader`].
-pub struct SerializedPageReader {
+pub struct SerializedPageReader<T: Read> {
   // The file source buffer which references exactly the bytes for the column trunk
   // to be read by this page reader.
-  buf: FileSource,
+  buf: T,
 
   // The compression codec for this column chunk. Only set for non-PLAIN codec.
   decompressor: Option<Box<Codec>>,
@@ -342,10 +342,10 @@ pub struct SerializedPageReader {
   physical_type: Type
 }
 
-impl SerializedPageReader {
+impl<T: Read> SerializedPageReader<T> {
   /// Creates a new serialized page reader from file source.
-  fn new(
-    buf: FileSource,
+  pub fn new(
+    buf: T,
     total_num_values: i64,
     compression: Compression,
     physical_type: Type
@@ -369,7 +369,7 @@ impl SerializedPageReader {
   }
 }
 
-impl PageReader for SerializedPageReader {
+impl<T: Read> PageReader for SerializedPageReader<T> {
   fn get_next_page(&mut self) -> Result<Option<Page>> {
     while self.seen_num_values < self.total_num_values {
       let page_header = self.read_page_header()?;

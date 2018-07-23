@@ -19,8 +19,9 @@
 
 use basic::{PageType, Encoding};
 use errors::Result;
-use util::memory::ByteBufferPtr;
+use file::metadata::ColumnChunkMetaData;
 use file::statistics::Statistics;
+use util::memory::ByteBufferPtr;
 
 /// Parquet Page definition.
 ///
@@ -102,12 +103,111 @@ impl Page {
   }
 }
 
+/// Helper struct to represent pages with potentially compressed buffer (data page v1) or
+/// compressed and concatenated buffer (def levels + rep levels + compressed values for
+/// data page v2).
+///
+/// The difference with `Page` is that `Page` buffer is always uncompressed.
+pub struct CompressedPage {
+  compressed_page: Page,
+  uncompressed_size: usize
+}
+
+impl CompressedPage {
+  /// Creates `CompressedPage` from a page with potentially compressed buffer and
+  /// uncompressed size.
+  pub fn new(compressed_page: Page, uncompressed_size: usize) -> Self {
+    Self {
+      compressed_page: compressed_page,
+      uncompressed_size: uncompressed_size
+    }
+  }
+
+  /// Returns page type.
+  pub fn page_type(&self) -> PageType {
+    self.compressed_page.page_type()
+  }
+
+  /// Returns underlying page with potentially compressed buffer.
+  pub fn compressed_page(&self) -> &Page {
+    &self.compressed_page
+  }
+
+  /// Returns uncompressed size in bytes.
+  pub fn uncompressed_size(&self) -> usize {
+    self.uncompressed_size
+  }
+
+  /// Returns compressed size in bytes.
+  ///
+  /// Note that it is assumed that buffer is compressed, but it may not be. In this
+  /// case compressed size will be equal to uncompressed size.
+  pub fn compressed_size(&self) -> usize {
+    self.compressed_page.buffer().len()
+  }
+
+  /// Number of values in page.
+  pub fn num_values(&self) -> u32 {
+    self.compressed_page.num_values()
+  }
+
+  /// Returns encoding for values in page.
+  pub fn encoding(&self) -> Encoding {
+    self.compressed_page.encoding()
+  }
+
+  /// Returns slice of compressed buffer in the page.
+  pub fn data(&self) -> &[u8] {
+    self.compressed_page.buffer().data()
+  }
+}
+
 /// API for reading pages from a column chunk.
 /// This offers a iterator like API to get the next page.
 pub trait PageReader {
   /// Gets the next page in the column chunk associated with this reader.
   /// Returns `None` if there are no pages left.
   fn get_next_page(&mut self) -> Result<Option<Page>>;
+}
+
+/// API for writing pages in a column chunk.
+///
+/// It is reasonable to assume that all pages will be written in the correct order, e.g.
+/// dictionary page followed by data pages, or a set of data pages.
+pub trait PageWriter {
+  /// Writes a page into the output stream/sink.
+  /// Returns number of bytes written into the sink.
+  ///
+  /// This method is called for every compressed page we write into underlying buffer,
+  /// either data page or dictionary page.
+  fn write_page(&mut self, page: CompressedPage) -> Result<usize>;
+
+  /// Writes column chunk metadata into the output stream/sink.
+  ///
+  /// This method is called once per lifetime of page writer, normally when we finalise
+  /// writes in column writer.
+  fn write_metadata(&mut self, metadata: &ColumnChunkMetaData) -> Result<()>;
+
+  /// Closes resources and flushes underlying sink.
+  /// Page writer should not be used after this method is called.
+  fn close(&mut self) -> Result<()>;
+
+  /// Returns dictionary page offset in bytes, if set.
+  /// This is an absolute offset in bytes in the underlying buffer.
+  fn dictionary_page_offset(&self) -> Option<u64>;
+
+  /// Returns data page (either v1 or v2) offset in bytes.
+  /// This is an absolute offset in bytes in the underlying buffer.
+  fn data_page_offset(&self) -> u64;
+
+  /// Returns total uncompressed size in bytes so far.
+  fn total_uncompressed_size(&self) -> u64;
+
+  /// Returns total compressed size in bytes so far.
+  fn total_compressed_size(&self) -> u64;
+
+  /// Returns number of values so far.
+  fn num_values(&self) -> u32;
 }
 
 
@@ -165,5 +265,26 @@ mod tests {
     assert_eq!(dict_page.num_values(), 10);
     assert_eq!(dict_page.encoding(), Encoding::PLAIN);
     assert_eq!(dict_page.statistics(), None);
+  }
+
+  #[test]
+  fn test_compressed_page() {
+    let data_page = Page::DataPage {
+      buf: ByteBufferPtr::new(vec![0, 1, 2]),
+      num_values: 10,
+      encoding: Encoding::PLAIN,
+      def_level_encoding: Encoding::RLE,
+      rep_level_encoding: Encoding::RLE,
+      statistics: Some(Statistics::int32(Some(1), Some(2), None, 1, true))
+    };
+
+    let cpage = CompressedPage::new(data_page, 5);
+
+    assert_eq!(cpage.page_type(), PageType::DATA_PAGE);
+    assert_eq!(cpage.uncompressed_size(), 5);
+    assert_eq!(cpage.compressed_size(), 3);
+    assert_eq!(cpage.num_values(), 10);
+    assert_eq!(cpage.encoding(), Encoding::PLAIN);
+    assert_eq!(cpage.data(), &[0, 1, 2]);
   }
 }
