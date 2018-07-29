@@ -193,7 +193,7 @@ pub struct TypedTripletIter<T: DataType> {
   has_next: bool
 }
 
-impl<T: DataType> TypedTripletIter<T> where T: 'static {
+impl<T: DataType> TypedTripletIter<T> {
   /// Creates new typed triplet iterator based on provided column reader.
   /// Use batch size to specify the amount of values to buffer from column reader.
   fn new(

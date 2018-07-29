@@ -61,7 +61,7 @@ pub trait Decoder<T: DataType> {
 pub fn get_decoder<T: DataType>(
   descr: ColumnDescPtr,
   encoding: Encoding
-) -> Result<Box<Decoder<T>>> where T: 'static {
+) -> Result<Box<Decoder<T>>> {
   let decoder: Box<Decoder<T>> = match encoding {
     Encoding::PLAIN => {
       Box::new(PlainDecoder::new(descr.type_length()))
@@ -1205,11 +1205,11 @@ mod tests {
     assert_eq!(buffer, expected);
   }
 
-  fn test_rle_value_decode<T: 'static + DataType>(data: Vec<Vec<T::T>>) {
+  fn test_rle_value_decode<T: DataType>(data: Vec<Vec<T::T>>) {
     test_encode_decode::<T>(data, Encoding::RLE);
   }
 
-  fn test_delta_bit_packed_decode<T: 'static + DataType>(data: Vec<Vec<T::T>>) {
+  fn test_delta_bit_packed_decode<T: DataType>(data: Vec<Vec<T::T>>) {
     test_encode_decode::<T>(data, Encoding::DELTA_BINARY_PACKED);
   }
 
@@ -1221,7 +1221,7 @@ mod tests {
   // For example,
   //   vec![vec![1, 2, 3]] invokes `put()` once and writes {1, 2, 3}
   //   vec![vec![1, 2], vec![3]] invokes `put()` twice and writes {1, 2, 3}
-  fn test_encode_decode<T: 'static + DataType>(
+  fn test_encode_decode<T: DataType>(
     data: Vec<Vec<T::T>>,
     encoding: Encoding
   ) {
@@ -1256,7 +1256,7 @@ mod tests {
     assert_eq!(result, expected);
   }
 
-  fn create_and_check_decoder<T: 'static + DataType>(
+  fn create_and_check_decoder<T: DataType>(
     encoding: Encoding, err: Option<ParquetError>
   ) {
     let descr = create_test_col_desc_ptr(-1, T::get_physical_type());

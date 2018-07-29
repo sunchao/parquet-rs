@@ -61,7 +61,7 @@ pub fn get_encoder<T: DataType>(
   desc: ColumnDescPtr,
   encoding: Encoding,
   mem_tracker: MemTrackerPtr
-) -> Result<Box<Encoder<T>>> where T: 'static {
+) -> Result<Box<Encoder<T>>> {
   let encoder: Box<Encoder<T>> = match encoding {
     Encoding::PLAIN => {
       Box::new(PlainEncoder::new(desc, mem_tracker, vec![]))
@@ -1089,7 +1089,7 @@ mod tests {
 
   #[test]
   fn test_estimated_data_encoded_size() {
-    fn run_test<T: DataType + 'static>(
+    fn run_test<T: DataType>(
       encoding: Encoding,
       type_length: i32,
       values: &[T::T],
@@ -1192,7 +1192,7 @@ mod tests {
     fn test_dict_internal(total: usize, type_length: i32) -> Result<()>;
   }
 
-  impl<T: DataType> EncodingTester<T> for T where T: 'static {
+  impl<T: DataType> EncodingTester<T> for T {
     fn test_internal(enc: Encoding, total: usize, type_length: i32) -> Result<()> {
       let mut encoder = create_test_encoder::<T>(type_length, enc);
       let mut decoder = create_test_decoder::<T>(type_length, enc);
@@ -1251,7 +1251,7 @@ mod tests {
     }
   }
 
-  fn put_and_get<T: 'static + DataType>(
+  fn put_and_get<T: DataType>(
     encoder: &mut Box<Encoder<T>>, decoder: &mut Box<Decoder<T>>,
     input: &[T::T], output: &mut [T::T]
   ) -> Result<usize> {
@@ -1261,7 +1261,7 @@ mod tests {
     decoder.get(output)
   }
 
-  fn create_and_check_encoder<T: 'static + DataType>(
+  fn create_and_check_encoder<T: DataType>(
     encoding: Encoding, err: Option<ParquetError>
   ) {
     let descr = create_test_col_desc_ptr(-1, T::get_physical_type());
@@ -1290,7 +1290,7 @@ mod tests {
 
   fn create_test_encoder<T: DataType>(
     type_len: i32, enc: Encoding
-  ) -> Box<Encoder<T>> where T: 'static {
+  ) -> Box<Encoder<T>> {
     let desc = create_test_col_desc_ptr(type_len, T::get_physical_type());
     let mem_tracker = Rc::new(MemTracker::new());
     get_encoder(desc, enc, mem_tracker).unwrap()
@@ -1298,7 +1298,7 @@ mod tests {
 
   fn create_test_decoder<T: DataType>(
     type_len: i32, enc: Encoding
-  ) -> Box<Decoder<T>> where T: 'static {
+  ) -> Box<Decoder<T>> {
     let desc = create_test_col_desc_ptr(type_len, T::get_physical_type());
     get_decoder(desc, enc).unwrap()
   }

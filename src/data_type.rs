@@ -291,7 +291,7 @@ impl AsBytes for str {
 
 /// Contains the Parquet physical type information as well as the Rust primitive type
 /// presentation.
-pub trait DataType {
+pub trait DataType: 'static {
   type T: ::std::cmp::PartialEq + ::std::fmt::Debug + ::std::default::Default
     + ::std::clone::Clone + AsBytes;
 

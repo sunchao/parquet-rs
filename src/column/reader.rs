@@ -107,7 +107,7 @@ pub struct ColumnReaderImpl<T: DataType> {
   decoders: HashMap<Encoding, Box<Decoder<T>>>
 }
 
-impl<T: DataType> ColumnReaderImpl<T> where T: 'static {
+impl<T: DataType> ColumnReaderImpl<T> {
   /// Creates new column reader based on column descriptor and page reader.
   pub fn new(descr: ColumnDescPtr, page_reader: Box<PageReader>) -> Self {
     Self {
@@ -737,14 +737,14 @@ mod tests {
   }
 
   struct ColumnReaderTester<T: DataType>
-    where T::T: PartialOrd + SampleRange + Copy, T: 'static {
+    where T::T: PartialOrd + SampleRange + Copy {
     rep_levels: Vec<i16>,
     def_levels: Vec<i16>,
     values: Vec<T::T>
   }
 
   impl<T: DataType> ColumnReaderTester<T>
-    where T::T: PartialOrd + SampleRange + Copy, T: 'static  {
+    where T::T: PartialOrd + SampleRange + Copy {
     pub fn new() -> Self {
       Self { rep_levels: Vec::new(), def_levels: Vec::new(), values: Vec::new() }
     }
@@ -985,7 +985,7 @@ mod tests {
     fn add_def_levels(&mut self, max_level: i16, def_levels: &[i16]);
     fn add_values<T: DataType>(
       &mut self, encoding: Encoding, values: &[T::T]
-    ) where T: 'static;
+    );
     fn add_indices(&mut self, indices: ByteBufferPtr);
     fn consume(self) -> Page;
   }
@@ -1060,7 +1060,7 @@ mod tests {
 
     fn add_values<T: DataType>(
       &mut self, encoding: Encoding, values: &[T::T]
-    ) where T: 'static {
+    ){
       assert!(
         self.num_values >= values.len() as u32,
         "num_values: {}, values.len(): {}",
@@ -1119,7 +1119,7 @@ mod tests {
     values: &mut Vec<T::T>,
     pages: &mut VecDeque<Page>,
     use_v2: bool
-  ) where T::T: PartialOrd + SampleRange + Copy, T: 'static {
+  ) where T::T: PartialOrd + SampleRange + Copy {
 
     let mut num_values = 0;
     let max_def_level = desc.max_def_level();
