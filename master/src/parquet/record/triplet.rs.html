@@ -722,7 +722,7 @@
   <span class="ident">has_next</span>: <span class="ident">bool</span>
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">TypedTripletIter</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="lifetime">&#39;static</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">TypedTripletIter</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
   <span class="doccomment">/// Creates new typed triplet iterator based on provided column reader.</span>
   <span class="doccomment">/// Use batch size to specify the amount of values to buffer from column reader.</span>
   <span class="kw">fn</span> <span class="ident">new</span>(

@@ -1420,7 +1420,7 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_decoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
   <span class="ident">descr</span>: <span class="ident">ColumnDescPtr</span>,
   <span class="ident">encoding</span>: <span class="ident">Encoding</span>
-) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="lifetime">&#39;static</span> {
+) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> {
   <span class="kw">let</span> <span class="ident">decoder</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">encoding</span> {
     <span class="ident">Encoding</span>::<span class="ident">PLAIN</span> <span class="op">=&gt;</span> {
       <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PlainDecoder</span>::<span class="ident">new</span>(<span class="ident">descr</span>.<span class="ident">type_length</span>()))
@@ -2564,11 +2564,11 @@
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">buffer</span>, <span class="ident">expected</span>);
   }
 
-  <span class="kw">fn</span> <span class="ident">test_rle_value_decode</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">DataType</span><span class="op">&gt;</span>(<span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;&gt;</span>) {
+  <span class="kw">fn</span> <span class="ident">test_rle_value_decode</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(<span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;&gt;</span>) {
     <span class="ident">test_encode_decode</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">data</span>, <span class="ident">Encoding</span>::<span class="ident">RLE</span>);
   }
 
-  <span class="kw">fn</span> <span class="ident">test_delta_bit_packed_decode</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">DataType</span><span class="op">&gt;</span>(<span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;&gt;</span>) {
+  <span class="kw">fn</span> <span class="ident">test_delta_bit_packed_decode</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(<span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;&gt;</span>) {
     <span class="ident">test_encode_decode</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">data</span>, <span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span>);
   }
 
@@ -2580,7 +2580,7 @@
   <span class="comment">// For example,</span>
   <span class="comment">//   vec![vec![1, 2, 3]] invokes `put()` once and writes {1, 2, 3}</span>
   <span class="comment">//   vec![vec![1, 2], vec![3]] invokes `put()` twice and writes {1, 2, 3}</span>
-  <span class="kw">fn</span> <span class="ident">test_encode_decode</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">DataType</span><span class="op">&gt;</span>(
+  <span class="kw">fn</span> <span class="ident">test_encode_decode</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
     <span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;&gt;</span>,
     <span class="ident">encoding</span>: <span class="ident">Encoding</span>
   ) {
@@ -2615,7 +2615,7 @@
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">result</span>, <span class="ident">expected</span>);
   }
 
-  <span class="kw">fn</span> <span class="ident">create_and_check_decoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">DataType</span><span class="op">&gt;</span>(
+  <span class="kw">fn</span> <span class="ident">create_and_check_decoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
     <span class="ident">encoding</span>: <span class="ident">Encoding</span>, <span class="ident">err</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ParquetError</span><span class="op">&gt;</span>
   ) {
     <span class="kw">let</span> <span class="ident">descr</span> <span class="op">=</span> <span class="ident">create_test_col_desc_ptr</span>(<span class="op">-</span><span class="number">1</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());

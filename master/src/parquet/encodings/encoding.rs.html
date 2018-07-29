@@ -1377,7 +1377,7 @@
   <span class="ident">desc</span>: <span class="ident">ColumnDescPtr</span>,
   <span class="ident">encoding</span>: <span class="ident">Encoding</span>,
   <span class="ident">mem_tracker</span>: <span class="ident">MemTrackerPtr</span>
-) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Encoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="lifetime">&#39;static</span> {
+) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Encoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> {
   <span class="kw">let</span> <span class="ident">encoder</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Encoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">encoding</span> {
     <span class="ident">Encoding</span>::<span class="ident">PLAIN</span> <span class="op">=&gt;</span> {
       <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PlainEncoder</span>::<span class="ident">new</span>(<span class="ident">desc</span>, <span class="ident">mem_tracker</span>, <span class="macro">vec</span><span class="macro">!</span>[]))
@@ -2405,7 +2405,7 @@
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_estimated_data_encoded_size</span>() {
-    <span class="kw">fn</span> <span class="ident">run_test</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span>(
+    <span class="kw">fn</span> <span class="ident">run_test</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
       <span class="ident">encoding</span>: <span class="ident">Encoding</span>,
       <span class="ident">type_length</span>: <span class="ident">i32</span>,
       <span class="ident">values</span>: <span class="kw-2">&amp;</span>[<span class="ident">T</span>::<span class="ident">T</span>],
@@ -2508,7 +2508,7 @@
     <span class="kw">fn</span> <span class="ident">test_dict_internal</span>(<span class="ident">total</span>: <span class="ident">usize</span>, <span class="ident">type_length</span>: <span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>;
   }
 
-  <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">EncodingTester</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">T</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="lifetime">&#39;static</span> {
+  <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">EncodingTester</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">T</span> {
     <span class="kw">fn</span> <span class="ident">test_internal</span>(<span class="ident">enc</span>: <span class="ident">Encoding</span>, <span class="ident">total</span>: <span class="ident">usize</span>, <span class="ident">type_length</span>: <span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
       <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">create_test_encoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">type_length</span>, <span class="ident">enc</span>);
       <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">create_test_decoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">type_length</span>, <span class="ident">enc</span>);
@@ -2567,7 +2567,7 @@
     }
   }
 
-  <span class="kw">fn</span> <span class="ident">put_and_get</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">DataType</span><span class="op">&gt;</span>(
+  <span class="kw">fn</span> <span class="ident">put_and_get</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
     <span class="ident">encoder</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Encoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>, <span class="ident">decoder</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>,
     <span class="ident">input</span>: <span class="kw-2">&amp;</span>[<span class="ident">T</span>::<span class="ident">T</span>], <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">T</span>::<span class="ident">T</span>]
   ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
@@ -2577,7 +2577,7 @@
     <span class="ident">decoder</span>.<span class="ident">get</span>(<span class="ident">output</span>)
   }
 
-  <span class="kw">fn</span> <span class="ident">create_and_check_encoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">DataType</span><span class="op">&gt;</span>(
+  <span class="kw">fn</span> <span class="ident">create_and_check_encoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
     <span class="ident">encoding</span>: <span class="ident">Encoding</span>, <span class="ident">err</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ParquetError</span><span class="op">&gt;</span>
   ) {
     <span class="kw">let</span> <span class="ident">descr</span> <span class="op">=</span> <span class="ident">create_test_col_desc_ptr</span>(<span class="op">-</span><span class="number">1</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
@@ -2606,7 +2606,7 @@
 
   <span class="kw">fn</span> <span class="ident">create_test_encoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
     <span class="ident">type_len</span>: <span class="ident">i32</span>, <span class="ident">enc</span>: <span class="ident">Encoding</span>
-  ) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Encoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="lifetime">&#39;static</span> {
+  ) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Encoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> {
     <span class="kw">let</span> <span class="ident">desc</span> <span class="op">=</span> <span class="ident">create_test_col_desc_ptr</span>(<span class="ident">type_len</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
     <span class="kw">let</span> <span class="ident">mem_tracker</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">MemTracker</span>::<span class="ident">new</span>());
     <span class="ident">get_encoder</span>(<span class="ident">desc</span>, <span class="ident">enc</span>, <span class="ident">mem_tracker</span>).<span class="ident">unwrap</span>()
@@ -2614,7 +2614,7 @@
 
   <span class="kw">fn</span> <span class="ident">create_test_decoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
     <span class="ident">type_len</span>: <span class="ident">i32</span>, <span class="ident">enc</span>: <span class="ident">Encoding</span>
-  ) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="lifetime">&#39;static</span> {
+  ) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> {
     <span class="kw">let</span> <span class="ident">desc</span> <span class="op">=</span> <span class="ident">create_test_col_desc_ptr</span>(<span class="ident">type_len</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
     <span class="ident">get_decoder</span>(<span class="ident">desc</span>, <span class="ident">enc</span>).<span class="ident">unwrap</span>()
   }
