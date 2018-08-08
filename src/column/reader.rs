@@ -281,7 +281,7 @@ impl<T: DataType> ColumnReaderImpl<T> {
               let mut buffer_ptr = buf;
 
               if self.descr.max_rep_level() > 0 {
-                let mut rep_decoder = LevelDecoder::new(
+                let mut rep_decoder = LevelDecoder::v1(
                   rep_level_encoding, self.descr.max_rep_level());
                 let total_bytes = rep_decoder.set_data(
                   self.num_buffered_values as usize, buffer_ptr.all());
@@ -290,7 +290,7 @@ impl<T: DataType> ColumnReaderImpl<T> {
               }
 
               if self.descr.max_def_level() > 0 {
-                let mut def_decoder = LevelDecoder::new(
+                let mut def_decoder = LevelDecoder::v1(
                   def_level_encoding, self.descr.max_def_level());
                 let total_bytes = def_decoder.set_data(
                   self.num_buffered_values as usize, buffer_ptr.all());
@@ -322,8 +322,7 @@ impl<T: DataType> ColumnReaderImpl<T> {
 
               // DataPage v2 only supports RLE encoding for repetition levels
               if self.descr.max_rep_level() > 0 {
-                let mut rep_decoder = LevelDecoder::new(
-                  Encoding::RLE, self.descr.max_rep_level());
+                let mut rep_decoder = LevelDecoder::v2(self.descr.max_rep_level());
                 let bytes_read = rep_decoder.set_data_range(
                   self.num_buffered_values as usize, &buf, offset,
                   rep_levels_byte_len as usize);
@@ -333,8 +332,7 @@ impl<T: DataType> ColumnReaderImpl<T> {
 
               // DataPage v2 only supports RLE encoding for definition levels
               if self.descr.max_def_level() > 0 {
-                let mut def_decoder = LevelDecoder::new(
-                  Encoding::RLE, self.descr.max_def_level());
+                let mut def_decoder = LevelDecoder::v2(self.descr.max_def_level());
                 let bytes_read = def_decoder.set_data_range(
                   self.num_buffered_values as usize, &buf, offset,
                   def_levels_byte_len as usize);
@@ -459,7 +457,7 @@ mod tests {
   use basic::Type as PhysicalType;
   use column::page::Page;
   use encodings::encoding::{get_encoder, DictEncoder, Encoder};
-  use encodings::levels::LevelEncoder;
+  use encodings::levels::{max_buffer_size, LevelEncoder};
   use schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
   use util::memory::{ByteBufferPtr, MemTracker, MemTrackerPtr};
   use util::test_common::random_numbers_range;
@@ -1026,8 +1024,8 @@ mod tests {
 
     // Adds levels to the buffer and return number of encoded bytes
     fn add_levels(&mut self, max_level: i16, levels: &[i16]) -> u32 {
-      let size = LevelEncoder::max_buffer_size(Encoding::RLE, max_level, levels.len());
-      let mut level_encoder = LevelEncoder::new(Encoding::RLE, max_level, vec![0; size]);
+      let size = max_buffer_size(Encoding::RLE, max_level, levels.len());
+      let mut level_encoder = LevelEncoder::v1(Encoding::RLE, max_level, vec![0; size]);
       level_encoder.put(levels).expect("put() should be OK");
       let encoded_levels = level_encoder.consume().expect("consume() should be OK");
       // Actual encoded bytes (without length offset)
