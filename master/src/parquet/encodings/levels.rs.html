@@ -460,6 +460,95 @@
 <span id="460">460</span>
 <span id="461">461</span>
 <span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -488,50 +577,70 @@
 <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">bit_util</span>::{<span class="ident">ceil</span>, <span class="ident">log2</span>, <span class="ident">BitReader</span>, <span class="ident">BitWriter</span>};
 <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">memory</span>::<span class="ident">ByteBufferPtr</span>;
 
-<span class="kw">enum</span> <span class="ident">InternalEncoder</span> {
+<span class="doccomment">/// Computes max buffer size for level encoder/decoder based on encoding, max</span>
+<span class="doccomment">/// repetition/definition level and number of total buffered values (includes null</span>
+<span class="doccomment">/// values).</span>
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_buffer_size</span>(
+  <span class="ident">encoding</span>: <span class="ident">Encoding</span>,
+  <span class="ident">max_level</span>: <span class="ident">i16</span>,
+  <span class="ident">num_buffered_values</span>: <span class="ident">usize</span>
+) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+  <span class="kw">let</span> <span class="ident">bit_width</span> <span class="op">=</span> <span class="ident">log2</span>(<span class="ident">max_level</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">+</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">u8</span>;
+  <span class="kw">match</span> <span class="ident">encoding</span> {
+    <span class="ident">Encoding</span>::<span class="ident">RLE</span> <span class="op">=&gt;</span> {
+      <span class="ident">RleEncoder</span>::<span class="ident">max_buffer_size</span>(<span class="ident">bit_width</span>, <span class="ident">num_buffered_values</span>) <span class="op">+</span>
+        <span class="ident">RleEncoder</span>::<span class="ident">min_buffer_size</span>(<span class="ident">bit_width</span>)
+    },
+    <span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span> <span class="op">=&gt;</span> {
+      <span class="ident">ceil</span>((<span class="ident">num_buffered_values</span> <span class="op">*</span> <span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>) <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">8</span>) <span class="kw">as</span> <span class="ident">usize</span>
+    },
+    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Unsupported encoding type {}&quot;</span>, <span class="ident">encoding</span>)
+  }
+}
+
+<span class="doccomment">/// Encoder for definition/repetition levels.</span>
+<span class="doccomment">/// Currently only supports RLE and BIT_PACKED (dev/null) encoding, including v2.</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">LevelEncoder</span> {
   <span class="ident">RLE</span>(<span class="ident">RleEncoder</span>),
-  <span class="ident">BIT_PACKED</span>(<span class="ident">BitWriter</span>)
-}
-
-<span class="kw">enum</span> <span class="ident">InternalDecoder</span> {
-  <span class="ident">RLE</span>(<span class="ident">RleDecoder</span>),
-  <span class="ident">BIT_PACKED</span>(<span class="ident">BitReader</span>)
-}
-
-<span class="doccomment">/// A encoder for definition/repetition levels.</span>
-<span class="doccomment">/// Currently only supports RLE and BIT_PACKED (dev/null) encoding.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LevelEncoder</span> {
-  <span class="ident">bit_width</span>: <span class="ident">u8</span>,
-  <span class="ident">encoder</span>: <span class="ident">InternalEncoder</span>
+  <span class="ident">RLE_V2</span>(<span class="ident">RleEncoder</span>),
+  <span class="ident">BIT_PACKED</span>(<span class="ident">u8</span>, <span class="ident">BitWriter</span>)
 }
 
 <span class="kw">impl</span> <span class="ident">LevelEncoder</span> {
   <span class="doccomment">/// Creates new level encoder based on encoding, max level and underlying byte buffer.</span>
   <span class="doccomment">/// For bit packed encoding it is assumed that buffer is already allocated with</span>
-  <span class="doccomment">/// &#39;LevelEncoder::max_buffer_size&#39; method.</span>
+  <span class="doccomment">/// `levels::max_buffer_size` method.</span>
   <span class="doccomment">///</span>
-  <span class="doccomment">/// Panics, if encoding is not supported</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">encoding</span>: <span class="ident">Encoding</span>, <span class="ident">max_level</span>: <span class="ident">i16</span>, <span class="ident">byte_buffer</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+  <span class="doccomment">/// Used to encode levels for Data Page v1.</span>
+  <span class="doccomment">///</span>
+  <span class="doccomment">/// Panics, if encoding is not supported.</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">v1</span>(<span class="ident">encoding</span>: <span class="ident">Encoding</span>, <span class="ident">max_level</span>: <span class="ident">i16</span>, <span class="ident">byte_buffer</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
     <span class="kw">let</span> <span class="ident">bit_width</span> <span class="op">=</span> <span class="ident">log2</span>(<span class="ident">max_level</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">+</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">u8</span>;
     <span class="kw">match</span> <span class="ident">encoding</span> {
       <span class="ident">Encoding</span>::<span class="ident">RLE</span> <span class="op">=&gt;</span> {
-        <span class="ident">LevelEncoder</span> {
-          <span class="ident">bit_width</span>: <span class="ident">bit_width</span>,
-          <span class="ident">encoder</span>: <span class="ident">InternalEncoder</span>::<span class="ident">RLE</span>(
-            <span class="ident">RleEncoder</span>::<span class="ident">new_from_buf</span>(<span class="ident">bit_width</span>, <span class="ident">byte_buffer</span>, <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>()))
-        }
+        <span class="ident">LevelEncoder</span>::<span class="ident">RLE</span>(
+          <span class="ident">RleEncoder</span>::<span class="ident">new_from_buf</span>(<span class="ident">bit_width</span>, <span class="ident">byte_buffer</span>, <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>())
+        )
       },
       <span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span> <span class="op">=&gt;</span> {
         <span class="comment">// Here we set full byte buffer without adjusting for num_buffered_values,</span>
         <span class="comment">// because byte buffer will already be allocated with size from</span>
         <span class="comment">// `max_buffer_size()` method.</span>
-        <span class="ident">LevelEncoder</span> {
-          <span class="ident">bit_width</span>: <span class="ident">bit_width</span>,
-          <span class="ident">encoder</span>: <span class="ident">InternalEncoder</span>::<span class="ident">BIT_PACKED</span>(<span class="ident">BitWriter</span>::<span class="ident">new_from_buf</span>(<span class="ident">byte_buffer</span>, <span class="number">0</span>))
-        }
+        <span class="ident">LevelEncoder</span>::<span class="ident">BIT_PACKED</span>(
+          <span class="ident">bit_width</span>,
+          <span class="ident">BitWriter</span>::<span class="ident">new_from_buf</span>(<span class="ident">byte_buffer</span>, <span class="number">0</span>)
+        )
       },
       <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Unsupported encoding type {}&quot;</span>, <span class="ident">encoding</span>)
     }
+  }
+
+  <span class="doccomment">/// Creates new level encoder based on RLE encoding. Used to encode Data Page v2</span>
+  <span class="doccomment">/// repetition and definition levels.</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">v2</span>(<span class="ident">max_level</span>: <span class="ident">i16</span>, <span class="ident">byte_buffer</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">let</span> <span class="ident">bit_width</span> <span class="op">=</span> <span class="ident">log2</span>(<span class="ident">max_level</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">+</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">u8</span>;
+    <span class="ident">LevelEncoder</span>::<span class="ident">RLE_V2</span>(<span class="ident">RleEncoder</span>::<span class="ident">new_from_buf</span>(<span class="ident">bit_width</span>, <span class="ident">byte_buffer</span>, <span class="number">0</span>))
   }
 
   <span class="doccomment">/// Put/encode levels vector into this level encoder.</span>
@@ -543,58 +652,36 @@
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">put</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buffer</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">num_encoded</span> <span class="op">=</span> <span class="number">0</span>;
-    <span class="kw">match</span> <span class="self">self</span>.<span class="ident">encoder</span> {
-      <span class="ident">InternalEncoder</span>::<span class="ident">RLE</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">rle_encoder</span>) <span class="op">=&gt;</span> {
+    <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+      <span class="ident">LevelEncoder</span>::<span class="ident">RLE</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">encoder</span>) <span class="op">|</span> <span class="ident">LevelEncoder</span>::<span class="ident">RLE_V2</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">encoder</span>) <span class="op">=&gt;</span> {
         <span class="kw">for</span> <span class="ident">value</span> <span class="kw">in</span> <span class="ident">buffer</span> {
-          <span class="kw">if</span> <span class="op">!</span><span class="ident">rle_encoder</span>.<span class="ident">put</span>(<span class="kw-2">*</span><span class="ident">value</span> <span class="kw">as</span> <span class="ident">u64</span>)<span class="question-mark">?</span> {
+          <span class="kw">if</span> <span class="op">!</span><span class="ident">encoder</span>.<span class="ident">put</span>(<span class="kw-2">*</span><span class="ident">value</span> <span class="kw">as</span> <span class="ident">u64</span>)<span class="question-mark">?</span> {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;RLE buffer is full&quot;</span>));
           }
           <span class="ident">num_encoded</span> <span class="op">+=</span> <span class="number">1</span>;
         }
-        <span class="ident">rle_encoder</span>.<span class="ident">flush</span>()<span class="question-mark">?</span>;
+        <span class="ident">encoder</span>.<span class="ident">flush</span>()<span class="question-mark">?</span>;
       },
-      <span class="ident">InternalEncoder</span>::<span class="ident">BIT_PACKED</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">bit_packed_encoder</span>) <span class="op">=&gt;</span> {
+      <span class="ident">LevelEncoder</span>::<span class="ident">BIT_PACKED</span>(<span class="ident">bit_width</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">encoder</span>) <span class="op">=&gt;</span> {
         <span class="kw">for</span> <span class="ident">value</span> <span class="kw">in</span> <span class="ident">buffer</span> {
-          <span class="kw">if</span> <span class="op">!</span><span class="ident">bit_packed_encoder</span>.<span class="ident">put_value</span>(<span class="kw-2">*</span><span class="ident">value</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>) {
+          <span class="kw">if</span> <span class="op">!</span><span class="ident">encoder</span>.<span class="ident">put_value</span>(<span class="kw-2">*</span><span class="ident">value</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>) {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough bytes left&quot;</span>));
           }
           <span class="ident">num_encoded</span> <span class="op">+=</span> <span class="number">1</span>;
         }
-        <span class="ident">bit_packed_encoder</span>.<span class="ident">flush</span>();
-      },
+        <span class="ident">encoder</span>.<span class="ident">flush</span>();
+      }
     }
     <span class="prelude-val">Ok</span>(<span class="ident">num_encoded</span>)
-  }
-
-  <span class="doccomment">/// Computes max buffer size for level encoder/decoder based on encoding, max</span>
-  <span class="doccomment">/// repetition/definition level and number of total buffered values (includes null</span>
-  <span class="doccomment">/// values).</span>
-  <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_buffer_size</span>(
-    <span class="ident">encoding</span>: <span class="ident">Encoding</span>,
-    <span class="ident">max_level</span>: <span class="ident">i16</span>,
-    <span class="ident">num_buffered_values</span>: <span class="ident">usize</span>
-  ) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="kw">let</span> <span class="ident">bit_width</span> <span class="op">=</span> <span class="ident">log2</span>(<span class="ident">max_level</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">+</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">u8</span>;
-    <span class="kw">match</span> <span class="ident">encoding</span> {
-      <span class="ident">Encoding</span>::<span class="ident">RLE</span> <span class="op">=&gt;</span> {
-        <span class="ident">RleEncoder</span>::<span class="ident">max_buffer_size</span>(<span class="ident">bit_width</span>, <span class="ident">num_buffered_values</span>) <span class="op">+</span>
-          <span class="ident">RleEncoder</span>::<span class="ident">min_buffer_size</span>(<span class="ident">bit_width</span>)
-      },
-      <span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span> <span class="op">=&gt;</span> {
-        <span class="ident">ceil</span>((<span class="ident">num_buffered_values</span> <span class="op">*</span> <span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>) <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">8</span>) <span class="kw">as</span> <span class="ident">usize</span>
-      },
-      <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Unsupported encoding type {}&quot;</span>, <span class="ident">encoding</span>)
-    }
   }
 
   <span class="doccomment">/// Finalizes level encoder, flush all intermediate buffers and return resulting</span>
   <span class="doccomment">/// encoded buffer. Returned buffer is already truncated to encoded bytes only.</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">consume</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span> {
-    <span class="kw">match</span> <span class="self">self</span>.<span class="ident">encoder</span> {
-      <span class="ident">InternalEncoder</span>::<span class="ident">RLE</span>(<span class="ident">rle_encoder</span>) <span class="op">=&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoded_data</span> <span class="op">=</span> <span class="ident">rle_encoder</span>.<span class="ident">consume</span>()<span class="question-mark">?</span>;
+    <span class="kw">match</span> <span class="self">self</span> {
+      <span class="ident">LevelEncoder</span>::<span class="ident">RLE</span>(<span class="ident">encoder</span>) <span class="op">=&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoded_data</span> <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">consume</span>()<span class="question-mark">?</span>;
         <span class="comment">// Account for the buffer offset</span>
         <span class="kw">let</span> <span class="ident">encoded_len</span> <span class="op">=</span> <span class="ident">encoded_data</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>();
         <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> (<span class="ident">encoded_len</span> <span class="kw">as</span> <span class="ident">i32</span>).<span class="ident">to_le</span>();
@@ -602,68 +689,87 @@
         <span class="ident">encoded_data</span>[<span class="number">0</span>..<span class="ident">len_bytes</span>.<span class="ident">len</span>()].<span class="ident">copy_from_slice</span>(<span class="ident">len_bytes</span>);
         <span class="prelude-val">Ok</span>(<span class="ident">encoded_data</span>)
       },
-      <span class="ident">InternalEncoder</span>::<span class="ident">BIT_PACKED</span>(<span class="ident">bit_packed_encoder</span>) <span class="op">=&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="ident">bit_packed_encoder</span>.<span class="ident">consume</span>())
+      <span class="ident">LevelEncoder</span>::<span class="ident">RLE_V2</span>(<span class="ident">encoder</span>) <span class="op">=&gt;</span> {
+        <span class="ident">encoder</span>.<span class="ident">consume</span>()
       },
+      <span class="ident">LevelEncoder</span>::<span class="ident">BIT_PACKED</span>(<span class="kw">_</span>, <span class="ident">encoder</span>) <span class="op">=&gt;</span> {
+        <span class="prelude-val">Ok</span>(<span class="ident">encoder</span>.<span class="ident">consume</span>())
+      }
     }
   }
 }
 
-<span class="doccomment">/// A decoder for definition/repetition levels.</span>
-<span class="doccomment">/// Currently only supports RLE and BIT_PACKED (dev/null) encoding.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LevelDecoder</span> {
-  <span class="ident">bit_width</span>: <span class="ident">u8</span>,
-  <span class="ident">num_values</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
-  <span class="ident">decoder</span>: <span class="ident">InternalDecoder</span>
+<span class="doccomment">/// Decoder for definition/repetition levels.</span>
+<span class="doccomment">/// Currently only supports RLE and BIT_PACKED encoding for Data Page v1 and</span>
+<span class="doccomment">/// RLE for Data Page v2.</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">LevelDecoder</span> {
+  <span class="ident">RLE</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>, <span class="ident">RleDecoder</span>),
+  <span class="ident">RLE_V2</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>, <span class="ident">RleDecoder</span>),
+  <span class="ident">BIT_PACKED</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>, <span class="ident">u8</span>, <span class="ident">BitReader</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">LevelDecoder</span> {
   <span class="doccomment">/// Creates new level decoder based on encoding and max definition/repetition level.</span>
-  <span class="doccomment">/// This method only initializes level decoder, `set_data()` method must be called</span>
+  <span class="doccomment">/// This method only initializes level decoder, `set_data` method must be called</span>
   <span class="doccomment">/// before reading any value.</span>
   <span class="doccomment">///</span>
+  <span class="doccomment">/// Used to encode levels for Data Page v1.</span>
+  <span class="doccomment">///</span>
   <span class="doccomment">/// Panics if encoding is not supported</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">encoding</span>: <span class="ident">Encoding</span>, <span class="ident">max_level</span>: <span class="ident">i16</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">v1</span>(<span class="ident">encoding</span>: <span class="ident">Encoding</span>, <span class="ident">max_level</span>: <span class="ident">i16</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
     <span class="kw">let</span> <span class="ident">bit_width</span> <span class="op">=</span> <span class="ident">log2</span>(<span class="ident">max_level</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">+</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">u8</span>;
-    <span class="kw">let</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">encoding</span> {
-      <span class="ident">Encoding</span>::<span class="ident">RLE</span> <span class="op">=&gt;</span> <span class="ident">InternalDecoder</span>::<span class="ident">RLE</span>(<span class="ident">RleDecoder</span>::<span class="ident">new</span>(<span class="ident">bit_width</span>)),
-      <span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span> <span class="op">=&gt;</span> <span class="ident">InternalDecoder</span>::<span class="ident">BIT_PACKED</span>(<span class="ident">BitReader</span>::<span class="ident">from</span>(<span class="ident">Vec</span>::<span class="ident">new</span>())),
+    <span class="kw">match</span> <span class="ident">encoding</span> {
+      <span class="ident">Encoding</span>::<span class="ident">RLE</span> <span class="op">=&gt;</span>
+        <span class="ident">LevelDecoder</span>::<span class="ident">RLE</span>(<span class="prelude-val">None</span>, <span class="ident">RleDecoder</span>::<span class="ident">new</span>(<span class="ident">bit_width</span>)),
+      <span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span> <span class="op">=&gt;</span>
+        <span class="ident">LevelDecoder</span>::<span class="ident">BIT_PACKED</span>(<span class="prelude-val">None</span>, <span class="ident">bit_width</span>, <span class="ident">BitReader</span>::<span class="ident">from</span>(<span class="ident">Vec</span>::<span class="ident">new</span>())),
       <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Unsupported encoding type {}&quot;</span>, <span class="ident">encoding</span>),
-    };
-    <span class="ident">LevelDecoder</span> { <span class="ident">bit_width</span>: <span class="ident">bit_width</span>, <span class="ident">num_values</span>: <span class="prelude-val">None</span>, <span class="ident">decoder</span>: <span class="ident">decoder</span> }
+    }
+  }
+
+  <span class="doccomment">/// Creates new level decoder based on RLE encoding.</span>
+  <span class="doccomment">/// Used to decode Data Page v2 repetition and definition levels.</span>
+  <span class="doccomment">///</span>
+  <span class="doccomment">/// To set data for this decoder, use `set_data_range` method.</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">v2</span>(<span class="ident">max_level</span>: <span class="ident">i16</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="kw">let</span> <span class="ident">bit_width</span> <span class="op">=</span> <span class="ident">log2</span>(<span class="ident">max_level</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">+</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">u8</span>;
+    <span class="ident">LevelDecoder</span>::<span class="ident">RLE_V2</span>(<span class="prelude-val">None</span>, <span class="ident">RleDecoder</span>::<span class="ident">new</span>(<span class="ident">bit_width</span>))
   }
 
   <span class="doccomment">/// Sets data for this level decoder, and returns total number of bytes set.</span>
+  <span class="doccomment">/// This is used for Data Page v1 levels.</span>
   <span class="doccomment">///</span>
-  <span class="doccomment">/// `data` is encoded data as byte buffer, `num_buffered_values` represents total number</span>
-  <span class="doccomment">/// of values that is expected.</span>
+  <span class="doccomment">/// `data` is encoded data as byte buffer, `num_buffered_values` represents total</span>
+  <span class="doccomment">/// number of values that is expected.</span>
   <span class="doccomment">///</span>
   <span class="doccomment">/// Both RLE and BIT_PACKED level decoders set `num_buffered_values` as total number of</span>
   <span class="doccomment">/// values that they can return and track num values.</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_data</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">num_buffered_values</span>: <span class="ident">usize</span>, <span class="ident">data</span>: <span class="ident">ByteBufferPtr</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="self">self</span>.<span class="ident">num_values</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">num_buffered_values</span>);
-    <span class="kw">match</span> <span class="self">self</span>.<span class="ident">decoder</span> {
-      <span class="ident">InternalDecoder</span>::<span class="ident">RLE</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">rle_decoder</span>) <span class="op">=&gt;</span> {
+    <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+      <span class="ident">LevelDecoder</span>::<span class="ident">RLE</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">num_values</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>) <span class="op">=&gt;</span> {
+        <span class="kw-2">*</span><span class="ident">num_values</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">num_buffered_values</span>);
         <span class="kw">let</span> <span class="ident">i32_size</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>();
         <span class="kw">let</span> <span class="ident">data_size</span> <span class="op">=</span> <span class="macro">read_num_bytes</span><span class="macro">!</span>(<span class="ident">i32</span>, <span class="ident">i32_size</span>, <span class="ident">data</span>.<span class="ident">as_ref</span>()) <span class="kw">as</span> <span class="ident">usize</span>;
-        <span class="ident">rle_decoder</span>.<span class="ident">set_data</span>(<span class="ident">data</span>.<span class="ident">range</span>(<span class="ident">i32_size</span>, <span class="ident">data_size</span>));
+        <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">data</span>.<span class="ident">range</span>(<span class="ident">i32_size</span>, <span class="ident">data_size</span>));
         <span class="ident">i32_size</span> <span class="op">+</span> <span class="ident">data_size</span>
       },
-      <span class="ident">InternalDecoder</span>::<span class="ident">BIT_PACKED</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">bit_packed_decoder</span>) <span class="op">=&gt;</span> {
+      <span class="ident">LevelDecoder</span>::<span class="ident">BIT_PACKED</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">num_values</span>, <span class="ident">bit_width</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>) <span class="op">=&gt;</span> {
+        <span class="kw-2">*</span><span class="ident">num_values</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">num_buffered_values</span>);
         <span class="comment">// Set appropriate number of bytes: if max size is larger than buffer - set full</span>
         <span class="comment">// buffer</span>
-        <span class="kw">let</span> <span class="ident">num_bytes</span> <span class="op">=</span> <span class="ident">ceil</span>((<span class="ident">num_buffered_values</span> <span class="op">*</span> <span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>) <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">8</span>);
+        <span class="kw">let</span> <span class="ident">num_bytes</span> <span class="op">=</span> <span class="ident">ceil</span>((<span class="ident">num_buffered_values</span> <span class="op">*</span> <span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>) <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">8</span>);
         <span class="kw">let</span> <span class="ident">data_size</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">num_bytes</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">data</span>.<span class="ident">len</span>());
-        <span class="ident">bit_packed_decoder</span>.<span class="ident">reset</span>(<span class="ident">data</span>.<span class="ident">range</span>(<span class="ident">data</span>.<span class="ident">start</span>(), <span class="ident">data_size</span>));
+        <span class="ident">decoder</span>.<span class="ident">reset</span>(<span class="ident">data</span>.<span class="ident">range</span>(<span class="ident">data</span>.<span class="ident">start</span>(), <span class="ident">data_size</span>));
         <span class="ident">data_size</span>
       },
+      <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>()
     }
   }
 
-  <span class="doccomment">/// Sets byte array explicitly when start position `start` and length `len` are known in</span>
-  <span class="doccomment">/// advance. Only supported by RLE level decoder.</span>
-  <span class="doccomment">/// Returns number of total bytes set for this decoder (len)</span>
+  <span class="doccomment">/// Sets byte array explicitly when start position `start` and length `len` are known</span>
+  <span class="doccomment">/// in advance. Only supported by RLE level decoder and used for Data Page v2 levels.</span>
+  <span class="doccomment">/// Returns number of total bytes set for this decoder (len).</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_data_range</span>(
     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
@@ -672,13 +778,23 @@
     <span class="ident">start</span>: <span class="ident">usize</span>,
     <span class="ident">len</span>: <span class="ident">usize</span>
   ) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="kw">match</span> <span class="self">self</span>.<span class="ident">decoder</span> {
-      <span class="ident">InternalDecoder</span>::<span class="ident">RLE</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">rle_decoder</span>) <span class="op">=&gt;</span> {
-        <span class="ident">rle_decoder</span>.<span class="ident">set_data</span>(<span class="ident">data</span>.<span class="ident">range</span>(<span class="ident">start</span>, <span class="ident">len</span>));
-        <span class="self">self</span>.<span class="ident">num_values</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">num_buffered_values</span>);
+    <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+      <span class="ident">LevelDecoder</span>::<span class="ident">RLE_V2</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">num_values</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>) <span class="op">=&gt;</span> {
+        <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">data</span>.<span class="ident">range</span>(<span class="ident">start</span>, <span class="ident">len</span>));
+        <span class="kw-2">*</span><span class="ident">num_values</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">num_buffered_values</span>);
         <span class="ident">len</span>
       },
-      <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;set_data_range() method is only supported by RLE encoding type&quot;</span>)
+      <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;set_data_range() method is only supported by RLE v2 encoding type&quot;</span>)
+    }
+  }
+
+  <span class="doccomment">/// Returns true if data is set for decoder, false otherwise.</span>
+  <span class="attribute">#[<span class="ident">inline</span>]</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_data_set</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">match</span> <span class="self">self</span> {
+      <span class="ident">LevelDecoder</span>::<span class="ident">RLE</span>(<span class="kw-2">ref</span> <span class="ident">num_values</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">num_values</span>.<span class="ident">is_some</span>(),
+      <span class="ident">LevelDecoder</span>::<span class="ident">RLE_V2</span>(<span class="kw-2">ref</span> <span class="ident">num_values</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">num_values</span>.<span class="ident">is_some</span>(),
+      <span class="ident">LevelDecoder</span>::<span class="ident">BIT_PACKED</span>(<span class="kw-2">ref</span> <span class="ident">num_values</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">num_values</span>.<span class="ident">is_some</span>()
     }
   }
 
@@ -687,27 +803,28 @@
   <span class="doccomment">/// buffer length).</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i16</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-    <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">num_values</span>.<span class="ident">is_some</span>(), <span class="string">&quot;No data set for decoding&quot;</span>);
-    <span class="kw">let</span> <span class="ident">values_read</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">decoder</span> {
-      <span class="ident">InternalDecoder</span>::<span class="ident">RLE</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">rle_decoder</span>) <span class="op">=&gt;</span> {
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">is_data_set</span>(), <span class="string">&quot;No data set for decoding&quot;</span>);
+    <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+      <span class="ident">LevelDecoder</span>::<span class="ident">RLE</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">num_values</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>) <span class="op">|</span>
+      <span class="ident">LevelDecoder</span>::<span class="ident">RLE_V2</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">num_values</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>) <span class="op">=&gt;</span> {
         <span class="comment">// Max length we can read</span>
-        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="self">self</span>.<span class="ident">num_values</span>.<span class="ident">unwrap</span>(), <span class="ident">buffer</span>.<span class="ident">len</span>());
-        <span class="ident">rle_decoder</span>.<span class="ident">get_batch</span>::<span class="op">&lt;</span><span class="ident">i16</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[<span class="number">0</span>..<span class="ident">len</span>])<span class="question-mark">?</span>
+        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">num_values</span>.<span class="ident">unwrap</span>(), <span class="ident">buffer</span>.<span class="ident">len</span>());
+        <span class="kw">let</span> <span class="ident">values_read</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">get_batch</span>::<span class="op">&lt;</span><span class="ident">i16</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[<span class="number">0</span>..<span class="ident">len</span>])<span class="question-mark">?</span>;
+        <span class="kw-2">*</span><span class="ident">num_values</span> <span class="op">=</span> <span class="ident">num_values</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">len</span><span class="op">|</span> <span class="ident">len</span> <span class="op">-</span> <span class="ident">values_read</span>);
+        <span class="prelude-val">Ok</span>(<span class="ident">values_read</span>)
       },
-      <span class="ident">InternalDecoder</span>::<span class="ident">BIT_PACKED</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">bit_packed_decoder</span>) <span class="op">=&gt;</span> {
+      <span class="ident">LevelDecoder</span>::<span class="ident">BIT_PACKED</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">num_values</span>, <span class="ident">bit_width</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>) <span class="op">=&gt;</span> {
         <span class="comment">// When extracting values from bit reader, it might return more values than left</span>
         <span class="comment">// because of padding to a full byte, we use num_values to track precise number</span>
         <span class="comment">// of values.</span>
-        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="self">self</span>.<span class="ident">num_values</span>.<span class="ident">unwrap</span>(), <span class="ident">buffer</span>.<span class="ident">len</span>());
-        <span class="kw">let</span> <span class="ident">values_read</span> <span class="op">=</span> <span class="ident">bit_packed_decoder</span>.<span class="ident">get_batch</span>::<span class="op">&lt;</span><span class="ident">i16</span><span class="op">&gt;</span>(
-          <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..<span class="ident">len</span>], <span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>
+        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">num_values</span>.<span class="ident">unwrap</span>(), <span class="ident">buffer</span>.<span class="ident">len</span>());
+        <span class="kw">let</span> <span class="ident">values_read</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">get_batch</span>::<span class="op">&lt;</span><span class="ident">i16</span><span class="op">&gt;</span>(
+          <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..<span class="ident">len</span>], <span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>
         );
-        <span class="ident">values_read</span>
+        <span class="kw-2">*</span><span class="ident">num_values</span> <span class="op">=</span> <span class="ident">num_values</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">len</span><span class="op">|</span> <span class="ident">len</span> <span class="op">-</span> <span class="ident">values_read</span>);
+        <span class="prelude-val">Ok</span>(<span class="ident">values_read</span>)
       }
-    };
-    <span class="comment">// Update current num_values</span>
-    <span class="self">self</span>.<span class="ident">num_values</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">num_values</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">len</span><span class="op">|</span> <span class="ident">len</span> <span class="op">-</span> <span class="ident">values_read</span>);
-    <span class="prelude-val">Ok</span>(<span class="ident">values_read</span>)
+    }
   }
 }
 
@@ -717,14 +834,26 @@
   <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
   <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">test_common</span>::<span class="ident">random_numbers_range</span>;
 
-  <span class="kw">fn</span> <span class="ident">test_internal_roundtrip</span>(<span class="ident">enc</span>: <span class="ident">Encoding</span>, <span class="ident">levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>], <span class="ident">max_level</span>: <span class="ident">i16</span>) {
-    <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">LevelEncoder</span>::<span class="ident">max_buffer_size</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="ident">levels</span>.<span class="ident">len</span>());
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">LevelEncoder</span>::<span class="ident">new</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>]);
+  <span class="kw">fn</span> <span class="ident">test_internal_roundtrip</span>(<span class="ident">enc</span>: <span class="ident">Encoding</span>, <span class="ident">levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>], <span class="ident">max_level</span>: <span class="ident">i16</span>, <span class="ident">v2</span>: <span class="ident">bool</span>) {
+    <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">max_buffer_size</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="ident">levels</span>.<span class="ident">len</span>());
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">v2</span> {
+      <span class="ident">LevelEncoder</span>::<span class="ident">v2</span>(<span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>])
+    } <span class="kw">else</span> {
+      <span class="ident">LevelEncoder</span>::<span class="ident">v1</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>])
+    };
     <span class="ident">encoder</span>.<span class="ident">put</span>(<span class="kw-2">&amp;</span><span class="ident">levels</span>).<span class="ident">expect</span>(<span class="string">&quot;put() should be OK&quot;</span>);
     <span class="kw">let</span> <span class="ident">encoded_levels</span> <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">consume</span>().<span class="ident">expect</span>(<span class="string">&quot;consume() should be OK&quot;</span>);
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">new</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>);
-    <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">levels</span>.<span class="ident">len</span>(), <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">encoded_levels</span>));
+    <span class="kw">let</span> <span class="ident">byte_buf</span> <span class="op">=</span> <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">encoded_levels</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>;
+    <span class="kw">if</span> <span class="ident">v2</span> {
+      <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v2</span>(<span class="ident">max_level</span>);
+      <span class="ident">decoder</span>.<span class="ident">set_data_range</span>(<span class="ident">levels</span>.<span class="ident">len</span>(), <span class="kw-2">&amp;</span><span class="ident">byte_buf</span>, <span class="number">0</span>, <span class="ident">byte_buf</span>.<span class="ident">len</span>());
+    } <span class="kw">else</span> {
+      <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v1</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>);
+      <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">levels</span>.<span class="ident">len</span>(), <span class="ident">byte_buf</span>);
+    };
+
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">levels</span>.<span class="ident">len</span>()];
     <span class="kw">let</span> <span class="ident">num_decoded</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>).<span class="ident">expect</span>(<span class="string">&quot;get() should be OK&quot;</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">num_decoded</span>, <span class="ident">levels</span>.<span class="ident">len</span>());
@@ -732,14 +861,30 @@
   }
 
   <span class="comment">// Performs incremental read until all bytes are read</span>
-  <span class="kw">fn</span> <span class="ident">test_internal_roundtrip_incremental</span>(<span class="ident">enc</span>: <span class="ident">Encoding</span>, <span class="ident">levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>], <span class="ident">max_level</span>: <span class="ident">i16</span>) {
-    <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">LevelEncoder</span>::<span class="ident">max_buffer_size</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="ident">levels</span>.<span class="ident">len</span>());
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">LevelEncoder</span>::<span class="ident">new</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>]);
+  <span class="kw">fn</span> <span class="ident">test_internal_roundtrip_incremental</span>(
+    <span class="ident">enc</span>: <span class="ident">Encoding</span>,
+    <span class="ident">levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>],
+    <span class="ident">max_level</span>: <span class="ident">i16</span>,
+    <span class="ident">v2</span>: <span class="ident">bool</span>
+  ) {
+    <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">max_buffer_size</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="ident">levels</span>.<span class="ident">len</span>());
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">v2</span> {
+      <span class="ident">LevelEncoder</span>::<span class="ident">v2</span>(<span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>])
+    } <span class="kw">else</span> {
+      <span class="ident">LevelEncoder</span>::<span class="ident">v1</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>])
+    };
     <span class="ident">encoder</span>.<span class="ident">put</span>(<span class="kw-2">&amp;</span><span class="ident">levels</span>).<span class="ident">expect</span>(<span class="string">&quot;put() should be OK&quot;</span>);
     <span class="kw">let</span> <span class="ident">encoded_levels</span> <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">consume</span>().<span class="ident">expect</span>(<span class="string">&quot;consume() should be OK&quot;</span>);
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">new</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>);
-    <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">levels</span>.<span class="ident">len</span>(), <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">encoded_levels</span>));
+    <span class="kw">let</span> <span class="ident">byte_buf</span> <span class="op">=</span> <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">encoded_levels</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>;
+    <span class="kw">if</span> <span class="ident">v2</span> {
+      <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v2</span>(<span class="ident">max_level</span>);
+      <span class="ident">decoder</span>.<span class="ident">set_data_range</span>(<span class="ident">levels</span>.<span class="ident">len</span>(), <span class="kw-2">&amp;</span><span class="ident">byte_buf</span>, <span class="number">0</span>, <span class="ident">byte_buf</span>.<span class="ident">len</span>());
+    } <span class="kw">else</span> {
+      <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v1</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>);
+      <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">levels</span>.<span class="ident">len</span>(), <span class="ident">byte_buf</span>);
+    }
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">levels</span>.<span class="ident">len</span>() <span class="op">*</span> <span class="number">2</span>];
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_decoded</span> <span class="op">=</span> <span class="number">0</span>;
@@ -761,17 +906,34 @@
 
   <span class="comment">// Tests encoding/decoding of values when output buffer is larger than number of</span>
   <span class="comment">// encoded values</span>
-  <span class="kw">fn</span> <span class="ident">test_internal_roundtrip_underflow</span>(<span class="ident">enc</span>: <span class="ident">Encoding</span>, <span class="ident">levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>], <span class="ident">max_level</span>: <span class="ident">i16</span>) {
-    <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">LevelEncoder</span>::<span class="ident">max_buffer_size</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="ident">levels</span>.<span class="ident">len</span>());
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">LevelEncoder</span>::<span class="ident">new</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>]);
+  <span class="kw">fn</span> <span class="ident">test_internal_roundtrip_underflow</span>(
+    <span class="ident">enc</span>: <span class="ident">Encoding</span>,
+    <span class="ident">levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>],
+    <span class="ident">max_level</span>: <span class="ident">i16</span>,
+    <span class="ident">v2</span>: <span class="ident">bool</span>
+  ) {
+    <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">max_buffer_size</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="ident">levels</span>.<span class="ident">len</span>());
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">v2</span> {
+      <span class="ident">LevelEncoder</span>::<span class="ident">v2</span>(<span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>])
+    } <span class="kw">else</span> {
+      <span class="ident">LevelEncoder</span>::<span class="ident">v1</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>])
+    };
     <span class="comment">// Encode only one value</span>
     <span class="kw">let</span> <span class="ident">num_encoded</span> <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">put</span>(<span class="kw-2">&amp;</span><span class="ident">levels</span>[<span class="number">0</span>..<span class="number">1</span>]).<span class="ident">expect</span>(<span class="string">&quot;put() should be OK&quot;</span>);
     <span class="kw">let</span> <span class="ident">encoded_levels</span> <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">consume</span>().<span class="ident">expect</span>(<span class="string">&quot;consume() should be OK&quot;</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">num_encoded</span>, <span class="number">1</span>);
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">new</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>);
+    <span class="kw">let</span> <span class="ident">byte_buf</span> <span class="op">=</span> <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">encoded_levels</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>;
     <span class="comment">// Set one encoded value as `num_buffered_values`</span>
-    <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="number">1</span>, <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">encoded_levels</span>));
+    <span class="kw">if</span> <span class="ident">v2</span> {
+      <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v2</span>(<span class="ident">max_level</span>);
+      <span class="ident">decoder</span>.<span class="ident">set_data_range</span>(<span class="number">1</span>, <span class="kw-2">&amp;</span><span class="ident">byte_buf</span>, <span class="number">0</span>, <span class="ident">byte_buf</span>.<span class="ident">len</span>());
+    } <span class="kw">else</span> {
+      <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v1</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>);
+      <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="number">1</span>, <span class="ident">byte_buf</span>);
+    }
+
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">levels</span>.<span class="ident">len</span>()];
     <span class="kw">let</span> <span class="ident">num_decoded</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>).<span class="ident">expect</span>(<span class="string">&quot;get() should be OK&quot;</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">num_decoded</span>, <span class="ident">num_encoded</span>);
@@ -779,9 +941,18 @@
   }
 
   <span class="comment">// Tests when encoded values are larger than encoder&#39;s buffer</span>
-  <span class="kw">fn</span> <span class="ident">test_internal_roundtrip_overflow</span>(<span class="ident">enc</span>: <span class="ident">Encoding</span>, <span class="ident">levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>], <span class="ident">max_level</span>: <span class="ident">i16</span>) {
-    <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">LevelEncoder</span>::<span class="ident">max_buffer_size</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="ident">levels</span>.<span class="ident">len</span>());
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">LevelEncoder</span>::<span class="ident">new</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>]);
+  <span class="kw">fn</span> <span class="ident">test_internal_roundtrip_overflow</span>(
+    <span class="ident">enc</span>: <span class="ident">Encoding</span>,
+    <span class="ident">levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>],
+    <span class="ident">max_level</span>: <span class="ident">i16</span>,
+    <span class="ident">v2</span>: <span class="ident">bool</span>
+  ) {
+    <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">max_buffer_size</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="ident">levels</span>.<span class="ident">len</span>());
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">v2</span> {
+      <span class="ident">LevelEncoder</span>::<span class="ident">v2</span>(<span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>])
+    } <span class="kw">else</span> {
+      <span class="ident">LevelEncoder</span>::<span class="ident">v1</span>(<span class="ident">enc</span>, <span class="ident">max_level</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>])
+    };
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">found_err</span> <span class="op">=</span> <span class="bool-val">false</span>;
     <span class="comment">// Insert a large number of values, so we run out of space</span>
     <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
@@ -803,32 +974,36 @@
   <span class="kw">fn</span> <span class="ident">test_roundtrip_one</span>() {
     <span class="kw">let</span> <span class="ident">levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>];
     <span class="kw">let</span> <span class="ident">max_level</span> <span class="op">=</span> <span class="number">1</span>;
-    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
-    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">true</span>);
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_roundtrip</span>() {
     <span class="kw">let</span> <span class="ident">levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>];
     <span class="kw">let</span> <span class="ident">max_level</span> <span class="op">=</span> <span class="number">10</span>;
-    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
-    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">true</span>);
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_roundtrip_incremental</span>() {
     <span class="kw">let</span> <span class="ident">levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>];
     <span class="kw">let</span> <span class="ident">max_level</span> <span class="op">=</span> <span class="number">10</span>;
-    <span class="ident">test_internal_roundtrip_incremental</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
-    <span class="ident">test_internal_roundtrip_incremental</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
+    <span class="ident">test_internal_roundtrip_incremental</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip_incremental</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip_incremental</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">true</span>);
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_roundtrip_all_zeros</span>() {
     <span class="kw">let</span> <span class="ident">levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>];
     <span class="kw">let</span> <span class="ident">max_level</span> <span class="op">=</span> <span class="number">1</span>;
-    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
-    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">true</span>);
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -837,24 +1012,27 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">levels</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
     <span class="kw">let</span> <span class="ident">max_level</span> <span class="op">=</span> <span class="number">5</span>;
     <span class="ident">random_numbers_range</span>::<span class="op">&lt;</span><span class="ident">i16</span><span class="op">&gt;</span>(<span class="number">120</span>, <span class="number">0</span>, <span class="ident">max_level</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">levels</span>);
-    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
-    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">true</span>);
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_roundtrip_underflow</span>() {
     <span class="kw">let</span> <span class="ident">levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">2</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">1</span>];
     <span class="kw">let</span> <span class="ident">max_level</span> <span class="op">=</span> <span class="number">3</span>;
-    <span class="ident">test_internal_roundtrip_underflow</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
-    <span class="ident">test_internal_roundtrip_underflow</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
+    <span class="ident">test_internal_roundtrip_underflow</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip_underflow</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip_underflow</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">true</span>);
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_roundtrip_overflow</span>() {
     <span class="kw">let</span> <span class="ident">levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">2</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">1</span>];
     <span class="kw">let</span> <span class="ident">max_level</span> <span class="op">=</span> <span class="number">3</span>;
-    <span class="ident">test_internal_roundtrip_overflow</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
-    <span class="ident">test_internal_roundtrip_overflow</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>);
+    <span class="ident">test_internal_roundtrip_overflow</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip_overflow</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">false</span>);
+    <span class="ident">test_internal_roundtrip_overflow</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="kw-2">&amp;</span><span class="ident">levels</span>, <span class="ident">max_level</span>, <span class="bool-val">true</span>);
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -863,7 +1041,7 @@
     <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">5</span>, <span class="number">198</span>, <span class="number">2</span>, <span class="number">5</span>, <span class="number">42</span>, <span class="number">168</span>, <span class="number">10</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">36</span>, <span class="number">73</span>]);
 
     <span class="kw">let</span> <span class="ident">max_rep_level</span> <span class="op">=</span> <span class="number">1</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">new</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="ident">max_rep_level</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v2</span>(<span class="ident">max_rep_level</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">decoder</span>.<span class="ident">set_data_range</span>(<span class="number">10</span>, <span class="kw-2">&amp;</span><span class="ident">buffer</span>, <span class="number">0</span>, <span class="number">3</span>), <span class="number">3</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="number">10</span>];
     <span class="kw">let</span> <span class="ident">num_decoded</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">result</span>).<span class="ident">expect</span>(<span class="string">&quot;get() should be OK&quot;</span>);
@@ -871,7 +1049,7 @@
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">result</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">1</span>]);
 
     <span class="kw">let</span> <span class="ident">max_def_level</span> <span class="op">=</span> <span class="number">2</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">new</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="ident">max_def_level</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v2</span>(<span class="ident">max_def_level</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">decoder</span>.<span class="ident">set_data_range</span>(<span class="number">10</span>, <span class="kw-2">&amp;</span><span class="ident">buffer</span>, <span class="number">3</span>, <span class="number">5</span>), <span class="number">5</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="number">10</span>];
     <span class="kw">let</span> <span class="ident">num_decoded</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">result</span>).<span class="ident">expect</span>(<span class="string">&quot;get() should be OK&quot;</span>);
@@ -881,13 +1059,13 @@
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="attribute">#[<span class="ident">should_panic</span>(
-    <span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;set_data_range() method is only supported by RLE encoding type&quot;</span>
+    <span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;set_data_range() method is only supported by RLE v2 encoding type&quot;</span>
   )]</span>
   <span class="kw">fn</span> <span class="ident">test_bit_packed_decoder_set_data_range</span>() {
     <span class="comment">// Buffer containing both repetition and definition levels</span>
     <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>]);
     <span class="kw">let</span> <span class="ident">max_level</span> <span class="op">=</span> <span class="number">1</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">new</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="ident">max_level</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v1</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="ident">max_level</span>);
     <span class="ident">decoder</span>.<span class="ident">set_data_range</span>(<span class="number">10</span>, <span class="kw-2">&amp;</span><span class="ident">buffer</span>, <span class="number">0</span>, <span class="number">3</span>);
   }
 
@@ -896,7 +1074,7 @@
     <span class="comment">// Test the maximum size that is assigned based on number of values and buffer length</span>
     <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>]);
     <span class="kw">let</span> <span class="ident">max_level</span> <span class="op">=</span> <span class="number">1</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">new</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="ident">max_level</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v1</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="ident">max_level</span>);
     <span class="comment">// This should reset to entire buffer</span>
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="number">1024</span>, <span class="ident">buffer</span>.<span class="ident">all</span>()), <span class="ident">buffer</span>.<span class="ident">len</span>());
     <span class="comment">// This should set smallest num bytes</span>
@@ -909,7 +1087,7 @@
     <span class="comment">// `get()` normally panics because bit_reader is not set for RLE decoding</span>
     <span class="comment">// we have explicit check now in set_data</span>
     <span class="kw">let</span> <span class="ident">max_rep_level</span> <span class="op">=</span> <span class="number">2</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">new</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="ident">max_rep_level</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v1</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>, <span class="ident">max_rep_level</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="number">16</span>];
     <span class="ident">decoder</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>).<span class="ident">unwrap</span>();
   }
@@ -918,7 +1096,7 @@
   <span class="attribute">#[<span class="ident">should_panic</span>(<span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;No data set for decoding&quot;</span>)]</span>
   <span class="kw">fn</span> <span class="ident">test_bit_packed_level_decoder_get_no_set_data</span>() {
     <span class="kw">let</span> <span class="ident">max_rep_level</span> <span class="op">=</span> <span class="number">2</span>;
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">new</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="ident">max_rep_level</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">LevelDecoder</span>::<span class="ident">v1</span>(<span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>, <span class="ident">max_rep_level</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="number">16</span>];
     <span class="ident">decoder</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>).<span class="ident">unwrap</span>();
   }
