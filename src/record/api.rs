@@ -477,6 +477,9 @@ impl Field {
               descr.type_scale()
             ))
           },
+          LogicalType::NONE => {
+            Field::Bytes(value)
+          },
           _ => nyi!(descr, value)
         }
       },
@@ -739,6 +742,13 @@ mod tests {
     let value = ByteArray::from(vec![0, 0, 0, 0, 0, 4, 147, 224]);
     let row = Field::convert_byte_array(&descr, value.clone());
     assert_eq!(row, Field::Decimal(Decimal::from_bytes(value, 17, 5)));
+
+    // NONE (FIXED_LEN_BYTE_ARRAY)
+    let descr = make_column_descr![
+      PhysicalType::FIXED_LEN_BYTE_ARRAY, LogicalType::NONE, 6, 0, 0];
+    let value = ByteArray::from(vec![1, 2, 3, 4, 5, 6]);
+    let row = Field::convert_byte_array(&descr, value.clone());
+    assert_eq!(row, Field::Bytes(value));
   }
 
   #[test]
