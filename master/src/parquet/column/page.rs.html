@@ -288,6 +288,14 @@
 <span id="288">288</span>
 <span id="289">289</span>
 <span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -453,6 +461,30 @@
   }
 }
 
+<span class="doccomment">/// Contains page write metrics.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PageWriteSpec</span> {
+  <span class="kw">pub</span> <span class="ident">page_type</span>: <span class="ident">PageType</span>,
+  <span class="kw">pub</span> <span class="ident">uncompressed_size</span>: <span class="ident">usize</span>,
+  <span class="kw">pub</span> <span class="ident">compressed_size</span>: <span class="ident">usize</span>,
+  <span class="kw">pub</span> <span class="ident">num_values</span>: <span class="ident">u32</span>,
+  <span class="kw">pub</span> <span class="ident">offset</span>: <span class="ident">u64</span>,
+  <span class="kw">pub</span> <span class="ident">bytes_written</span>: <span class="ident">u64</span>
+}
+
+<span class="kw">impl</span> <span class="ident">PageWriteSpec</span> {
+  <span class="doccomment">/// Creates new spec with default page write metrics.</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="self">Self</span> {
+      <span class="ident">page_type</span>: <span class="ident">PageType</span>::<span class="ident">DATA_PAGE</span>,
+      <span class="ident">uncompressed_size</span>: <span class="number">0</span>,
+      <span class="ident">compressed_size</span>: <span class="number">0</span>,
+      <span class="ident">num_values</span>: <span class="number">0</span>,
+      <span class="ident">offset</span>: <span class="number">0</span>,
+      <span class="ident">bytes_written</span>: <span class="number">0</span>
+    }
+  }
+}
+
 <span class="doccomment">/// API for reading pages from a column chunk.</span>
 <span class="doccomment">/// This offers a iterator like API to get the next page.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">PageReader</span> {
@@ -464,41 +496,25 @@
 <span class="doccomment">/// API for writing pages in a column chunk.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// It is reasonable to assume that all pages will be written in the correct order, e.g.</span>
-<span class="doccomment">/// dictionary page followed by data pages, or a set of data pages.</span>
+<span class="doccomment">/// dictionary page followed by data pages, or a set of data pages, etc.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">PageWriter</span> {
   <span class="doccomment">/// Writes a page into the output stream/sink.</span>
-  <span class="doccomment">/// Returns number of bytes written into the sink.</span>
+  <span class="doccomment">/// Returns `PageWriteSpec` that contains information about written page metrics,</span>
+  <span class="doccomment">/// including number of bytes, size, number of values, offset, etc.</span>
   <span class="doccomment">///</span>
   <span class="doccomment">/// This method is called for every compressed page we write into underlying buffer,</span>
   <span class="doccomment">/// either data page or dictionary page.</span>
-  <span class="kw">fn</span> <span class="ident">write_page</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">page</span>: <span class="ident">CompressedPage</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>;
+  <span class="kw">fn</span> <span class="ident">write_page</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">page</span>: <span class="ident">CompressedPage</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">PageWriteSpec</span><span class="op">&gt;</span>;
 
   <span class="doccomment">/// Writes column chunk metadata into the output stream/sink.</span>
   <span class="doccomment">///</span>
-  <span class="doccomment">/// This method is called once per lifetime of page writer, normally when we finalise</span>
-  <span class="doccomment">/// writes in column writer.</span>
+  <span class="doccomment">/// This method is called once before page writer is closed, normally when writes are</span>
+  <span class="doccomment">/// finalised in column writer.</span>
   <span class="kw">fn</span> <span class="ident">write_metadata</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">metadata</span>: <span class="kw-2">&amp;</span><span class="ident">ColumnChunkMetaData</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>;
 
   <span class="doccomment">/// Closes resources and flushes underlying sink.</span>
   <span class="doccomment">/// Page writer should not be used after this method is called.</span>
   <span class="kw">fn</span> <span class="ident">close</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>;
-
-  <span class="doccomment">/// Returns dictionary page offset in bytes, if set.</span>
-  <span class="doccomment">/// This is an absolute offset in bytes in the underlying buffer.</span>
-  <span class="kw">fn</span> <span class="ident">dictionary_page_offset</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>;
-
-  <span class="doccomment">/// Returns data page (either v1 or v2) offset in bytes.</span>
-  <span class="doccomment">/// This is an absolute offset in bytes in the underlying buffer.</span>
-  <span class="kw">fn</span> <span class="ident">data_page_offset</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span>;
-
-  <span class="doccomment">/// Returns total uncompressed size in bytes so far.</span>
-  <span class="kw">fn</span> <span class="ident">total_uncompressed_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span>;
-
-  <span class="doccomment">/// Returns total compressed size in bytes so far.</span>
-  <span class="kw">fn</span> <span class="ident">total_compressed_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span>;
-
-  <span class="doccomment">/// Returns number of values so far.</span>
-  <span class="kw">fn</span> <span class="ident">num_values</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span>;
 }
 
 
