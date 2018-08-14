@@ -162,6 +162,30 @@ impl CompressedPage {
   }
 }
 
+/// Contains page write metrics.
+pub struct PageWriteSpec {
+  pub page_type: PageType,
+  pub uncompressed_size: usize,
+  pub compressed_size: usize,
+  pub num_values: u32,
+  pub offset: u64,
+  pub bytes_written: u64
+}
+
+impl PageWriteSpec {
+  /// Creates new spec with default page write metrics.
+  pub fn new() -> Self {
+    Self {
+      page_type: PageType::DATA_PAGE,
+      uncompressed_size: 0,
+      compressed_size: 0,
+      num_values: 0,
+      offset: 0,
+      bytes_written: 0
+    }
+  }
+}
+
 /// API for reading pages from a column chunk.
 /// This offers a iterator like API to get the next page.
 pub trait PageReader {
@@ -173,41 +197,25 @@ pub trait PageReader {
 /// API for writing pages in a column chunk.
 ///
 /// It is reasonable to assume that all pages will be written in the correct order, e.g.
-/// dictionary page followed by data pages, or a set of data pages.
+/// dictionary page followed by data pages, or a set of data pages, etc.
 pub trait PageWriter {
   /// Writes a page into the output stream/sink.
-  /// Returns number of bytes written into the sink.
+  /// Returns `PageWriteSpec` that contains information about written page metrics,
+  /// including number of bytes, size, number of values, offset, etc.
   ///
   /// This method is called for every compressed page we write into underlying buffer,
   /// either data page or dictionary page.
-  fn write_page(&mut self, page: CompressedPage) -> Result<usize>;
+  fn write_page(&mut self, page: CompressedPage) -> Result<PageWriteSpec>;
 
   /// Writes column chunk metadata into the output stream/sink.
   ///
-  /// This method is called once per lifetime of page writer, normally when we finalise
-  /// writes in column writer.
+  /// This method is called once before page writer is closed, normally when writes are
+  /// finalised in column writer.
   fn write_metadata(&mut self, metadata: &ColumnChunkMetaData) -> Result<()>;
 
   /// Closes resources and flushes underlying sink.
   /// Page writer should not be used after this method is called.
   fn close(&mut self) -> Result<()>;
-
-  /// Returns dictionary page offset in bytes, if set.
-  /// This is an absolute offset in bytes in the underlying buffer.
-  fn dictionary_page_offset(&self) -> Option<u64>;
-
-  /// Returns data page (either v1 or v2) offset in bytes.
-  /// This is an absolute offset in bytes in the underlying buffer.
-  fn data_page_offset(&self) -> u64;
-
-  /// Returns total uncompressed size in bytes so far.
-  fn total_uncompressed_size(&self) -> u64;
-
-  /// Returns total compressed size in bytes so far.
-  fn total_compressed_size(&self) -> u64;
-
-  /// Returns number of values so far.
-  fn num_values(&self) -> u32;
 }
 
 

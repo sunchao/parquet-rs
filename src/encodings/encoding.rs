@@ -254,6 +254,13 @@ impl<T: DataType> DictEncoder<T> {
     }
   }
 
+  /// Returns true if dictionary entries are sorted, false otherwise.
+  #[inline]
+  pub fn is_sorted(&self) -> bool {
+    // Sorting is not supported currently.
+    false
+  }
+
   /// Returns number of unique values (keys) in the dictionary.
   pub fn num_entries(&self) -> usize {
     self.uniques.size()

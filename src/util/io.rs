@@ -120,6 +120,13 @@ impl Position for FileSink {
   }
 }
 
+// Position implementation for Cursor to use in various tests.
+impl<'a> Position for Cursor<&'a mut Vec<u8>> {
+  fn pos(&self) -> u64 {
+    self.position()
+  }
+}
+
 
 #[cfg(test)]
 mod tests {

@@ -18,7 +18,7 @@
 use std::io::Write;
 
 use basic::PageType;
-use column::page::{CompressedPage, Page, PageWriter};
+use column::page::{CompressedPage, Page, PageWriteSpec, PageWriter};
 use errors::Result;
 use file::metadata::ColumnChunkMetaData;
 use file::statistics::{to_thrift as statistics_to_thrift};
@@ -29,30 +29,15 @@ use util::io::Position;
 /// Serialized page writer.
 ///
 /// Writes and serializes pages and metadata into output stream.
-/// `SerializedPageWriter` should not be used after calling `close()`, metrics
-/// (offsets and sizes) are not reset, create a new page writer instead.
+/// `SerializedPageWriter` should not be used after calling `close()`.
 pub struct SerializedPageWriter<T: Write + Position> {
-  sink: T,
-  // Dictionary offset is set only once, panics if another attempt is made.
-  dictionary_page_offset: Option<u64>,
-  // Data page offset is set once with the first page.
-  data_page_offset: Option<u64>,
-  total_uncompressed_size: u64,
-  total_compressed_size: u64,
-  num_values: u32
+  sink: T
 }
 
 impl<T: Write + Position> SerializedPageWriter<T> {
   /// Creates new page writer.
   pub fn new(sink: T) -> Self {
-    Self {
-      sink: sink,
-      dictionary_page_offset: None,
-      data_page_offset: None,
-      total_uncompressed_size: 0,
-      total_compressed_size: 0,
-      num_values: 0
-    }
+    Self { sink: sink }
   }
 
   /// Serializes page header into Thrift.
@@ -80,7 +65,7 @@ impl<T: Write + Position> SerializedPageWriter<T> {
 }
 
 impl<T: Write + Position> PageWriter for SerializedPageWriter<T> {
-  fn write_page(&mut self, page: CompressedPage) -> Result<usize> {
+  fn write_page(&mut self, page: CompressedPage) -> Result<PageWriteSpec> {
     let uncompressed_size = page.uncompressed_size();
     let compressed_size = page.compressed_size();
     let num_values = page.num_values();
@@ -148,31 +133,21 @@ impl<T: Write + Position> PageWriter for SerializedPageWriter<T> {
 
     let start_pos = self.sink.pos();
 
-    match page_type {
-      PageType::DATA_PAGE | PageType::DATA_PAGE_V2 => {
-        if self.data_page_offset.is_none() {
-          self.data_page_offset = Some(start_pos);
-        }
-        // Number of values is incremented for data pages only
-        self.num_values += num_values;
-      },
-      PageType::DICTIONARY_PAGE => {
-        assert!(self.dictionary_page_offset.is_none(), "Dictionary page is already set");
-        self.dictionary_page_offset = Some(start_pos);
-      }
-      _ => {
-        // Do nothing
-      }
-    }
-
     let header_size = self.serialize_page_header(page_header)?;
     self.sink.write_all(page.data())?;
 
-    self.total_uncompressed_size += uncompressed_size as u64 + header_size as u64;
-    self.total_compressed_size += compressed_size as u64 + header_size as u64;
+    let mut spec = PageWriteSpec::new();
+    spec.page_type = page_type;
+    spec.uncompressed_size = uncompressed_size + header_size;
+    spec.compressed_size = compressed_size + header_size;
+    spec.offset = start_pos;
+    spec.bytes_written = self.sink.pos() - start_pos;
+    // Number of values is incremented for data pages only
+    if page_type == PageType::DATA_PAGE || page_type == PageType::DATA_PAGE_V2 {
+      spec.num_values = num_values;
+    }
 
-    let bytes_written = (self.sink.pos() - start_pos) as usize;
-    Ok(bytes_written)
+    Ok(spec)
   }
 
   fn write_metadata(&mut self, metadata: &ColumnChunkMetaData) -> Result<()> {
@@ -182,31 +157,6 @@ impl<T: Write + Position> PageWriter for SerializedPageWriter<T> {
   fn close(&mut self) -> Result<()> {
     self.sink.flush()?;
     Ok(())
-  }
-
-  #[inline]
-  fn dictionary_page_offset(&self) -> Option<u64> {
-    self.dictionary_page_offset
-  }
-
-  #[inline]
-  fn data_page_offset(&self) -> u64 {
-    self.data_page_offset.unwrap_or(0)
-  }
-
-  #[inline]
-  fn total_uncompressed_size(&self) -> u64 {
-    self.total_uncompressed_size
-  }
-
-  #[inline]
-  fn total_compressed_size(&self) -> u64 {
-    self.total_compressed_size
-  }
-
-  #[inline]
-  fn num_values(&self) -> u32 {
-    self.num_values
   }
 }
 
@@ -283,26 +233,6 @@ mod tests {
 
     test_page_roundtrip(&pages[..], Compression::SNAPPY, Type::INT32);
     test_page_roundtrip(&pages[..], Compression::UNCOMPRESSED, Type::INT32);
-  }
-
-  #[test]
-  #[should_panic(expected = "Dictionary page is already set")]
-  fn test_page_writer_dict_page_set_more_than_once() {
-    let pages = vec![
-      Page::DictionaryPage {
-        buf: ByteBufferPtr::new(vec![1, 2, 3, 4, 5]),
-        num_values: 5,
-        encoding: Encoding::RLE_DICTIONARY,
-        is_sorted: false
-      },
-      Page::DictionaryPage {
-        buf: ByteBufferPtr::new(vec![1, 2, 3, 4, 5]),
-        num_values: 5,
-        encoding: Encoding::RLE_DICTIONARY,
-        is_sorted: false
-      }
-    ];
-    test_page_roundtrip(&pages[..], Compression::SNAPPY, Type::INT32);
   }
 
   /// Tests writing and reading pages.
@@ -439,11 +369,5 @@ mod tests {
     assert_eq!(left.num_values(), right.num_values());
     assert_eq!(left.encoding(), right.encoding());
     assert_eq!(to_thrift(left.statistics()), to_thrift(right.statistics()));
-  }
-
-  impl<'a> Position for Cursor<&'a mut Vec<u8>> {
-    fn pos(&self) -> u64 {
-      self.position()
-    }
   }
 }
