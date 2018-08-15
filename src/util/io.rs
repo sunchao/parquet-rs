@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use file::reader::ParquetReader;
 use std::cmp;
 use std::fs::File;
 use std::io::*;
@@ -39,15 +40,15 @@ pub trait Position {
 /// while preserving independent position, which is not available with `try_clone()`.
 ///
 /// Designed after `arrow::io::RandomAccessFile`.
-pub struct FileSource {
-  reader: Mutex<BufReader<File>>,
+pub struct FileSource<R: ParquetReader> {
+  reader: Mutex<BufReader<R>>,
   start: u64, // start position in a file
   end: u64 // end position in a file
 }
 
-impl FileSource {
+impl<R: ParquetReader> FileSource<R> {
   /// Creates new file reader with start and length from a file handle
-  pub fn new(fd: &File, start: u64, length: usize) -> Self {
+  pub fn new(fd: &R, start: u64, length: usize) -> Self {
     Self {
       reader: Mutex::new(BufReader::new(fd.try_clone().unwrap())),
       start: start,
@@ -56,7 +57,7 @@ impl FileSource {
   }
 }
 
-impl Read for FileSource {
+impl<R: ParquetReader> Read for FileSource<R> {
   fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
     let mut reader = self.reader.lock()
       .map_err(|err| Error::new(ErrorKind::Other, err.to_string()))?;
@@ -74,7 +75,7 @@ impl Read for FileSource {
   }
 }
 
-impl Position for FileSource {
+impl<R: ParquetReader> Position for FileSource<R> {
   fn pos(&self) -> u64 {
     self.start
   }

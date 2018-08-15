@@ -20,7 +20,7 @@
 
 use std::convert::TryFrom;
 use std::fs::File;
-use std::io::{BufReader, Read, Seek, SeekFrom};
+use std::io::{BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -92,17 +92,63 @@ pub trait RowGroupReader {
 const FOOTER_SIZE: usize = 8;
 const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
 
+/// Length should return the amount of bytes that implementor contains.
+/// It's mainly used to read the metadata, which is at the end of the source.
+pub trait Length  {
+  /// Returns the amount of bytes of the inner source.
+  fn len(&self) -> u64;
+}
+
+/// TryClone tries to clone the type and should maintain the `Seek` position of the given
+/// instance.
+pub trait TryClone: Sized {
+  /// Clones the type returning a new instance or an error if it's not possible
+  /// to clone it.
+  fn try_clone(&self) -> Result<Self>;
+}
+
+impl Length for File {
+  fn len(&self) -> u64 {
+    self.metadata()
+        .map(|m| m.len())
+        .unwrap_or(0u64)
+  }
+}
+
+impl TryClone for File {
+  fn try_clone(&self) -> Result<Self> {
+    self.try_clone().map_err(|e| e.into())
+  }
+}
+
+impl<'a> Length for Cursor<&'a [u8]> {
+  fn len(&self) -> u64 {
+    self.get_ref().len() as u64
+  }
+}
+
+impl<'a> TryClone for Cursor<&'a [u8]> {
+  fn try_clone(&self) -> Result<Self> {
+    Ok(self.clone())
+  }
+}
+
+/// ParquetReader is the interface which needs to be fulfilled to be able to parse a parquet
+/// source.
+pub trait ParquetReader: Read + Seek + Length + TryClone {}
+impl<T: Read + Seek + Length + TryClone> ParquetReader for T {}
+
 /// A serialized implementation for Parquet [`FileReader`].
-pub struct SerializedFileReader {
-  buf: BufReader<File>,
+pub struct SerializedFileReader<R: ParquetReader> {
+  buf: BufReader<R>,
   metadata: ParquetMetaDataPtr
 }
 
-impl SerializedFileReader {
+impl<R: ParquetReader> SerializedFileReader<R> {
   /// Creates file reader from a Parquet file.
   /// Returns error if Parquet file does not exist or is corrupt.
-  pub fn new(file: File) -> Result<Self> {
-    let mut buf = BufReader::new(file);
+  pub fn new(reader: R) -> Result<Self> {
+    let mut buf = BufReader::new(reader);
     let metadata = Self::parse_metadata(&mut buf)?;
     Ok(Self { buf: buf, metadata: Rc::new(metadata) })
   }
@@ -113,9 +159,8 @@ impl SerializedFileReader {
   // +---------------------------+---+-----+
   // where A: parquet footer, B: parquet metadata.
   //
-  fn parse_metadata(buf: &mut BufReader<File>) -> Result<ParquetMetaData> {
-    let file_metadata = buf.get_ref().metadata()?;
-    let file_size = file_metadata.len();
+  fn parse_metadata(buf: &mut BufReader<R>) -> Result<ParquetMetaData> {
+    let file_size = buf.get_ref().len();
     if file_size < (FOOTER_SIZE as u64) {
       return Err(general_err!("Invalid Parquet file. Size is smaller than footer"));
     }
@@ -197,7 +242,7 @@ impl SerializedFileReader {
   }
 }
 
-impl FileReader for SerializedFileReader {
+impl<R: 'static + ParquetReader> FileReader for SerializedFileReader<R> {
   fn metadata(&self) -> ParquetMetaDataPtr {
     self.metadata.clone()
   }
@@ -218,7 +263,7 @@ impl FileReader for SerializedFileReader {
   }
 }
 
-impl TryFrom<File> for SerializedFileReader {
+impl TryFrom<File> for SerializedFileReader<File> {
   type Error = ParquetError;
 
   fn try_from(file: File) -> Result<Self> {
@@ -226,7 +271,7 @@ impl TryFrom<File> for SerializedFileReader {
   }
 }
 
-impl<'a> TryFrom<&'a Path> for SerializedFileReader {
+impl<'a> TryFrom<&'a Path> for SerializedFileReader<File> {
   type Error = ParquetError;
 
   fn try_from(path: &Path) -> Result<Self> {
@@ -235,7 +280,7 @@ impl<'a> TryFrom<&'a Path> for SerializedFileReader {
   }
 }
 
-impl TryFrom<String> for SerializedFileReader {
+impl TryFrom<String> for SerializedFileReader<File> {
   type Error = ParquetError;
 
   fn try_from(path: String) -> Result<Self> {
@@ -243,7 +288,7 @@ impl TryFrom<String> for SerializedFileReader {
   }
 }
 
-impl<'a> TryFrom<&'a str> for SerializedFileReader {
+impl<'a> TryFrom<&'a str> for SerializedFileReader<File> {
   type Error = ParquetError;
 
   fn try_from(path: &str) -> Result<Self> {
@@ -252,20 +297,20 @@ impl<'a> TryFrom<&'a str> for SerializedFileReader {
 }
 
 /// A serialized implementation for Parquet [`RowGroupReader`].
-pub struct SerializedRowGroupReader {
-  buf: BufReader<File>,
+pub struct SerializedRowGroupReader<R: ParquetReader> {
+  buf: BufReader<R>,
   metadata: RowGroupMetaDataPtr
 }
 
-impl SerializedRowGroupReader {
+impl<R: 'static + ParquetReader> SerializedRowGroupReader<R> {
   /// Creates new row group reader from a file and row group metadata.
-  fn new(file: File, metadata: RowGroupMetaDataPtr) -> Self {
+  fn new(file: R, metadata: RowGroupMetaDataPtr) -> Self {
     let buf = BufReader::new(file);
     Self { buf, metadata }
   }
 }
 
-impl RowGroupReader for SerializedRowGroupReader {
+impl<R: 'static + ParquetReader> RowGroupReader for SerializedRowGroupReader<R> {
   fn metadata(&self) -> RowGroupMetaDataPtr {
     self.metadata.clone()
   }
@@ -479,9 +524,9 @@ impl<T: Read> PageReader for SerializedPageReader<T> {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
   use basic::SortOrder;
   use parquet_format::TypeDefinedOrder;
+  use super::*;
   use util::test_common::{get_temp_file, get_test_file, get_test_path};
 
   #[test]
@@ -493,6 +538,20 @@ mod tests {
       reader_result.err().unwrap(),
       general_err!("Invalid Parquet file. Size is smaller than footer")
     );
+  }
+
+  #[test]
+  fn test_cursor_and_file_has_the_same_behaviour() {
+    let buffer = include_bytes!("../../data/alltypes_plain.parquet");
+    let cursor = Cursor::new(buffer.as_ref());
+
+    let read_from_file = SerializedFileReader::new(File::open("data/alltypes_plain.parquet").unwrap()).unwrap();
+    let read_from_cursor = SerializedFileReader::new(cursor).unwrap();
+
+    let file_iter = read_from_file.get_row_iter(None).unwrap();
+    let cursor_iter = read_from_cursor.get_row_iter(None).unwrap();
+
+    assert!(file_iter.eq(cursor_iter));
   }
 
   #[test]
@@ -549,7 +608,7 @@ mod tests {
     ]);
 
     assert_eq!(
-      SerializedFileReader::parse_column_orders(t_column_orders, &schema_descr),
+      SerializedFileReader::<File>::parse_column_orders(t_column_orders, &schema_descr),
       Some(vec![
         ColumnOrder::TYPE_DEFINED_ORDER(SortOrder::SIGNED),
         ColumnOrder::TYPE_DEFINED_ORDER(SortOrder::SIGNED)
@@ -558,7 +617,7 @@ mod tests {
 
     // Test when no column orders are defined.
     assert_eq!(
-      SerializedFileReader::parse_column_orders(None, &schema_descr),
+      SerializedFileReader::<File>::parse_column_orders(None, &schema_descr),
       None
     );
   }
@@ -573,7 +632,7 @@ mod tests {
       TColumnOrder::TYPEORDER(TypeDefinedOrder::new())
     ]);
 
-    SerializedFileReader::parse_column_orders(t_column_orders, &schema_descr);
+    SerializedFileReader::<File>::parse_column_orders(t_column_orders, &schema_descr);
   }
 
   #[test]
