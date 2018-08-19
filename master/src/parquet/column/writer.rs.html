@@ -1105,6 +1105,8 @@
 <span id="1105">1105</span>
 <span id="1106">1106</span>
 <span id="1107">1107</span>
+<span id="1108">1108</span>
+<span id="1109">1109</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -1406,7 +1408,7 @@
       <span class="kw">let</span> <span class="ident">levels</span> <span class="op">=</span> <span class="ident">def_levels</span>.<span class="ident">unwrap</span>();
       <span class="ident">num_values</span> <span class="op">=</span> <span class="ident">levels</span>.<span class="ident">len</span>();
       <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">level</span> <span class="kw">in</span> <span class="ident">levels</span> {
-        <span class="ident">values_to_write</span> <span class="op">+=</span> (<span class="ident">level</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">descr</span>.<span class="ident">max_def_level</span>()) <span class="kw">as</span> <span class="ident">usize</span> <span class="op">&amp;</span> <span class="number">1</span>;
+        <span class="ident">values_to_write</span> <span class="op">+=</span> (<span class="ident">level</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">descr</span>.<span class="ident">max_def_level</span>()) <span class="kw">as</span> <span class="ident">usize</span>;
       }
 
       <span class="self">self</span>.<span class="ident">write_definition_levels</span>(<span class="ident">levels</span>);
@@ -1428,7 +1430,7 @@
       <span class="comment">// Count the occasions where we start a new row</span>
       <span class="kw">let</span> <span class="ident">levels</span> <span class="op">=</span> <span class="ident">rep_levels</span>.<span class="ident">unwrap</span>();
       <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">level</span> <span class="kw">in</span> <span class="ident">levels</span> {
-        <span class="self">self</span>.<span class="ident">num_buffered_rows</span> <span class="op">+=</span> (<span class="ident">level</span> <span class="op">==</span> <span class="number">0</span>) <span class="kw">as</span> <span class="ident">u32</span> <span class="op">&amp;</span> <span class="number">1</span>
+        <span class="self">self</span>.<span class="ident">num_buffered_rows</span> <span class="op">+=</span> (<span class="ident">level</span> <span class="op">==</span> <span class="number">0</span>) <span class="kw">as</span> <span class="ident">u32</span>
       }
 
       <span class="self">self</span>.<span class="ident">write_repetition_levels</span>(<span class="ident">levels</span>);
@@ -1682,6 +1684,8 @@
       <span class="ident">file_offset</span> <span class="op">=</span> <span class="ident">data_page_offset</span> <span class="op">+</span> <span class="ident">total_compressed_size</span>;
       <span class="ident">encodings</span>.<span class="ident">push</span>(<span class="self">self</span>.<span class="ident">encoder</span>.<span class="ident">encoding</span>());
     }
+    <span class="comment">// We use only RLE level encoding for data page v1 and data page v2.</span>
+    <span class="ident">encodings</span>.<span class="ident">push</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>);
 
     <span class="kw">let</span> <span class="ident">metadata</span> <span class="op">=</span> <span class="ident">ColumnChunkMetaData</span>::<span class="ident">builder</span>(<span class="self">self</span>.<span class="ident">descr</span>.<span class="ident">clone</span>())
       .<span class="ident">set_compression</span>(<span class="self">self</span>.<span class="ident">codec</span>)
