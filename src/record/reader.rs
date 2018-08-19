@@ -202,6 +202,25 @@ impl TreeBuilder {
           Reader::KeyValueReader(field, curr_def_level, curr_rep_level,
             Box::new(key_reader), Box::new(value_reader))
         },
+        // A repeated field that is neither contained by a `LIST`- or `MAP`-annotated
+        // group nor annotated by `LIST` or `MAP` should be interpreted as a required
+        // list of required elements where the element type is the type of the field.
+        _ if repetition == Repetition::REPEATED => {
+          let required_field = Type::group_type_builder(field.name())
+            .with_repetition(Repetition::REQUIRED)
+            .with_logical_type(field.get_basic_info().logical_type())
+            .with_fields(&mut Vec::from(field.get_fields()))
+            .build()
+            .unwrap();
+
+          path.pop();
+
+          let reader = self.reader_tree(Rc::new(required_field), &mut path,
+            curr_def_level, curr_rep_level, paths, row_group_reader);
+
+          Reader::RepeatedReader(field, curr_def_level - 1, curr_rep_level - 1,
+            Box::new(reader))
+        },
         // Group types (structs)
         _ => {
           let mut readers = Vec::new();
@@ -503,8 +522,8 @@ impl fmt::Display for Reader {
         Reader::PrimitiveReader(_, _) => "PrimitiveReader",
         Reader::OptionReader(_, _) => "OptionReader",
         Reader::GroupReader(_, _, _) => "GroupReader",
-        Reader::RepeatedReader(_, _, _, _) => "Repeatedreader",
-        Reader::KeyValueReader(_, _, _, _, _) => "KeyValuereader",
+        Reader::RepeatedReader(_, _, _, _) => "RepeatedReader",
+        Reader::KeyValueReader(_, _, _, _, _) => "KeyValueReader"
       };
     write!(f, "{}", s)
   }
@@ -1283,6 +1302,72 @@ mod tests {
     ";
     let schema = parse_message_type(&schema).unwrap();
     test_file_reader_rows("nested_maps.snappy.parquet", Some(schema)).unwrap();
+  }
+
+  #[test]
+  fn test_tree_reader_handle_repeated_fields_with_no_annotation() {
+    // Array field `phoneNumbers` does not contain LIST annotation.
+    // We parse it as struct with `phone` repeated field as array.
+    let rows = test_file_reader_rows("repeated_no_annotation.parquet", None).unwrap();
+    let expected_rows = vec![
+      row![
+        ("id".to_string(), Field::Int(1)),
+        ("phoneNumbers".to_string(), Field::Null)
+      ],
+      row![
+        ("id".to_string(), Field::Int(2)),
+        ("phoneNumbers".to_string(), Field::Null)
+      ],
+      row![
+        ("id".to_string(), Field::Int(3)),
+        ("phoneNumbers".to_string(), group![
+          ("phone".to_string(), list![])
+        ])
+      ],
+      row![
+        ("id".to_string(), Field::Int(4)),
+        ("phoneNumbers".to_string(), group![
+          ("phone".to_string(), list![
+            group![
+              ("number".to_string(), Field::Long(5555555555)),
+              ("kind".to_string(), Field::Null)
+            ]
+          ])
+        ])
+      ],
+      row![
+        ("id".to_string(), Field::Int(5)),
+        ("phoneNumbers".to_string(), group![
+          ("phone".to_string(), list![
+            group![
+              ("number".to_string(), Field::Long(1111111111)),
+              ("kind".to_string(), Field::Str("home".to_string()))
+            ]
+          ])
+        ])
+      ],
+      row![
+        ("id".to_string(), Field::Int(6)),
+        ("phoneNumbers".to_string(), group![
+          ("phone".to_string(), list![
+            group![
+              ("number".to_string(), Field::Long(1111111111)),
+              ("kind".to_string(), Field::Str("home".to_string()))
+            ],
+            group![
+              ("number".to_string(), Field::Long(2222222222)),
+              ("kind".to_string(), Field::Null)
+            ],
+            group![
+              ("number".to_string(), Field::Long(3333333333)),
+              ("kind".to_string(), Field::Str("mobile".to_string()))
+            ]
+          ])
+        ])
+      ]
+    ];
+
+    assert_eq!(rows, expected_rows);
   }
 
   fn test_file_reader_rows(file_name: &str, schema: Option<Type>) -> Result<Vec<Row>> {
