@@ -497,8 +497,20 @@ impl fmt::Display for Field {
       Field::Short(value) => write!(f, "{}", value),
       Field::Int(value) => write!(f, "{}", value),
       Field::Long(value) => write!(f, "{}", value),
-      Field::Float(value) => write!(f, "{:?}", value),
-      Field::Double(value) => write!(f, "{:?}", value),
+      Field::Float(value) => {
+        if value > 1e19 || value < 1e-15 {
+          write!(f, "{:E}", value)
+        } else {
+          write!(f, "{:?}", value)
+        }
+      },
+      Field::Double(value) => {
+        if value > 1e19 || value < 1e-15 {
+          write!(f, "{:E}", value)
+        } else {
+          write!(f, "{:?}", value)
+        }
+      },
       Field::Decimal(ref value) => write!(f, "{}", convert_decimal_to_string(value)),
       Field::Str(ref value) => write!(f, "\"{}\"", value),
       Field::Bytes(ref value) => write!(f, "{:?}", value.data()),
@@ -783,6 +795,30 @@ mod tests {
     check_datetime_conversion(2012, 04, 05, 11, 06, 32);
     check_datetime_conversion(2013, 05, 12, 16, 38, 00);
     check_datetime_conversion(2014, 11, 28, 21, 15, 12);
+  }
+
+  #[test]
+  fn test_convert_float_to_string() {
+    assert_eq!(format!("{}", Field::Float(1.0)), "1.0");
+    assert_eq!(format!("{}", Field::Float(9.63)), "9.63");
+    assert_eq!(format!("{}", Field::Float(1e-15)), "0.000000000000001");
+    assert_eq!(format!("{}", Field::Float(1e-16)), "1E-16");
+    assert_eq!(format!("{}", Field::Float(1e19)), "10000000000000000000.0");
+    assert_eq!(format!("{}", Field::Float(1e20)), "1E20");
+    assert_eq!(format!("{}", Field::Float(1.7976931E30)), "1.7976931E30");
+    assert_eq!(format!("{}", Field::Float(-1.7976931E30)), "-1.7976931E30");
+  }
+
+  #[test]
+  fn test_convert_double_to_string() {
+    assert_eq!(format!("{}", Field::Double(1.0)), "1.0");
+    assert_eq!(format!("{}", Field::Double(9.63)), "9.63");
+    assert_eq!(format!("{}", Field::Double(1e-15)), "0.000000000000001");
+    assert_eq!(format!("{}", Field::Double(1e-16)), "1E-16");
+    assert_eq!(format!("{}", Field::Double(1e19)), "10000000000000000000.0");
+    assert_eq!(format!("{}", Field::Double(1e20)), "1E20");
+    assert_eq!(format!("{}", Field::Double(1.79769313486E308)), "1.79769313486E308");
+    assert_eq!(format!("{}", Field::Double(-1.79769313486E308)), "-1.79769313486E308");
   }
 
   #[test]
