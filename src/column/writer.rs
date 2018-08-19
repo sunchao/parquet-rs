@@ -298,7 +298,7 @@ impl<T: DataType> ColumnWriterImpl<T> {
       let levels = def_levels.unwrap();
       num_values = levels.len();
       for &level in levels {
-        values_to_write += (level == self.descr.max_def_level()) as usize & 1;
+        values_to_write += (level == self.descr.max_def_level()) as usize;
       }
 
       self.write_definition_levels(levels);
@@ -320,7 +320,7 @@ impl<T: DataType> ColumnWriterImpl<T> {
       // Count the occasions where we start a new row
       let levels = rep_levels.unwrap();
       for &level in levels {
-        self.num_buffered_rows += (level == 0) as u32 & 1
+        self.num_buffered_rows += (level == 0) as u32
       }
 
       self.write_repetition_levels(levels);
@@ -574,6 +574,8 @@ impl<T: DataType> ColumnWriterImpl<T> {
       file_offset = data_page_offset + total_compressed_size;
       encodings.push(self.encoder.encoding());
     }
+    // We use only RLE level encoding for data page v1 and data page v2.
+    encodings.push(Encoding::RLE);
 
     let metadata = ColumnChunkMetaData::builder(self.descr.clone())
       .set_compression(self.codec)
