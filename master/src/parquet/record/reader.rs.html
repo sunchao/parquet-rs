@@ -1301,6 +1301,91 @@
 <span id="1301">1301</span>
 <span id="1302">1302</span>
 <span id="1303">1303</span>
+<span id="1304">1304</span>
+<span id="1305">1305</span>
+<span id="1306">1306</span>
+<span id="1307">1307</span>
+<span id="1308">1308</span>
+<span id="1309">1309</span>
+<span id="1310">1310</span>
+<span id="1311">1311</span>
+<span id="1312">1312</span>
+<span id="1313">1313</span>
+<span id="1314">1314</span>
+<span id="1315">1315</span>
+<span id="1316">1316</span>
+<span id="1317">1317</span>
+<span id="1318">1318</span>
+<span id="1319">1319</span>
+<span id="1320">1320</span>
+<span id="1321">1321</span>
+<span id="1322">1322</span>
+<span id="1323">1323</span>
+<span id="1324">1324</span>
+<span id="1325">1325</span>
+<span id="1326">1326</span>
+<span id="1327">1327</span>
+<span id="1328">1328</span>
+<span id="1329">1329</span>
+<span id="1330">1330</span>
+<span id="1331">1331</span>
+<span id="1332">1332</span>
+<span id="1333">1333</span>
+<span id="1334">1334</span>
+<span id="1335">1335</span>
+<span id="1336">1336</span>
+<span id="1337">1337</span>
+<span id="1338">1338</span>
+<span id="1339">1339</span>
+<span id="1340">1340</span>
+<span id="1341">1341</span>
+<span id="1342">1342</span>
+<span id="1343">1343</span>
+<span id="1344">1344</span>
+<span id="1345">1345</span>
+<span id="1346">1346</span>
+<span id="1347">1347</span>
+<span id="1348">1348</span>
+<span id="1349">1349</span>
+<span id="1350">1350</span>
+<span id="1351">1351</span>
+<span id="1352">1352</span>
+<span id="1353">1353</span>
+<span id="1354">1354</span>
+<span id="1355">1355</span>
+<span id="1356">1356</span>
+<span id="1357">1357</span>
+<span id="1358">1358</span>
+<span id="1359">1359</span>
+<span id="1360">1360</span>
+<span id="1361">1361</span>
+<span id="1362">1362</span>
+<span id="1363">1363</span>
+<span id="1364">1364</span>
+<span id="1365">1365</span>
+<span id="1366">1366</span>
+<span id="1367">1367</span>
+<span id="1368">1368</span>
+<span id="1369">1369</span>
+<span id="1370">1370</span>
+<span id="1371">1371</span>
+<span id="1372">1372</span>
+<span id="1373">1373</span>
+<span id="1374">1374</span>
+<span id="1375">1375</span>
+<span id="1376">1376</span>
+<span id="1377">1377</span>
+<span id="1378">1378</span>
+<span id="1379">1379</span>
+<span id="1380">1380</span>
+<span id="1381">1381</span>
+<span id="1382">1382</span>
+<span id="1383">1383</span>
+<span id="1384">1384</span>
+<span id="1385">1385</span>
+<span id="1386">1386</span>
+<span id="1387">1387</span>
+<span id="1388">1388</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -1505,6 +1590,25 @@
 
           <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="ident">field</span>, <span class="ident">curr_def_level</span>, <span class="ident">curr_rep_level</span>,
             <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">key_reader</span>), <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">value_reader</span>))
+        },
+        <span class="comment">// A repeated field that is neither contained by a `LIST`- or `MAP`-annotated</span>
+        <span class="comment">// group nor annotated by `LIST` or `MAP` should be interpreted as a required</span>
+        <span class="comment">// list of required elements where the element type is the type of the field.</span>
+        <span class="kw">_</span> <span class="kw">if</span> <span class="ident">repetition</span> <span class="op">==</span> <span class="ident">Repetition</span>::<span class="ident">REPEATED</span> <span class="op">=&gt;</span> {
+          <span class="kw">let</span> <span class="ident">required_field</span> <span class="op">=</span> <span class="ident">Type</span>::<span class="ident">group_type_builder</span>(<span class="ident">field</span>.<span class="ident">name</span>())
+            .<span class="ident">with_repetition</span>(<span class="ident">Repetition</span>::<span class="ident">REQUIRED</span>)
+            .<span class="ident">with_logical_type</span>(<span class="ident">field</span>.<span class="ident">get_basic_info</span>().<span class="ident">logical_type</span>())
+            .<span class="ident">with_fields</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span>::<span class="ident">from</span>(<span class="ident">field</span>.<span class="ident">get_fields</span>()))
+            .<span class="ident">build</span>()
+            .<span class="ident">unwrap</span>();
+
+          <span class="ident">path</span>.<span class="ident">pop</span>();
+
+          <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">required_field</span>), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
+            <span class="ident">curr_def_level</span>, <span class="ident">curr_rep_level</span>, <span class="ident">paths</span>, <span class="ident">row_group_reader</span>);
+
+          <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="ident">field</span>, <span class="ident">curr_def_level</span> <span class="op">-</span> <span class="number">1</span>, <span class="ident">curr_rep_level</span> <span class="op">-</span> <span class="number">1</span>,
+            <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">reader</span>))
         },
         <span class="comment">// Group types (structs)</span>
         <span class="kw">_</span> <span class="op">=&gt;</span> {
@@ -1807,8 +1911,8 @@
         <span class="ident">Reader</span>::<span class="ident">PrimitiveReader</span>(<span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;PrimitiveReader&quot;</span>,
         <span class="ident">Reader</span>::<span class="ident">OptionReader</span>(<span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;OptionReader&quot;</span>,
         <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;GroupReader&quot;</span>,
-        <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;Repeatedreader&quot;</span>,
-        <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;KeyValuereader&quot;</span>,
+        <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;RepeatedReader&quot;</span>,
+        <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;KeyValueReader&quot;</span>
       };
     <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">s</span>)
   }
@@ -2587,6 +2691,72 @@
     &quot;</span>;
     <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">parse_message_type</span>(<span class="kw-2">&amp;</span><span class="ident">schema</span>).<span class="ident">unwrap</span>();
     <span class="ident">test_file_reader_rows</span>(<span class="string">&quot;nested_maps.snappy.parquet&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">schema</span>)).<span class="ident">unwrap</span>();
+  }
+
+  <span class="attribute">#[<span class="ident">test</span>]</span>
+  <span class="kw">fn</span> <span class="ident">test_tree_reader_handle_repeated_fields_with_no_annotation</span>() {
+    <span class="comment">// Array field `phoneNumbers` does not contain LIST annotation.</span>
+    <span class="comment">// We parse it as struct with `phone` repeated field as array.</span>
+    <span class="kw">let</span> <span class="ident">rows</span> <span class="op">=</span> <span class="ident">test_file_reader_rows</span>(<span class="string">&quot;repeated_no_annotation.parquet&quot;</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="ident">expected_rows</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
+      <span class="macro">row</span><span class="macro">!</span>[
+        (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>)),
+        (<span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
+      ],
+      <span class="macro">row</span><span class="macro">!</span>[
+        (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>)),
+        (<span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
+      ],
+      <span class="macro">row</span><span class="macro">!</span>[
+        (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>)),
+        (<span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
+          (<span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[])
+        ])
+      ],
+      <span class="macro">row</span><span class="macro">!</span>[
+        (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">4</span>)),
+        (<span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
+          (<span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
+            <span class="macro">group</span><span class="macro">!</span>[
+              (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">5555555555</span>)),
+              (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
+            ]
+          ])
+        ])
+      ],
+      <span class="macro">row</span><span class="macro">!</span>[
+        (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">5</span>)),
+        (<span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
+          (<span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
+            <span class="macro">group</span><span class="macro">!</span>[
+              (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">1111111111</span>)),
+              (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;home&quot;</span>.<span class="ident">to_string</span>()))
+            ]
+          ])
+        ])
+      ],
+      <span class="macro">row</span><span class="macro">!</span>[
+        (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">6</span>)),
+        (<span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
+          (<span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
+            <span class="macro">group</span><span class="macro">!</span>[
+              (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">1111111111</span>)),
+              (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;home&quot;</span>.<span class="ident">to_string</span>()))
+            ],
+            <span class="macro">group</span><span class="macro">!</span>[
+              (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">2222222222</span>)),
+              (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
+            ],
+            <span class="macro">group</span><span class="macro">!</span>[
+              (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">3333333333</span>)),
+              (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;mobile&quot;</span>.<span class="ident">to_string</span>()))
+            ]
+          ])
+        ])
+      ]
+    ];
+
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">rows</span>, <span class="ident">expected_rows</span>);
   }
 
   <span class="kw">fn</span> <span class="ident">test_file_reader_rows</span>(<span class="ident">file_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">schema</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Type</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Row</span><span class="op">&gt;&gt;</span> {
