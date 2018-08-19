@@ -298,9 +298,7 @@ impl<T: DataType> ColumnWriterImpl<T> {
       let levels = def_levels.unwrap();
       num_values = levels.len();
       for &level in levels {
-        if level == self.descr.max_def_level() {
-          values_to_write += 1;
-        }
+        values_to_write += (level == self.descr.max_def_level()) as usize & 1;
       }
 
       self.write_definition_levels(levels);
@@ -322,16 +320,14 @@ impl<T: DataType> ColumnWriterImpl<T> {
       // Count the occasions where we start a new row
       let levels = rep_levels.unwrap();
       for &level in levels {
-        if level == 0 {
-          self.num_buffered_rows += 1;
-        }
+        self.num_buffered_rows += (level == 0) as u32 & 1
       }
 
       self.write_repetition_levels(levels);
     } else {
       // Each value is exactly one row.
-      // Equals to the original number of values, so we count nulls as well.
-      self.num_buffered_rows += values.len() as u32;
+      // Equals to the number of values, we count nulls as well.
+      self.num_buffered_rows += num_values as u32;
     }
 
     // Check that we have enough values to write.
@@ -813,6 +809,14 @@ mod tests {
   }
 
   #[test]
+  fn test_column_writer_nullable_non_repeated_values_roundtrip() {
+    let props = WriterProperties::builder().build();
+    column_roundtrip_random::<Int32Type>(
+      "test_column_writer_nullable_non_repeated_values_roundtrip", props, 1024,
+      ::std::i32::MIN, ::std::i32::MAX, 10, 0);
+  }
+
+  #[test]
   fn test_column_writer_nullable_repeated_values_roundtrip() {
     let props = WriterProperties::builder().build();
     column_roundtrip_random::<Int32Type>("test_col_writer_rnd_3", props, 1024,
@@ -962,7 +966,7 @@ mod tests {
 
     let values_written = writer.write_batch(values, def_levels, rep_levels).unwrap();
     assert_eq!(values_written, values.len());
-    let (bytes_written, _rows_written, column_metadata) = writer.close().unwrap();
+    let (bytes_written, rows_written, column_metadata) = writer.close().unwrap();
 
     let source = FileSource::new(&file, 0, bytes_written as usize);
     let page_reader = Box::new(SerializedPageReader::new(
@@ -999,12 +1003,28 @@ mod tests {
 
     assert_eq!(&actual_values[..values_read], values);
     match actual_def_levels {
-      Some(vec) => assert_eq!(Some(&vec[..levels_read]), def_levels),
+      Some(ref vec) => assert_eq!(Some(&vec[..levels_read]), def_levels),
       None => assert_eq!(None, def_levels)
     }
     match actual_rep_levels {
-      Some(vec) => assert_eq!(Some(&vec[..levels_read]), rep_levels),
+      Some(ref vec) => assert_eq!(Some(&vec[..levels_read]), rep_levels),
       None => assert_eq!(None, rep_levels)
+    }
+
+    // Assert written rows.
+
+    if let Some(levels) = actual_rep_levels {
+      let mut actual_rows_written = 0;
+      for l in levels {
+        if l == 0 {
+          actual_rows_written += 1;
+        }
+      }
+      assert_eq!(actual_rows_written, rows_written);
+    } else if actual_def_levels.is_some() {
+      assert_eq!(levels_read as u64, rows_written);
+    } else {
+      assert_eq!(values_read as u64, rows_written);
     }
   }
 
