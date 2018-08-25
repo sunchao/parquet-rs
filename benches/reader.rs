@@ -19,10 +19,15 @@
 extern crate parquet;
 extern crate test;
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 
+use parquet::column::reader::{ColumnReader, get_typed_column_reader};
+use parquet::data_type::*;
 use parquet::file::reader::{FileReader, SerializedFileReader};
+use parquet::schema::types::ColumnPath;
+
 use test::Bencher;
 
 #[bench]
@@ -36,5 +41,99 @@ fn record_reader_10k_collect(bench: &mut Bencher) {
   bench.iter(|| {
     let iter = parquet_reader.get_row_iter(None).unwrap();
     let _ = iter.collect::<Vec<_>>();
+  })
+}
+
+#[bench]
+fn record_reader_stock_simulated_collect(bench: &mut Bencher) {
+  let path = Path::new("data/stock_simulated.parquet");
+  let file = File::open(&path).unwrap();
+  let len = file.metadata().unwrap().len();
+  let parquet_reader = SerializedFileReader::new(file).unwrap();
+
+  bench.bytes = len;
+  bench.iter(|| {
+    let iter = parquet_reader.get_row_iter(None).unwrap();
+    let _ = iter.collect::<Vec<_>>();
+  })
+}
+
+#[bench]
+fn record_reader_stock_simulated_column(bench: &mut Bencher) {
+  // WARNING THIS BENCH IS INTENDED FOR THIS DATA FILE ONLY
+  // COPY OR CHANGE THE DATA FILE MAY NOT WORK AS YOU WISH
+  let path = Path::new("data/stock_simulated.parquet");
+  let file = File::open(&path).unwrap();
+  let len = file.metadata().unwrap().len();
+  let parquet_reader = SerializedFileReader::new(file).unwrap();
+
+  let descr = parquet_reader.metadata().file_metadata().schema_descr_ptr();
+  let num_row_groups = parquet_reader.num_row_groups();
+  let batch_size = 256;
+
+  bench.bytes = len;
+  bench.iter(|| {
+    let mut current_row_group = 0;
+
+    while current_row_group < num_row_groups {
+
+      let row_group_reader = parquet_reader.get_row_group(current_row_group).unwrap();
+      let num_rows = row_group_reader.metadata().num_rows() as usize;
+
+      let mut paths = HashMap::new();
+      let row_group_metadata = row_group_reader.metadata();
+
+      for col_index in 0..row_group_reader.num_columns() {
+        let col_meta = row_group_metadata.column(col_index);
+        let col_path = col_meta.column_path().clone();
+        paths.insert(col_path, col_index);
+      }
+      
+      let mut readers = Vec::new();
+      for field in descr.root_schema().get_fields() {
+        let col_path = ColumnPath::new(vec![field.name().to_owned()]);
+        let orig_index = *paths.get(&col_path).unwrap();
+        let col_reader = row_group_reader.get_column_reader(orig_index).unwrap();
+        readers.push(col_reader);
+      }
+
+      let mut def_levels = Some(vec![0; batch_size]);
+      let mut rep_levels = None::<Vec<i16>>;
+
+      for col_reader in readers.into_iter() {
+        match col_reader {
+          r @ ColumnReader::Int64ColumnReader(..) => {
+            let mut data_collected = Vec::with_capacity(num_rows);
+            let mut val = vec![0; batch_size];
+            let mut typed_reader = get_typed_column_reader::<Int64Type>(r);
+            while let Ok((values_read, _levels_read)) = typed_reader.read_batch(
+                batch_size,
+                def_levels.as_mut().map(|x| &mut x[..]),
+                rep_levels.as_mut().map(|x| &mut x[..]),
+                &mut val)
+            {
+                data_collected.extend_from_slice(&val);
+                if values_read < batch_size { break }
+            }
+          },
+          r @ ColumnReader::DoubleColumnReader(..) => {
+            let mut data_collected = Vec::with_capacity(num_rows);
+            let mut val = vec![0.0; batch_size];
+            let mut typed_reader = get_typed_column_reader::<DoubleType>(r);
+            while let Ok((values_read, _levels_read)) = typed_reader.read_batch(
+                batch_size,
+                def_levels.as_mut().map(|x| &mut x[..]),
+                rep_levels.as_mut().map(|x| &mut x[..]),
+                &mut val)
+            {
+                data_collected.extend_from_slice(&val);
+                if values_read < batch_size { break }
+            }
+          },
+          _ => unimplemented!(),
+        }
+      }
+      current_row_group += 1;
+    }
   })
 }
