@@ -864,7 +864,6 @@
 <span id="864">864</span>
 <span id="865">865</span>
 <span id="866">866</span>
-<span id="867">867</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -898,6 +897,7 @@
 <span class="kw">use</span> <span class="ident">column</span>::<span class="ident">reader</span>::{<span class="ident">ColumnReader</span>, <span class="ident">ColumnReaderImpl</span>};
 <span class="kw">use</span> <span class="ident">compression</span>::{<span class="ident">create_codec</span>, <span class="ident">Codec</span>};
 <span class="kw">use</span> <span class="ident">errors</span>::{<span class="ident">ParquetError</span>, <span class="prelude-ty">Result</span>};
+<span class="kw">use</span> <span class="ident">file</span>::{<span class="ident">FOOTER_SIZE</span>, <span class="ident">PARQUET_MAGIC</span>};
 <span class="kw">use</span> <span class="ident">file</span>::<span class="ident">metadata</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">file</span>::<span class="ident">statistics</span>;
 <span class="kw">use</span> <span class="ident">parquet_format</span>::{<span class="ident">ColumnOrder</span> <span class="kw">as</span> <span class="ident">TColumnOrder</span>, <span class="ident">FileMetaData</span> <span class="kw">as</span> <span class="ident">TFileMetaData</span>};
@@ -957,9 +957,6 @@
 <span class="comment">// ----------------------------------------------------------------------</span>
 <span class="comment">// Serialized impl for file &amp; row group readers</span>
 
-<span class="kw">const</span> <span class="ident">FOOTER_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">8</span>;
-<span class="kw">const</span> <span class="ident">PARQUET_MAGIC</span>: [<span class="ident">u8</span>; <span class="number">4</span>] <span class="op">=</span> [<span class="string">b&#39;P&#39;</span>, <span class="string">b&#39;A&#39;</span>, <span class="string">b&#39;R&#39;</span>, <span class="string">b&#39;1&#39;</span>];
-
 <span class="doccomment">/// Length should return the amount of bytes that implementor contains.</span>
 <span class="doccomment">/// It&#39;s mainly used to read the metadata, which is at the end of the source.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Length</span>  {
@@ -1001,8 +998,8 @@
   }
 }
 
-<span class="doccomment">/// ParquetReader is the interface which needs to be fulfilled to be able to parse a parquet</span>
-<span class="doccomment">/// source.</span>
+<span class="doccomment">/// ParquetReader is the interface which needs to be fulfilled to be able to parse a</span>
+<span class="doccomment">/// parquet source.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">ParquetReader</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="ident">Length</span> <span class="op">+</span> <span class="ident">TryClone</span> {}
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Read</span> <span class="op">+</span> <span class="ident">Seek</span> <span class="op">+</span> <span class="ident">Length</span> <span class="op">+</span> <span class="ident">TryClone</span><span class="op">&gt;</span> <span class="ident">ParquetReader</span> <span class="kw">for</span> <span class="ident">T</span> {}
 
@@ -1413,7 +1410,8 @@
     <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;../../data/alltypes_plain.parquet&quot;</span>);
     <span class="kw">let</span> <span class="ident">cursor</span> <span class="op">=</span> <span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">buffer</span>.<span class="ident">as_ref</span>());
 
-    <span class="kw">let</span> <span class="ident">read_from_file</span> <span class="op">=</span> <span class="ident">SerializedFileReader</span>::<span class="ident">new</span>(<span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;data/alltypes_plain.parquet&quot;</span>).<span class="ident">unwrap</span>()).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="ident">read_from_file</span> <span class="op">=</span> <span class="ident">SerializedFileReader</span>::<span class="ident">new</span>(
+      <span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;data/alltypes_plain.parquet&quot;</span>).<span class="ident">unwrap</span>()).<span class="ident">unwrap</span>();
     <span class="kw">let</span> <span class="ident">read_from_cursor</span> <span class="op">=</span> <span class="ident">SerializedFileReader</span>::<span class="ident">new</span>(<span class="ident">cursor</span>).<span class="ident">unwrap</span>();
 
     <span class="kw">let</span> <span class="ident">file_iter</span> <span class="op">=</span> <span class="ident">read_from_file</span>.<span class="ident">get_row_iter</span>(<span class="prelude-val">None</span>).<span class="ident">unwrap</span>();

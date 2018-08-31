@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["SerializedPageWriter","Serialized page writer."]]});
+initSidebarItems({"struct":[["SerializedFileWriter","Serialized file writer."],["SerializedPageWriter","Serialized page writer."],["SerializedRowGroupWriter","Serialized row group writer."]],"trait":[["FileWriter","Parquet file writer API. Gives access to row group writers."],["RowGroupWriter","Parquet row group writer API. Provides methods to return the next column writer which will match column order in schema."]]});
