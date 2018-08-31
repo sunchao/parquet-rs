@@ -15,16 +15,349 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::Write;
+//! Contains file writer API, and provides methods to create row group writers and column
+//! writers.
+
+use std::fs::File;
+use std::io::{Seek, SeekFrom, Write};
+use std::rc::Rc;
 
 use basic::PageType;
+use byteorder::{LittleEndian, ByteOrder};
 use column::page::{CompressedPage, Page, PageWriteSpec, PageWriter};
-use errors::Result;
-use file::metadata::ColumnChunkMetaData;
+use column::writer::{ColumnWriter, get_column_writer};
+use errors::{ParquetError, Result};
+use file::{FOOTER_SIZE, PARQUET_MAGIC};
+use file::metadata::*;
+use file::properties::WriterPropertiesPtr;
 use file::statistics::{to_thrift as statistics_to_thrift};
 use parquet_format as parquet;
+use schema::types::{self, SchemaDescriptor, SchemaDescPtr, TypePtr};
 use thrift::protocol::{TCompactOutputProtocol, TOutputProtocol};
-use util::io::Position;
+use util::io::{FileSink, Position};
+
+// ----------------------------------------------------------------------
+// APIs for file & row group writers
+
+/// Parquet file writer API.
+/// Gives access to row group writers.
+pub trait FileWriter {
+  /// Creates new row group from this file writer.
+  /// In case of IO error or Thrift error, returns `Err`.
+  ///
+  /// There is no limit on a number of row groups in a file; however, row groups have
+  /// to be written sequentially. Every time the next row group is requested, the
+  /// previous row group must be finalised and closed.
+  fn next_row_group(&mut self) -> Result<Box<RowGroupWriter>>;
+
+  /// Finalises and closes row group that was created using `next_row_group` method.
+  /// After calling this method, the next row group is available for writes.
+  fn close_row_group(&mut self, row_group_writer: Box<RowGroupWriter>) -> Result<()>;
+
+  /// Closes and finalises file writer.
+  ///
+  /// All row groups must be appended before this method is called.
+  /// No writes are allowed after this point.
+  ///
+  /// Can be called multiple times. It is up to implementation to either result in no-op,
+  /// or return an `Err`.
+  fn close(&mut self) -> Result<()>;
+}
+
+/// Parquet row group writer API.
+/// Provides methods to return the next column writer which will match column order in
+/// schema.
+pub trait RowGroupWriter {
+  /// Returns the next column writer, if available; otherwise returns `None`.
+  /// In case of any IO error or Thrift error, or if row group writer has already been
+  /// closed returns `Err`.
+  ///
+  /// To request the next column writer, the previous one must be finalised and closed
+  /// using `close_column`.
+  fn next_column(&mut self) -> Result<Option<ColumnWriter>>;
+
+  /// Closes column writer that was created using `next_column` method.
+  /// This should be called before requesting the next column writer.
+  fn close_column(&mut self, column_writer: ColumnWriter) -> Result<()>;
+
+  /// Closes this row group writer and returns row group metadata.
+  /// After calling this method row group writer must not be used.
+  ///
+  /// It is recommended to call this method before requesting another row group, but it
+  /// will be closed automatically before returning a new row group.
+  ///
+  /// Can be called multiple times. In subsequent calls will result in no-op and return
+  /// already created row group metadata.
+  fn close(&mut self) -> Result<RowGroupMetaDataPtr>;
+}
+
+// ----------------------------------------------------------------------
+// Serialized impl for file & row group writers
+
+/// Serialized file writer.
+///
+/// The main entrypoint of writing a Parquet file.
+pub struct SerializedFileWriter {
+  file: File,
+  schema: TypePtr,
+  descr: SchemaDescPtr,
+  props: WriterPropertiesPtr,
+  total_num_rows: u64,
+  row_groups: Vec<RowGroupMetaDataPtr>,
+  previous_writer_closed: bool,
+  is_closed: bool
+}
+
+impl SerializedFileWriter {
+  /// Creates new file writer.
+  pub fn new(
+    mut file: File,
+    schema: TypePtr,
+    properties: WriterPropertiesPtr
+  ) -> Result<Self> {
+    Self::start_file(&mut file)?;
+    Ok(Self {
+      file: file,
+      schema: schema.clone(),
+      descr: Rc::new(SchemaDescriptor::new(schema)),
+      props: properties,
+      total_num_rows: 0,
+      row_groups: Vec::new(),
+      previous_writer_closed: true,
+      is_closed: false
+    })
+  }
+
+  /// Writes magic bytes at the beginning of the file.
+  fn start_file(file: &mut File) -> Result<()> {
+    file.write(&PARQUET_MAGIC)?;
+    Ok(())
+  }
+
+  /// Finalises active row group writer, otherwise no-op.
+  fn finalise_row_group_writer(
+    &mut self,
+    mut row_group_writer: Box<RowGroupWriter>
+  ) -> Result<()> {
+    let row_group_metadata = row_group_writer.close()?;
+    self.row_groups.push(row_group_metadata);
+    Ok(())
+  }
+
+  /// Assembles and writes metadata at the end of the file.
+  fn write_metadata(&mut self) -> Result<()> {
+    let file_metadata = parquet::FileMetaData {
+      version: self.props.writer_version().as_num(),
+      schema: types::to_thrift(self.schema.as_ref())?,
+      num_rows: self.total_num_rows as i64,
+      row_groups: self.row_groups.as_slice().into_iter().map(|v| v.to_thrift()).collect(),
+      key_value_metadata: None,
+      created_by: Some(self.props.created_by().to_owned()),
+      column_orders: None
+    };
+
+    // Write file metadata
+    let start_pos = self.file.seek(SeekFrom::Current(0))?;
+    {
+      let mut protocol = TCompactOutputProtocol::new(&mut self.file);
+      file_metadata.write_to_out_protocol(&mut protocol)?;
+      protocol.flush()?;
+    }
+    let end_pos = self.file.seek(SeekFrom::Current(0))?;
+
+    // Write footer
+    let mut footer_buffer: [u8; FOOTER_SIZE] = [0; FOOTER_SIZE];
+    let metadata_len = (end_pos - start_pos) as i32;
+    LittleEndian::write_i32(&mut footer_buffer, metadata_len);
+    (&mut footer_buffer[4..]).write(&PARQUET_MAGIC)?;
+    self.file.write(&footer_buffer)?;
+    Ok(())
+  }
+
+  #[inline]
+  fn assert_closed(&self) -> Result<()> {
+    if self.is_closed {
+      Err(general_err!("File writer is closed"))
+    } else {
+      Ok(())
+    }
+  }
+
+  #[inline]
+  fn assert_previous_writer_closed(&self) -> Result<()> {
+    if !self.previous_writer_closed {
+      Err(general_err!("Previous row group writer was not closed"))
+    } else {
+      Ok(())
+    }
+  }
+}
+
+impl FileWriter for SerializedFileWriter {
+  #[inline]
+  fn next_row_group(&mut self) -> Result<Box<RowGroupWriter>> {
+    self.assert_closed()?;
+    self.assert_previous_writer_closed()?;
+    let row_group_writer = SerializedRowGroupWriter::new(
+      self.descr.clone(),
+      self.props.clone(),
+      &self.file
+    );
+    self.previous_writer_closed = false;
+    Ok(Box::new(row_group_writer))
+  }
+
+  #[inline]
+  fn close_row_group(&mut self, row_group_writer: Box<RowGroupWriter>) -> Result<()> {
+    self.assert_closed()?;
+    let res = self.finalise_row_group_writer(row_group_writer);
+    self.previous_writer_closed = res.is_ok();
+    res
+  }
+
+  #[inline]
+  fn close(&mut self) -> Result<()> {
+    self.assert_closed()?;
+    self.assert_previous_writer_closed()?;
+    self.write_metadata()?;
+    self.is_closed = true;
+    Ok(())
+  }
+}
+
+/// Serialized row group writer.
+///
+/// Coordinates writing of a row group with column writers.
+pub struct SerializedRowGroupWriter {
+  descr: SchemaDescPtr,
+  props: WriterPropertiesPtr,
+  file: File,
+  total_rows_written: Option<u64>,
+  total_bytes_written: u64,
+  column_index: usize,
+  previous_writer_closed: bool,
+  row_group_metadata: Option<RowGroupMetaDataPtr>,
+  column_chunks: Vec<ColumnChunkMetaDataPtr>
+}
+
+impl SerializedRowGroupWriter {
+  pub fn new(
+    schema_descr: SchemaDescPtr,
+    properties: WriterPropertiesPtr,
+    file: &File
+  ) -> Self {
+    let num_columns = schema_descr.num_columns();
+    Self {
+      descr: schema_descr,
+      props: properties,
+      file: file.try_clone().unwrap(),
+      total_rows_written: None,
+      total_bytes_written: 0,
+      column_index: 0,
+      previous_writer_closed: true,
+      row_group_metadata: None,
+      column_chunks: Vec::with_capacity(num_columns)
+    }
+  }
+
+  /// Checks and finalises current column writer.
+  fn finalise_column_writer(&mut self, writer: ColumnWriter) -> Result<()> {
+    let (bytes_written, rows_written, metadata) = match writer {
+      ColumnWriter::BoolColumnWriter(typed) => typed.close()?,
+      ColumnWriter::Int32ColumnWriter(typed) => typed.close()?,
+      ColumnWriter::Int64ColumnWriter(typed) => typed.close()?,
+      ColumnWriter::Int96ColumnWriter(typed) => typed.close()?,
+      ColumnWriter::FloatColumnWriter(typed) => typed.close()?,
+      ColumnWriter::DoubleColumnWriter(typed) => typed.close()?,
+      ColumnWriter::ByteArrayColumnWriter(typed) => typed.close()?,
+      ColumnWriter::FixedLenByteArrayColumnWriter(typed) => typed.close()?
+    };
+
+    // Update row group writer metrics
+    self.total_bytes_written += bytes_written;
+    self.column_chunks.push(Rc::new(metadata));
+    if let Some(rows) = self.total_rows_written {
+      if rows != rows_written {
+        return Err(general_err!(
+          "Incorrect number of rows, expected {} != {} rows",
+          rows,
+          rows_written
+        ));
+      }
+    } else {
+      self.total_rows_written = Some(rows_written);
+    }
+
+    Ok(())
+  }
+
+  #[inline]
+  fn assert_closed(&self) -> Result<()> {
+    if self.row_group_metadata.is_some() {
+      Err(general_err!("Row group writer is closed"))
+    } else {
+      Ok(())
+    }
+  }
+
+  #[inline]
+  fn assert_previous_writer_closed(&self) -> Result<()> {
+    if !self.previous_writer_closed {
+      Err(general_err!("Previous column writer was not closed"))
+    } else {
+      Ok(())
+    }
+  }
+}
+
+impl RowGroupWriter for SerializedRowGroupWriter {
+  #[inline]
+  fn next_column(&mut self) -> Result<Option<ColumnWriter>> {
+    self.assert_closed()?;
+    self.assert_previous_writer_closed()?;
+
+    if self.column_index >= self.descr.num_columns() {
+      return Ok(None);
+    }
+    let sink = FileSink::new(&self.file);
+    let page_writer = Box::new(SerializedPageWriter::new(sink));
+    let column_writer = get_column_writer(
+      self.descr.column(self.column_index),
+      self.props.clone(),
+      page_writer
+    );
+    self.column_index += 1;
+    self.previous_writer_closed = false;
+
+    Ok(Some(column_writer))
+  }
+
+  #[inline]
+  fn close_column(&mut self, column_writer: ColumnWriter) -> Result<()> {
+    let res = self.finalise_column_writer(column_writer);
+    self.previous_writer_closed = res.is_ok();
+    res
+  }
+
+  #[inline]
+  fn close(&mut self) -> Result<RowGroupMetaDataPtr> {
+    if self.row_group_metadata.is_none() {
+      self.assert_previous_writer_closed()?;
+
+      let row_group_metadata =
+        RowGroupMetaData::builder(self.descr.clone())
+          .set_column_metadata(self.column_chunks.clone())
+          .set_total_byte_size(self.total_bytes_written as i64)
+          .set_num_rows(self.total_rows_written.unwrap_or(0) as i64)
+          .build()?;
+
+      self.row_group_metadata = Some(Rc::new(row_group_metadata));
+    }
+
+    let metadata = self.row_group_metadata.as_ref().unwrap().clone();
+    Ok(metadata)
+  }
+}
 
 /// Serialized page writer.
 ///
@@ -163,15 +496,174 @@ impl<T: Write + Position> PageWriter for SerializedPageWriter<T> {
 
 #[cfg(test)]
 mod tests {
+  use std::error::Error;
   use std::io::Cursor;
 
   use super::*;
-  use basic::{Compression, Encoding, Type};
+  use basic::{Compression, Encoding, Repetition, Type};
   use column::page::PageReader;
   use compression::{Codec, create_codec};
-  use file::reader::SerializedPageReader;
+  use file::properties::WriterProperties;
+  use file::reader::{FileReader, SerializedFileReader, SerializedPageReader};
   use file::statistics::{Statistics, from_thrift, to_thrift};
+  use record::RowAccessor;
   use util::memory::ByteBufferPtr;
+  use util::test_common::get_temp_file;
+
+  #[test]
+  fn test_file_writer_error_after_close() {
+    let file = get_temp_file("test_file_writer_error_after_close", &[]);
+    let schema = Rc::new(types::Type::group_type_builder("schema").build().unwrap());
+    let props = Rc::new(WriterProperties::builder().build());
+    let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+    writer.close().unwrap();
+    {
+      let res = writer.next_row_group();
+      assert!(res.is_err());
+      if let Err(err) = res {
+        assert_eq!(err.description(), "File writer is closed");
+      }
+    }
+    {
+      let res = writer.close();
+      assert!(res.is_err());
+      if let Err(err) = res {
+        assert_eq!(err.description(), "File writer is closed");
+      }
+    }
+  }
+
+  #[test]
+  fn test_row_group_writer_error_after_close() {
+    let file = get_temp_file("test_file_writer_row_group_error_after_close", &[]);
+    let schema = Rc::new(types::Type::group_type_builder("schema").build().unwrap());
+    let props = Rc::new(WriterProperties::builder().build());
+    let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+    let mut row_group_writer = writer.next_row_group().unwrap();
+    row_group_writer.close().unwrap();
+
+    let res = row_group_writer.next_column();
+    assert!(res.is_err());
+    if let Err(err) = res {
+      assert_eq!(err.description(), "Row group writer is closed");
+    }
+  }
+
+  #[test]
+  fn test_row_group_writer_error_not_all_columns_written() {
+    let file = get_temp_file("test_row_group_writer_error_not_all_columns_written", &[]);
+    let schema = Rc::new(
+      types::Type::group_type_builder("schema")
+        .with_fields(&mut vec![
+          Rc::new(types::Type::primitive_type_builder("col1", Type::INT32)
+            .build().unwrap())
+        ])
+        .build()
+        .unwrap()
+    );
+    let props = Rc::new(WriterProperties::builder().build());
+    let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+    let mut row_group_writer = writer.next_row_group().unwrap();
+    let res = row_group_writer.close();
+    assert!(res.is_err());
+    if let Err(err) = res {
+      assert_eq!(err.description(), "Column length mismatch: 1 != 0");
+    }
+  }
+
+  #[test]
+  fn test_row_group_writer_num_records_mismatch() {
+    let file = get_temp_file("test_row_group_writer_num_records_mismatch", &[]);
+    let schema = Rc::new(
+      types::Type::group_type_builder("schema")
+        .with_fields(&mut vec![
+          Rc::new(types::Type::primitive_type_builder("col1", Type::INT32)
+            .with_repetition(Repetition::REQUIRED)
+            .build().unwrap()),
+          Rc::new(types::Type::primitive_type_builder("col2", Type::INT32)
+            .with_repetition(Repetition::REQUIRED)
+            .build().unwrap())
+        ])
+        .build()
+        .unwrap()
+    );
+    let props = Rc::new(WriterProperties::builder().build());
+    let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+    let mut row_group_writer = writer.next_row_group().unwrap();
+
+    let mut col_writer = row_group_writer.next_column().unwrap().unwrap();
+    if let ColumnWriter::Int32ColumnWriter(ref mut typed) = col_writer {
+      typed.write_batch(&[1, 2, 3], None, None).unwrap();
+    }
+    row_group_writer.close_column(col_writer).unwrap();
+
+    let mut col_writer = row_group_writer.next_column().unwrap().unwrap();
+    if let ColumnWriter::Int32ColumnWriter(ref mut typed) = col_writer {
+      typed.write_batch(&[1, 2], None, None).unwrap();
+    }
+
+    let res = row_group_writer.close_column(col_writer);
+    assert!(res.is_err());
+    if let Err(err) = res {
+      assert_eq!(err.description(), "Incorrect number of rows, expected 3 != 2 rows");
+    }
+  }
+
+  #[test]
+  fn test_file_writer_empty_file() {
+    let file = get_temp_file("test_file_writer_write_empty_file", &[]);
+
+    let schema = Rc::new(
+      types::Type::group_type_builder("schema")
+        .with_fields(&mut vec![
+          Rc::new(types::Type::primitive_type_builder("col1", Type::INT32)
+            .build().unwrap())
+        ])
+        .build()
+        .unwrap()
+    );
+    let props = Rc::new(WriterProperties::builder().build());
+    let mut writer = SerializedFileWriter::new(file.try_clone().unwrap(), schema, props)
+      .unwrap();
+    writer.close().unwrap();
+
+    let reader = SerializedFileReader::new(file).unwrap();
+    assert_eq!(reader.get_row_iter(None).unwrap().count(), 0);
+  }
+
+  #[test]
+  fn test_file_writer_empty_row_groups() {
+    let file = get_temp_file("test_file_writer_write_empty_row_groups", &[]);
+    test_file_roundtrip(file, vec![]);
+  }
+
+  #[test]
+  fn test_file_writer_single_row_group() {
+    let file = get_temp_file("test_file_writer_write_single_row_group", &[]);
+    test_file_roundtrip(file, vec![vec![1, 2, 3, 4, 5]]);
+  }
+
+  #[test]
+  fn test_file_writer_multiple_row_groups() {
+    let file = get_temp_file("test_file_writer_write_multiple_row_groups", &[]);
+    test_file_roundtrip(file, vec![
+      vec![1, 2, 3, 4, 5],
+      vec![1, 2, 3],
+      vec![1],
+      vec![1, 2, 3, 4, 5, 6]
+    ]);
+  }
+
+  #[test]
+  fn test_file_writer_multiple_large_row_groups() {
+    let file = get_temp_file("test_file_writer_multiple_large_row_groups", &[]);
+    test_file_roundtrip(file, vec![
+      vec![123; 1024],
+      vec![124; 1000],
+      vec![125; 15],
+      vec![]
+    ]);
+  }
 
   #[test]
   fn test_page_writer_data_pages() {
@@ -369,5 +861,55 @@ mod tests {
     assert_eq!(left.num_values(), right.num_values());
     assert_eq!(left.encoding(), right.encoding());
     assert_eq!(to_thrift(left.statistics()), to_thrift(right.statistics()));
+  }
+
+  /// File write-read roundtrip.
+  /// `data` consists of arrays of values for each row group.
+  fn test_file_roundtrip(file: File, data: Vec<Vec<i32>>) {
+    let schema = Rc::new(
+      types::Type::group_type_builder("schema")
+        .with_fields(&mut vec![
+          Rc::new(types::Type::primitive_type_builder("col1", Type::INT32)
+            .with_repetition(Repetition::REQUIRED)
+            .build()
+            .unwrap())
+        ])
+        .build()
+        .unwrap()
+    );
+    let props = Rc::new(WriterProperties::builder().build());
+    let mut file_writer = SerializedFileWriter::new(
+      file.try_clone().unwrap(),
+      schema,
+      props
+    ).unwrap();
+
+    for subset in &data {
+      let mut row_group_writer = file_writer.next_row_group().unwrap();
+      let mut col_writer = row_group_writer.next_column().unwrap();
+      if let Some(mut writer) = col_writer {
+        match writer {
+          ColumnWriter::Int32ColumnWriter(ref mut typed) => {
+            typed.write_batch(&subset[..], None, None).unwrap();
+          },
+          _ => {
+            unimplemented!();
+          }
+        }
+        row_group_writer.close_column(writer).unwrap();
+      }
+      file_writer.close_row_group(row_group_writer).unwrap();
+    }
+
+    file_writer.close().unwrap();
+
+    let reader = SerializedFileReader::new(file).unwrap();
+    assert_eq!(reader.num_row_groups(), data.len());
+    for i in 0..reader.num_row_groups() {
+      let row_group_reader = reader.get_row_group(i).unwrap();
+      let iter = row_group_reader.get_row_iter(None).unwrap();
+      let res = iter.map(|elem| elem.get_int(0).unwrap()).collect::<Vec<i32>>();
+      assert_eq!(res, data[i]);
+    }
   }
 }

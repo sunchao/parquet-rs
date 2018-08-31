@@ -45,3 +45,6 @@ pub mod properties;
 pub mod reader;
 pub mod writer;
 pub mod statistics;
+
+const FOOTER_SIZE: usize = 8;
+const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];

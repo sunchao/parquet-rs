@@ -249,13 +249,12 @@ impl<T: DataType> ColumnWriterImpl<T> {
   /// Finalises writes and closes the column writer.
   /// Returns total bytes written, total rows written and column chunk metadata.
   pub fn close(mut self) -> Result<(u64, u64, ColumnChunkMetaData)> {
-    // No need to reset `dict_encoder` to None, since column writer cannot be used after
-    // `close()`.
     if self.dict_encoder.is_some() {
       self.write_dictionary_page()?;
     }
     self.flush_data_pages()?;
     let metadata = self.write_column_metadata()?;
+    self.dict_encoder = None;
     self.page_writer.close()?;
 
     Ok((self.total_bytes_written, self.total_rows_written, metadata))
@@ -760,10 +759,7 @@ mod tests {
     let res = writer.write_batch(&[1, 2], Some(&[1, 1, 1, 1]), None);
     assert!(res.is_err());
     if let Err(err) = res {
-      assert_eq!(
-        err.description(),
-        "Expected to write 4 values, but have only 2"
-      );
+      assert_eq!(err.description(), "Expected to write 4 values, but have only 2");
     }
   }
 
@@ -790,11 +786,29 @@ mod tests {
     let res = writer.write_dictionary_page();
     assert!(res.is_err());
     if let Err(err) = res {
-      assert_eq!(
-        err.description(),
-        "Dictionary encoder is not set"
-      );
+      assert_eq!(err.description(), "Dictionary encoder is not set");
     }
+  }
+
+  #[test]
+  fn test_column_writer_check_metadata() {
+    let page_writer = get_test_page_writer();
+    let props = Rc::new(WriterProperties::builder().build());
+    let mut writer = get_test_column_writer::<Int32Type>(page_writer, 0, 0, props);
+    writer.write_batch(&[1, 2, 3, 4], None, None).unwrap();
+
+    let (bytes_written, rows_written, metadata) = writer.close().unwrap();
+    assert_eq!(bytes_written, 20);
+    assert_eq!(rows_written, 4);
+    assert_eq!(
+      metadata.encodings(),
+      &vec![Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE]
+    );
+    assert_eq!(metadata.num_values(), 8); // dictionary + value indexes
+    assert_eq!(metadata.compressed_size(), 20);
+    assert_eq!(metadata.uncompressed_size(), 20);
+    assert_eq!(metadata.data_page_offset(), 0);
+    assert_eq!(metadata.dictionary_page_offset(), Some(0));
   }
 
   #[test]
@@ -1095,6 +1109,11 @@ mod tests {
     fn write_page(&mut self, page: CompressedPage) -> Result<PageWriteSpec> {
       let mut res = PageWriteSpec::new();
       res.page_type = page.page_type();
+      res.uncompressed_size = page.uncompressed_size();
+      res.compressed_size = page.compressed_size();
+      res.num_values = page.num_values();
+      res.offset = 0;
+      res.bytes_written = page.data().len() as u64;
       Ok(res)
     }
 

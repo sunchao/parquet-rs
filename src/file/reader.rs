@@ -30,6 +30,7 @@ use column::page::{Page, PageReader};
 use column::reader::{ColumnReader, ColumnReaderImpl};
 use compression::{create_codec, Codec};
 use errors::{ParquetError, Result};
+use file::{FOOTER_SIZE, PARQUET_MAGIC};
 use file::metadata::*;
 use file::statistics;
 use parquet_format::{ColumnOrder as TColumnOrder, FileMetaData as TFileMetaData};
@@ -89,9 +90,6 @@ pub trait RowGroupReader {
 // ----------------------------------------------------------------------
 // Serialized impl for file & row group readers
 
-const FOOTER_SIZE: usize = 8;
-const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];
-
 /// Length should return the amount of bytes that implementor contains.
 /// It's mainly used to read the metadata, which is at the end of the source.
 pub trait Length  {
@@ -133,8 +131,8 @@ impl<'a> TryClone for Cursor<&'a [u8]> {
   }
 }
 
-/// ParquetReader is the interface which needs to be fulfilled to be able to parse a parquet
-/// source.
+/// ParquetReader is the interface which needs to be fulfilled to be able to parse a
+/// parquet source.
 pub trait ParquetReader: Read + Seek + Length + TryClone {}
 impl<T: Read + Seek + Length + TryClone> ParquetReader for T {}
 
@@ -545,7 +543,8 @@ mod tests {
     let buffer = include_bytes!("../../data/alltypes_plain.parquet");
     let cursor = Cursor::new(buffer.as_ref());
 
-    let read_from_file = SerializedFileReader::new(File::open("data/alltypes_plain.parquet").unwrap()).unwrap();
+    let read_from_file = SerializedFileReader::new(
+      File::open("data/alltypes_plain.parquet").unwrap()).unwrap();
     let read_from_cursor = SerializedFileReader::new(cursor).unwrap();
 
     let file_iter = read_from_file.get_row_iter(None).unwrap();
