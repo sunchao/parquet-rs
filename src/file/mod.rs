@@ -16,13 +16,14 @@
 // under the License.
 
 //! Main entrypoint for working with Parquet API.
-//! Provides access to file and row group readers, record API, etc.
 //!
-//! See [`reader::SerializedFileReader`] for a starting reference,
-//! [`metadata::ParquetMetaData`] for file metadata, and [`statistics`] for working
-//! with statistics.
+//! Provides access to file and row group readers and writers, record API, metadata, etc.
 //!
-//! # Example
+//! See [`reader::SerializedFileReader`] or [`writer::SerializedFileWriter`] for a
+//! starting reference, [`metadata::ParquetMetaData`] for file metadata,
+//! and [`statistics`] for working with statistics.
+//!
+//! # Example of reading an existing file
 //!
 //! ```rust
 //! use std::fs::File;
@@ -38,6 +39,40 @@
 //!
 //! let row_group_reader = reader.get_row_group(0).unwrap();
 //! assert_eq!(row_group_reader.num_columns(), 11);
+//! ```
+//!
+//! # Example of writing a new file
+//!
+//! ```rust
+//!use std::fs;
+//! use std::path::Path;
+//! use std::rc::Rc;
+//!
+//! use parquet::file::properties::WriterProperties;
+//! use parquet::file::writer::{FileWriter, SerializedFileWriter};
+//! use parquet::schema::parser::parse_message_type;
+//!
+//! let path = Path::new("target/debug/examples/sample.parquet");
+//!
+//! let message_type = "
+//!   message schema {
+//!     REQUIRED INT32 b;
+//!   }
+//! ";
+//! let schema = Rc::new(parse_message_type(message_type).unwrap());
+//! let props = Rc::new(WriterProperties::builder().build());
+//! let file = fs::File::create(&path).unwrap();
+//! let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+//! let mut row_group_writer = writer.next_row_group().unwrap();
+//! while let Some(mut col_writer) = row_group_writer.next_column().unwrap() {
+//!   // ... write values to a column writer
+//!   row_group_writer.close_column(col_writer).unwrap();
+//! }
+//! writer.close_row_group(row_group_writer).unwrap();
+//! writer.close().unwrap();
+//!
+//! let bytes = fs::read(&path).unwrap();
+//! assert_eq!(&bytes[0..4], &[b'P', b'A', b'R', b'1']);
 //! ```
 
 pub mod metadata;

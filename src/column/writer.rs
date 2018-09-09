@@ -179,11 +179,11 @@ impl<T: DataType> ColumnWriterImpl<T> {
   /// select how many values to write (this number will be returned), since number of
   /// actual written values may be smaller than provided values.
   ///
-  /// If only values are provided, then we write all values, and return the length of
-  /// of the values buffer.
+  /// If only values are provided, then all values are written and the length of
+  /// of the values buffer is returned.
   ///
-  /// Definition and/or repetition levels can be omitted, if values are either
-  /// non-nullable or non-repeated.
+  /// Definition and/or repetition levels can be omitted, if values are
+  /// non-nullable and/or non-repeated.
   pub fn write_batch(
     &mut self,
     values: &[T::T],

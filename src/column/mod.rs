@@ -15,83 +15,109 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Low level column reader API.
+//! Low level column reader and writer APIs.
 //!
-//! This API is designed for the direct mapping with subsequent manual handling of
-//! definition and repetition levels and spacing. This allows to create column vectors
-//! and batches and map them directly to Parquet data.
+//! This API is designed for reading and writing column values, definition and repetition
+//! levels directly.
 //!
-//! See below an example of using the API.
+//! # Example of writing and reading data
 //!
-//! # Example
+//! Data has the following format:
+//! ```text
+//! +---------------+
+//! |         values|
+//! +---------------+
+//! |[1, 2]         |
+//! |[3, null, null]|
+//! +---------------+
+//! ```
+//!
+//! The example uses column writer and reader APIs to write raw values, definition and
+//! repetition levels and read them to verify write/read correctness.
 //!
 //! ```rust
-//! use std::fs::File;
+//! use std::fs;
 //! use std::path::Path;
+//! use std::rc::Rc;
 //!
-//! use parquet::basic::Type;
-//! use parquet::data_type::Int32Type;
-//! use parquet::column::reader::get_typed_column_reader;
+//! use parquet::column::reader::ColumnReader;
+//! use parquet::column::writer::ColumnWriter;
+//! use parquet::file::properties::WriterProperties;
 //! use parquet::file::reader::{FileReader, SerializedFileReader};
+//! use parquet::file::writer::{FileWriter, SerializedFileWriter};
+//! use parquet::schema::parser::parse_message_type;
 //!
-//! // Open Parquet file and initialize reader
-//! let path = Path::new("data/alltypes_plain.parquet");
-//! let file = File::open(&path).unwrap();
-//! let parquet_reader = SerializedFileReader::new(file).unwrap();
-//! let metadata = parquet_reader.metadata();
+//! let path = Path::new("target/debug/examples/column_sample.parquet");
 //!
-//! for i in 0..metadata.num_row_groups() {
-//!   let row_group_reader = parquet_reader.get_row_group(i).unwrap();
-//!   let row_group_metadata = metadata.row_group(i);
+//! // Writing data using column writer API.
 //!
-//!   for j in 0..row_group_metadata.num_columns() {
-//!     let column = row_group_metadata.column(j);
-//!
-//!     // Extract column reader and map to typed column reader for required columns.
-//!     let column_reader = row_group_reader
-//!       .get_column_reader(j)
-//!       .expect("Valid column reader");
-//!
-//!     // Extract typed column reader for any INT32 column in the file.
-//!     // It is also possible to extract certain columns based on column descriptors
-//!     // from metadata.
-//!
-//!     match column.column_type() {
-//!       Type::INT32 => {
-//!         let mut typed_column_reader =
-//!           get_typed_column_reader::<Int32Type>(column_reader);
-//!
-//!         // See `read_batch` method for comments on different parameters.
-//!         let mut values = vec![0; 16];
-//!         let mut def_levels = vec![0; 16];
-//!         let mut rep_levels = vec![0; 16];
-//!
-//!         let num_values = typed_column_reader.read_batch(
-//!           8, // batch size
-//!           Some(&mut def_levels), // definition levels
-//!           Some(&mut rep_levels), // repetition levels
-//!           &mut values // read values
-//!         );
-//!
-//!         println!(
-//!           "Read {:?} values, values: {:?}, def_levels: {:?}, rep_levels: {:?}",
-//!           num_values,
-//!           values,
-//!           def_levels,
-//!           rep_levels,
-//!         );
-//!       },
-//!       _ => {
-//!         // Skip any other columns for now, but there could be similar processing.
-//!         println!(
-//!           "Skipped column {} of type {}",
-//!           column.column_path().string(),
-//!           column.column_type()
-//!         );
+//! let message_type = "
+//!   message schema {
+//!     optional group values (LIST) {
+//!       repeated group list {
+//!         optional INT32 element;
 //!       }
 //!     }
 //!   }
+//! ";
+//! let schema = Rc::new(parse_message_type(message_type).unwrap());
+//! let props = Rc::new(WriterProperties::builder().build());
+//! let file = fs::File::create(path).unwrap();
+//! let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();
+//! let mut row_group_writer = writer.next_row_group().unwrap();
+//! while let Some(mut col_writer) = row_group_writer.next_column().unwrap() {
+//!   match col_writer {
+//!     // You can also use `get_typed_column_writer` method to extract typed writer.
+//!     ColumnWriter::Int32ColumnWriter(ref mut typed_writer) => {
+//!       typed_writer.write_batch(
+//!         &[1, 2, 3],
+//!         Some(&[3, 3, 3, 2, 2]),
+//!         Some(&[0, 1, 0, 1, 1])
+//!       ).unwrap();
+//!     },
+//!     _ => { }
+//!   }
+//!   row_group_writer.close_column(col_writer).unwrap();
 //! }
+//! writer.close_row_group(row_group_writer).unwrap();
+//! writer.close().unwrap();
+//!
+//! // Reading data using column reader API.
+//!
+//! let file = fs::File::open(path).unwrap();
+//! let reader = SerializedFileReader::new(file).unwrap();
+//! let metadata = reader.metadata();
+//!
+//! let mut res = Ok((0, 0));
+//! let mut values = vec![0; 8];
+//! let mut def_levels = vec![0; 8];
+//! let mut rep_levels = vec![0; 8];
+//!
+//! for i in 0..metadata.num_row_groups() {
+//!   let row_group_reader = reader.get_row_group(i).unwrap();
+//!   let row_group_metadata = metadata.row_group(i);
+//!
+//!   for j in 0..row_group_metadata.num_columns() {
+//!     let mut column_reader = row_group_reader.get_column_reader(j).unwrap();
+//!     match column_reader {
+//!       // You can also use `get_typed_column_reader` method to extract typed reader.
+//!       ColumnReader::Int32ColumnReader(ref mut typed_reader) => {
+//!         res = typed_reader.read_batch(
+//!           8, // batch size
+//!           Some(&mut def_levels),
+//!           Some(&mut rep_levels),
+//!           &mut values
+//!         );
+//!       },
+//!       _ => { }
+//!     }
+//!   }
+//! }
+//!
+//! assert_eq!(res, Ok((3, 5)));
+//! assert_eq!(values, vec![1, 2, 3, 0, 0, 0, 0, 0]);
+//! assert_eq!(def_levels, vec![3, 3, 3, 2, 2, 0, 0, 0]);
+//! assert_eq!(rep_levels, vec![0, 1, 0, 1, 1, 0, 0, 0]);
 //! ```
 
 pub mod page;

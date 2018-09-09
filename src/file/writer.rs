@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Contains file writer API, and provides methods to create row group writers and column
-//! writers.
+//! Contains file writer API, and provides methods to write row groups and columns by
+//! using row group writers and column writers respectively.
 
 use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
@@ -40,14 +40,22 @@ use util::io::{FileSink, Position};
 // APIs for file & row group writers
 
 /// Parquet file writer API.
-/// Gives access to row group writers.
+/// Provides methods to write row groups sequentially.
+///
+/// The main workflow should be as following:
+/// - Create file writer, this will open a new file and potentially write some metadata.
+/// - Request a new row group writer by calling `next_row_group`.
+/// - Once finished writing row group, close row group writer by passing it into
+/// `close_row_group` method - this will finalise row group metadata and update metrics.
+/// - Write subsequent row groups, if necessary.
+/// - After all row groups have been written, close the file writer using `close` method.
 pub trait FileWriter {
   /// Creates new row group from this file writer.
   /// In case of IO error or Thrift error, returns `Err`.
   ///
   /// There is no limit on a number of row groups in a file; however, row groups have
   /// to be written sequentially. Every time the next row group is requested, the
-  /// previous row group must be finalised and closed.
+  /// previous row group must be finalised and closed using `close_row_group` method.
   fn next_row_group(&mut self) -> Result<Box<RowGroupWriter>>;
 
   /// Finalises and closes row group that was created using `next_row_group` method.
@@ -60,13 +68,21 @@ pub trait FileWriter {
   /// No writes are allowed after this point.
   ///
   /// Can be called multiple times. It is up to implementation to either result in no-op,
-  /// or return an `Err`.
+  /// or return an `Err` for subsequent calls.
   fn close(&mut self) -> Result<()>;
 }
 
 /// Parquet row group writer API.
-/// Provides methods to return the next column writer which will match column order in
-/// schema.
+/// Provides methods to access column writers in an iterator-like fashion, order is
+/// guaranteed to match the order of schema leaves (column descriptors).
+///
+/// All columns should be written sequentially; the main workflow is:
+/// - Request the next column using `next_column` method - this will return `None` if no
+/// more columns are available to write.
+/// - Once done writing a column, close column writer with `close_column` method - this
+/// will finalise column chunk metadata and update row group metrics.
+/// - Once all columns have been written, close row group writer with `close` method -
+/// it will return row group metadata and is no-op on already closed row group.
 pub trait RowGroupWriter {
   /// Returns the next column writer, if available; otherwise returns `None`.
   /// In case of any IO error or Thrift error, or if row group writer has already been
@@ -94,9 +110,8 @@ pub trait RowGroupWriter {
 // ----------------------------------------------------------------------
 // Serialized impl for file & row group writers
 
-/// Serialized file writer.
-///
-/// The main entrypoint of writing a Parquet file.
+/// A serialized implementation for Parquet [`FileWriter`].
+/// See documentation on file writer for more information.
 pub struct SerializedFileWriter {
   file: File,
   schema: TypePtr,
@@ -225,9 +240,9 @@ impl FileWriter for SerializedFileWriter {
   }
 }
 
-/// Serialized row group writer.
-///
+/// A serialized implementation for Parquet [`RowGroupWriter`].
 /// Coordinates writing of a row group with column writers.
+/// See documentation on row group writer for more information.
 pub struct SerializedRowGroupWriter {
   descr: SchemaDescPtr,
   props: WriterPropertiesPtr,
@@ -359,9 +374,9 @@ impl RowGroupWriter for SerializedRowGroupWriter {
   }
 }
 
-/// Serialized page writer.
-///
+/// A serialized implementation for Parquet [`PageWriter`].
 /// Writes and serializes pages and metadata into output stream.
+///
 /// `SerializedPageWriter` should not be used after calling `close()`.
 pub struct SerializedPageWriter<T: Write + Position> {
   sink: T

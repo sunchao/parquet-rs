@@ -33,7 +33,7 @@
 //!     assert_eq!(*typed.min(), 1);
 //!     assert_eq!(*typed.max(), 10);
 //!   },
-//!   _ => panic!()
+//!   _ => { }
 //! }
 //! ```
 

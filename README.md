@@ -41,7 +41,7 @@ and this to your crate root:
 extern crate parquet;
 ```
 
-Example usage:
+Example usage of reading data:
 ```rust
 use std::fs::File;
 use std::path::Path;
@@ -70,7 +70,10 @@ version is available. Then simply update version of `parquet-format` crate in Ca
   - [X] Row record reader
   - [ ] Arrow record reader
 - [X] Statistics support
-- [ ] Write support
+- [X] Write support
+  - [X] Primitive column value writers
+  - [ ] Row record writer
+  - [ ] Arrow record writer
 - [ ] Predicate pushdown
 - [ ] Parquet format 2.5 support
 - [ ] HDFS support

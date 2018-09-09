@@ -21,7 +21,7 @@
 //! assembly algorithm described in the Dremel paper.
 //!
 //! Crate provides API to access file schema and metadata from a Parquet file, extract
-//! row groups or column chunks from a file, and read records/values.
+//! row groups or column chunks from a file, read and write records/values.
 //!
 //! # Usage
 //!
@@ -57,8 +57,8 @@
 //! assert_eq!(schema.get_fields().len(), 11);
 //! ```
 //!
-//! Crate offers several [read API options](#read-api), the simplest one is getting
-//! record reader directly, see below:
+//! Crate provides several [read](#read-api) and [write](#write-api) API options. Below
+//! is an example of using the record reader API.
 //!
 //! ```
 //! #![feature(try_from)]
@@ -68,7 +68,7 @@
 //!
 //! let reader = SerializedFileReader::try_from("data/alltypes_plain.parquet").unwrap();
 //!
-//! // Reading data using record API, optional projection schema can be passed as well.
+//! // Reading data using record API with optional projection schema.
 //! let mut iter = reader.get_row_iter(None).unwrap();
 //! while let Some(record) = iter.next() {
 //!   // See record API for different field accessors
@@ -112,6 +112,13 @@
 //! - Low level column reader API (see [`file`] and [`column`] modules)
 //! - Arrow API (_TODO_)
 //! - High level record API (see [`record`] module)
+//!
+//! # Write API
+//!
+//! Crate also provides API to write data in Parquet format:
+//! - Low level column writer API (see [`file`] and [`column`] modules)
+//! - Arrow API (_TODO_)
+//! - High level API for writing records (_TODO_)
 
 #![feature(type_ascription)]
 #![feature(rustc_private)]
