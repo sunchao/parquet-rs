@@ -913,6 +913,21 @@
 <span id="913">913</span>
 <span id="914">914</span>
 <span id="915">915</span>
+<span id="916">916</span>
+<span id="917">917</span>
+<span id="918">918</span>
+<span id="919">919</span>
+<span id="920">920</span>
+<span id="921">921</span>
+<span id="922">922</span>
+<span id="923">923</span>
+<span id="924">924</span>
+<span id="925">925</span>
+<span id="926">926</span>
+<span id="927">927</span>
+<span id="928">928</span>
+<span id="929">929</span>
+<span id="930">930</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -931,8 +946,8 @@
 <span class="comment">// specific language governing permissions and limitations</span>
 <span class="comment">// under the License.</span>
 
-<span class="doccomment">//! Contains file writer API, and provides methods to create row group writers and column</span>
-<span class="doccomment">//! writers.</span>
+<span class="doccomment">//! Contains file writer API, and provides methods to write row groups and columns by</span>
+<span class="doccomment">//! using row group writers and column writers respectively.</span>
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">File</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Seek</span>, <span class="ident">SeekFrom</span>, <span class="ident">Write</span>};
@@ -956,14 +971,22 @@
 <span class="comment">// APIs for file &amp; row group writers</span>
 
 <span class="doccomment">/// Parquet file writer API.</span>
-<span class="doccomment">/// Gives access to row group writers.</span>
+<span class="doccomment">/// Provides methods to write row groups sequentially.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The main workflow should be as following:</span>
+<span class="doccomment">/// - Create file writer, this will open a new file and potentially write some metadata.</span>
+<span class="doccomment">/// - Request a new row group writer by calling `next_row_group`.</span>
+<span class="doccomment">/// - Once finished writing row group, close row group writer by passing it into</span>
+<span class="doccomment">/// `close_row_group` method - this will finalise row group metadata and update metrics.</span>
+<span class="doccomment">/// - Write subsequent row groups, if necessary.</span>
+<span class="doccomment">/// - After all row groups have been written, close the file writer using `close` method.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">FileWriter</span> {
   <span class="doccomment">/// Creates new row group from this file writer.</span>
   <span class="doccomment">/// In case of IO error or Thrift error, returns `Err`.</span>
   <span class="doccomment">///</span>
   <span class="doccomment">/// There is no limit on a number of row groups in a file; however, row groups have</span>
   <span class="doccomment">/// to be written sequentially. Every time the next row group is requested, the</span>
-  <span class="doccomment">/// previous row group must be finalised and closed.</span>
+  <span class="doccomment">/// previous row group must be finalised and closed using `close_row_group` method.</span>
   <span class="kw">fn</span> <span class="ident">next_row_group</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">RowGroupWriter</span><span class="op">&gt;&gt;</span>;
 
   <span class="doccomment">/// Finalises and closes row group that was created using `next_row_group` method.</span>
@@ -976,13 +999,21 @@
   <span class="doccomment">/// No writes are allowed after this point.</span>
   <span class="doccomment">///</span>
   <span class="doccomment">/// Can be called multiple times. It is up to implementation to either result in no-op,</span>
-  <span class="doccomment">/// or return an `Err`.</span>
+  <span class="doccomment">/// or return an `Err` for subsequent calls.</span>
   <span class="kw">fn</span> <span class="ident">close</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>;
 }
 
 <span class="doccomment">/// Parquet row group writer API.</span>
-<span class="doccomment">/// Provides methods to return the next column writer which will match column order in</span>
-<span class="doccomment">/// schema.</span>
+<span class="doccomment">/// Provides methods to access column writers in an iterator-like fashion, order is</span>
+<span class="doccomment">/// guaranteed to match the order of schema leaves (column descriptors).</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// All columns should be written sequentially; the main workflow is:</span>
+<span class="doccomment">/// - Request the next column using `next_column` method - this will return `None` if no</span>
+<span class="doccomment">/// more columns are available to write.</span>
+<span class="doccomment">/// - Once done writing a column, close column writer with `close_column` method - this</span>
+<span class="doccomment">/// will finalise column chunk metadata and update row group metrics.</span>
+<span class="doccomment">/// - Once all columns have been written, close row group writer with `close` method -</span>
+<span class="doccomment">/// it will return row group metadata and is no-op on already closed row group.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">RowGroupWriter</span> {
   <span class="doccomment">/// Returns the next column writer, if available; otherwise returns `None`.</span>
   <span class="doccomment">/// In case of any IO error or Thrift error, or if row group writer has already been</span>
@@ -1010,9 +1041,8 @@
 <span class="comment">// ----------------------------------------------------------------------</span>
 <span class="comment">// Serialized impl for file &amp; row group writers</span>
 
-<span class="doccomment">/// Serialized file writer.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// The main entrypoint of writing a Parquet file.</span>
+<span class="doccomment">/// A serialized implementation for Parquet [`FileWriter`].</span>
+<span class="doccomment">/// See documentation on file writer for more information.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializedFileWriter</span> {
   <span class="ident">file</span>: <span class="ident">File</span>,
   <span class="ident">schema</span>: <span class="ident">TypePtr</span>,
@@ -1141,9 +1171,9 @@
   }
 }
 
-<span class="doccomment">/// Serialized row group writer.</span>
-<span class="doccomment">///</span>
+<span class="doccomment">/// A serialized implementation for Parquet [`RowGroupWriter`].</span>
 <span class="doccomment">/// Coordinates writing of a row group with column writers.</span>
+<span class="doccomment">/// See documentation on row group writer for more information.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializedRowGroupWriter</span> {
   <span class="ident">descr</span>: <span class="ident">SchemaDescPtr</span>,
   <span class="ident">props</span>: <span class="ident">WriterPropertiesPtr</span>,
@@ -1275,9 +1305,9 @@
   }
 }
 
-<span class="doccomment">/// Serialized page writer.</span>
-<span class="doccomment">///</span>
+<span class="doccomment">/// A serialized implementation for Parquet [`PageWriter`].</span>
 <span class="doccomment">/// Writes and serializes pages and metadata into output stream.</span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// `SerializedPageWriter` should not be used after calling `close()`.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializedPageWriter</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Write</span> <span class="op">+</span> <span class="ident">Position</span><span class="op">&gt;</span> {
   <span class="ident">sink</span>: <span class="ident">T</span>

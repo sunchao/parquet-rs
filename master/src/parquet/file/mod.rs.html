@@ -48,6 +48,41 @@
 <span id="48">48</span>
 <span id="49">49</span>
 <span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -67,13 +102,14 @@
 <span class="comment">// under the License.</span>
 
 <span class="doccomment">//! Main entrypoint for working with Parquet API.</span>
-<span class="doccomment">//! Provides access to file and row group readers, record API, etc.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! See [`reader::SerializedFileReader`] for a starting reference,</span>
-<span class="doccomment">//! [`metadata::ParquetMetaData`] for file metadata, and [`statistics`] for working</span>
-<span class="doccomment">//! with statistics.</span>
+<span class="doccomment">//! Provides access to file and row group readers and writers, record API, metadata, etc.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! # Example</span>
+<span class="doccomment">//! See [`reader::SerializedFileReader`] or [`writer::SerializedFileWriter`] for a</span>
+<span class="doccomment">//! starting reference, [`metadata::ParquetMetaData`] for file metadata,</span>
+<span class="doccomment">//! and [`statistics`] for working with statistics.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! # Example of reading an existing file</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```rust</span>
 <span class="doccomment">//! use std::fs::File;</span>
@@ -89,6 +125,40 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! let row_group_reader = reader.get_row_group(0).unwrap();</span>
 <span class="doccomment">//! assert_eq!(row_group_reader.num_columns(), 11);</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! # Example of writing a new file</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ```rust</span>
+<span class="doccomment">//!use std::fs;</span>
+<span class="doccomment">//! use std::path::Path;</span>
+<span class="doccomment">//! use std::rc::Rc;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! use parquet::file::properties::WriterProperties;</span>
+<span class="doccomment">//! use parquet::file::writer::{FileWriter, SerializedFileWriter};</span>
+<span class="doccomment">//! use parquet::schema::parser::parse_message_type;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! let path = Path::new(&quot;target/debug/examples/sample.parquet&quot;);</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! let message_type = &quot;</span>
+<span class="doccomment">//!   message schema {</span>
+<span class="doccomment">//!     REQUIRED INT32 b;</span>
+<span class="doccomment">//!   }</span>
+<span class="doccomment">//! &quot;;</span>
+<span class="doccomment">//! let schema = Rc::new(parse_message_type(message_type).unwrap());</span>
+<span class="doccomment">//! let props = Rc::new(WriterProperties::builder().build());</span>
+<span class="doccomment">//! let file = fs::File::create(&amp;path).unwrap();</span>
+<span class="doccomment">//! let mut writer = SerializedFileWriter::new(file, schema, props).unwrap();</span>
+<span class="doccomment">//! let mut row_group_writer = writer.next_row_group().unwrap();</span>
+<span class="doccomment">//! while let Some(mut col_writer) = row_group_writer.next_column().unwrap() {</span>
+<span class="doccomment">//!   // ... write values to a column writer</span>
+<span class="doccomment">//!   row_group_writer.close_column(col_writer).unwrap();</span>
+<span class="doccomment">//! }</span>
+<span class="doccomment">//! writer.close_row_group(row_group_writer).unwrap();</span>
+<span class="doccomment">//! writer.close().unwrap();</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! let bytes = fs::read(&amp;path).unwrap();</span>
+<span class="doccomment">//! assert_eq!(&amp;bytes[0..4], &amp;[b&#39;P&#39;, b&#39;A&#39;, b&#39;R&#39;, b&#39;1&#39;]);</span>
 <span class="doccomment">//! ```</span>
 
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">metadata</span>;

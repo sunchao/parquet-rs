@@ -1308,11 +1308,11 @@
   <span class="doccomment">/// select how many values to write (this number will be returned), since number of</span>
   <span class="doccomment">/// actual written values may be smaller than provided values.</span>
   <span class="doccomment">///</span>
-  <span class="doccomment">/// If only values are provided, then we write all values, and return the length of</span>
-  <span class="doccomment">/// of the values buffer.</span>
+  <span class="doccomment">/// If only values are provided, then all values are written and the length of</span>
+  <span class="doccomment">/// of the values buffer is returned.</span>
   <span class="doccomment">///</span>
-  <span class="doccomment">/// Definition and/or repetition levels can be omitted, if values are either</span>
-  <span class="doccomment">/// non-nullable or non-repeated.</span>
+  <span class="doccomment">/// Definition and/or repetition levels can be omitted, if values are</span>
+  <span class="doccomment">/// non-nullable and/or non-repeated.</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">write_batch</span>(
     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
     <span class="ident">values</span>: <span class="kw-2">&amp;</span>[<span class="ident">T</span>::<span class="ident">T</span>],

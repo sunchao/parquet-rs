@@ -1,9 +1,9 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `parquet` crate."><meta name="keywords" content="rust, rustlang, rust-lang, parquet"><title>parquet - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Crate parquet</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'parquet', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/parquet/lib.rs.html#18-158' title='goto source code'>[src]</a></span><span class='in-band'>Crate <a class="mod" href=''>parquet</a></span></h1><div class='docblock'><p><a href="http://parquet.apache.org">Apache Parquet</a> is a columnar storage format that
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `parquet` crate."><meta name="keywords" content="rust, rustlang, rust-lang, parquet"><title>parquet - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Crate parquet</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'parquet', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/parquet/lib.rs.html#18-165' title='goto source code'>[src]</a></span><span class='in-band'>Crate <a class="mod" href=''>parquet</a></span></h1><div class='docblock'><p><a href="http://parquet.apache.org">Apache Parquet</a> is a columnar storage format that
 provides efficient data compression and encoding schemes to improve performance of
 handling complex nested data structures. Parquet implements record-shredding and
 assembly algorithm described in the Dremel paper.</p>
 <p>Crate provides API to access file schema and metadata from a Parquet file, extract
-row groups or column chunks from a file, and read records/values.</p>
+row groups or column chunks from a file, read and write records/values.</p>
 <h1 id="usage" class="section-header"><a href="#usage">Usage</a></h1>
 <p>See the link <a href="https://crates.io/crates/parquet">crates.io/crates/parquet</a> for the
 latest version of the crate.</p>
@@ -31,8 +31,8 @@ crate root:</p>
 
 <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">file_metadata</span>.<span class="ident">schema</span>();
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">schema</span>.<span class="ident">get_fields</span>().<span class="ident">len</span>(), <span class="number">11</span>);</pre>
-<p>Crate offers several <a href="#read-api">read API options</a>, the simplest one is getting
-record reader directly, see below:</p>
+<p>Crate provides several <a href="#read-api">read</a> and <a href="#write-api">write</a> API options. Below
+is an example of using the record reader API.</p>
 
 <pre class="rust rust-example-rendered">
 <span class="attribute">#![<span class="ident">feature</span>(<span class="ident">try_from</span>)]</span>
@@ -42,7 +42,7 @@ record reader directly, see below:</p>
 
 <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">SerializedFileReader</span>::<span class="ident">try_from</span>(<span class="string">&quot;data/alltypes_plain.parquet&quot;</span>).<span class="ident">unwrap</span>();
 
-<span class="comment">// Reading data using record API, optional projection schema can be passed as well.</span>
+<span class="comment">// Reading data using record API with optional projection schema.</span>
 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_row_iter</span>(<span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
 <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">record</span>) <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
   <span class="comment">// See record API for different field accessors</span>
@@ -76,6 +76,13 @@ column readers and record iterator.</p>
 <li>Arrow API (<em>TODO</em>)</li>
 <li>High level record API (see <a href="../parquet/record/index.html" title="`record`"><code>record</code></a> module)</li>
 </ul>
+<h1 id="write-api" class="section-header"><a href="#write-api">Write API</a></h1>
+<p>Crate also provides API to write data in Parquet format:</p>
+<ul>
+<li>Low level column writer API (see <a href="../parquet/file/index.html" title="`file`"><code>file</code></a> and <a href="../parquet/column/index.html" title="`column`"><code>column</code></a> modules)</li>
+<li>Arrow API (<em>TODO</em>)</li>
+<li>High level API for writing records (<em>TODO</em>)</li>
+</ul>
 </div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
 <table>
                        <tr class=' module-item'>
@@ -91,7 +98,7 @@ Refer to <code>parquet.thrift</code> file to see raw definitions.</p>
                            <td><a class="mod" href="column/index.html"
                                   title='mod parquet::column'>column</a></td>
                            <td class='docblock-short'>
-                                <p>Low level column reader API.</p>
+                                <p>Low level column reader and writer APIs.</p>
 
                            </td>
                        </tr>
@@ -140,8 +147,7 @@ representations.</p>
                            <td><a class="mod" href="file/index.html"
                                   title='mod parquet::file'>file</a></td>
                            <td class='docblock-short'>
-                                <p>Main entrypoint for working with Parquet API.
-Provides access to file and row group readers, record API, etc.</p>
+                                <p>Main entrypoint for working with Parquet API.</p>
 
                            </td>
                        </tr>

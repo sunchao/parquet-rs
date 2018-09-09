@@ -436,6 +436,11 @@
 <span id="436">436</span>
 <span id="437">437</span>
 <span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -580,6 +585,11 @@
     <span class="prelude-val">Some</span>(<span class="ident">dpo</span>) <span class="op">=&gt;</span> <span class="ident">dpo</span>.<span class="ident">to_string</span>()
   };
   <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">out</span>, <span class="string">&quot;dictionary page offset: {}&quot;</span>, <span class="ident">dict_page_offset_str</span>);
+  <span class="kw">let</span> <span class="ident">statistics_str</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">cc_metadata</span>.<span class="ident">statistics</span>() {
+    <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="string">&quot;N/A&quot;</span>.<span class="ident">to_owned</span>(),
+    <span class="prelude-val">Some</span>(<span class="ident">stats</span>) <span class="op">=&gt;</span> <span class="ident">stats</span>.<span class="ident">to_string</span>()
+  };
+  <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">out</span>, <span class="string">&quot;statistics: {}&quot;</span>, <span class="ident">statistics_str</span>);
   <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">out</span>, <span class="string">&quot;&quot;</span>);
 }
 
