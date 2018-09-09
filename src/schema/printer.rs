@@ -141,6 +141,11 @@ fn print_column_chunk_metadata(out: &mut io::Write, cc_metadata: &ColumnChunkMet
     Some(dpo) => dpo.to_string()
   };
   writeln!(out, "dictionary page offset: {}", dict_page_offset_str);
+  let statistics_str = match cc_metadata.statistics() {
+    None => "N/A".to_owned(),
+    Some(stats) => stats.to_string()
+  };
+  writeln!(out, "statistics: {}", statistics_str);
   writeln!(out, "");
 }
 

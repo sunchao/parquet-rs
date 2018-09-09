@@ -315,6 +315,21 @@ impl Statistics {
   }
 }
 
+impl fmt::Display for Statistics {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    match self {
+      Statistics::Boolean(typed) => write!(f, "{}", typed),
+      Statistics::Int32(typed) => write!(f, "{}", typed),
+      Statistics::Int64(typed) => write!(f, "{}", typed),
+      Statistics::Int96(typed) => write!(f, "{}", typed),
+      Statistics::Float(typed) => write!(f, "{}", typed),
+      Statistics::Double(typed) => write!(f, "{}", typed),
+      Statistics::ByteArray(typed) => write!(f, "{}", typed),
+      Statistics::FixedLenByteArray(typed) => write!(f, "{}", typed)
+    }
+  }
+}
+
 /// Typed implementation for [`Statistics`].
 pub struct TypedStatistics<T: DataType> {
   min: Option<T::T>,
@@ -397,6 +412,30 @@ impl<T: DataType> TypedStatistics<T> {
   }
 }
 
+impl<T: DataType> fmt::Display for TypedStatistics<T> {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{{")?;
+    write!(f, "min: ")?;
+    match self.min {
+      Some(ref value) => self.value_fmt(f, value)?,
+      None => write!(f, "N/A")?
+    }
+    write!(f, ", max: ")?;
+    match self.max {
+      Some(ref value) => self.value_fmt(f, value)?,
+      None => write!(f, "N/A")?
+    }
+    write!(f, ", distinct_count: ")?;
+    match self.distinct_count {
+      Some(value) => write!(f, "{}", value)?,
+      None => write!(f, "N/A")?
+    }
+    write!(f, ", null_count: {}", self.null_count)?;
+    write!(f, ", min_max_deprecated: {}", self.is_min_max_deprecated)?;
+    write!(f, "}}")
+  }
+}
+
 impl<T: DataType> fmt::Debug for TypedStatistics<T> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     write!(
@@ -415,6 +454,37 @@ impl<T: DataType> cmp::PartialEq for TypedStatistics<T> {
       self.distinct_count == other.distinct_count &&
       self.null_count == other.null_count &&
       self.is_min_max_deprecated == other.is_min_max_deprecated
+  }
+}
+
+/// Trait to provide a specific write format for values.
+/// For example, we should display vector slices for byte array types, and original
+/// values for other types.
+trait ValueDisplay<T: DataType> {
+  fn value_fmt(&self, f: &mut fmt::Formatter, value: &T::T) -> fmt::Result;
+}
+
+impl<T: DataType> ValueDisplay<T> for TypedStatistics<T> {
+  default fn value_fmt(&self, f: &mut fmt::Formatter, value: &T::T) -> fmt::Result {
+    write!(f, "{:?}", value)
+  }
+}
+
+impl ValueDisplay<Int96Type> for TypedStatistics<Int96Type> {
+  fn value_fmt(&self, f: &mut fmt::Formatter, value: &Int96) -> fmt::Result {
+    write!(f, "{:?}", value.data())
+  }
+}
+
+impl ValueDisplay<ByteArrayType> for TypedStatistics<ByteArrayType> {
+  fn value_fmt(&self, f: &mut fmt::Formatter, value: &ByteArray) -> fmt::Result {
+    write!(f, "{:?}", value.data())
+  }
+}
+
+impl ValueDisplay<FixedLenByteArrayType> for TypedStatistics<FixedLenByteArrayType> {
+  fn value_fmt(&self, f: &mut fmt::Formatter, value: &ByteArray) -> fmt::Result {
+    write!(f, "{:?}", value.data())
   }
 }
 
@@ -477,6 +547,49 @@ mod tests {
       "Int32({min: None, max: None, distinct_count: None, \
         null_count: 7, min_max_deprecated: false})"
     )
+  }
+
+  #[test]
+  fn test_statistics_display() {
+    let stats = Statistics::int32(Some(1), Some(12), None, 12, true);
+    assert_eq!(
+      format!("{}", stats),
+      "{min: 1, max: 12, distinct_count: N/A, \
+        null_count: 12, min_max_deprecated: true}"
+    );
+
+    let stats = Statistics::int64(None, None, None, 7, false);
+    assert_eq!(
+      format!("{}", stats),
+      "{min: N/A, max: N/A, distinct_count: N/A, \
+        null_count: 7, min_max_deprecated: false}"
+    );
+
+    let stats = Statistics::int96(
+      Some(Int96::from(vec![1, 0, 0])),
+      Some(Int96::from(vec![2, 3, 4])),
+      None,
+      3,
+      true
+    );
+    assert_eq!(
+      format!("{}", stats),
+      "{min: [1, 0, 0], max: [2, 3, 4], distinct_count: N/A, \
+        null_count: 3, min_max_deprecated: true}"
+    );
+
+    let stats = Statistics::byte_array(
+      Some(ByteArray::from(vec![1u8])),
+      Some(ByteArray::from(vec![2u8])),
+      Some(5),
+      7,
+      false
+    );
+    assert_eq!(
+      format!("{}", stats),
+      "{min: [1], max: [2], distinct_count: 5, \
+        null_count: 7, min_max_deprecated: false}"
+    );
   }
 
   #[test]
