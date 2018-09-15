@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Reader and writer properties.
+//! Writer properties.
 //!
 //! # Usage
 //!
@@ -45,8 +45,6 @@ use std::rc::Rc;
 
 use basic::{Compression, Encoding};
 use schema::types::ColumnPath;
-
-// TODO: Add reader properties.
 
 const DEFAULT_PAGE_SIZE: usize = 1024 * 1024;
 const DEFAULT_WRITE_BATCH_SIZE: usize = 1024;

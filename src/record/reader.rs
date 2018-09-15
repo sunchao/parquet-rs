@@ -30,7 +30,7 @@ use record::api::{Row, Field, make_row, make_list, make_map};
 use record::triplet::TripletIter;
 
 /// Default batch size for a reader
-const DEFAULT_BATCH_SIZE: usize = 256;
+const DEFAULT_BATCH_SIZE: usize = 1024;
 
 /// Tree builder for `Reader` enum.
 /// Serves as a container of options for building a reader tree and a builder, and
