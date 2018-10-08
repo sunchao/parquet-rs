@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use rand::{thread_rng, Rng, Rand};
+use rand::{thread_rng, Rng};
+use rand::distributions::{Distribution, Standard};
 use rand::distributions::range::SampleRange;
 use std::env;
 use std::fs;
@@ -129,13 +130,9 @@ pub fn random_bools(n: usize) -> Vec<bool> {
   result
 }
 
-pub fn random_numbers<T: Rand>(n: usize) -> Vec<T> {
-  let mut result = vec![];
+pub fn random_numbers<T>(n: usize) -> Vec<T> where Standard: Distribution<T> {
   let mut rng = thread_rng();
-  for _ in 0..n {
-    result.push(rng.gen::<T>());
-  }
-  result
+  Standard.sample_iter(&mut rng).take(n).collect()
 }
 
 pub fn random_numbers_range<T>(

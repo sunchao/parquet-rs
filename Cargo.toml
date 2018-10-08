@@ -45,4 +45,4 @@ num-bigint = "0.2"
 
 [dev-dependencies]
 lazy_static = "1"
-rand = "0.4"
+rand = "0.5"

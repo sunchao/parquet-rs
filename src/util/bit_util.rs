@@ -610,12 +610,13 @@ impl From<Vec<u8>> for BitReader {
 
 #[cfg(test)]
 mod tests {
-  use rand::Rand;
   use std::fmt::Debug;
 
   use super::super::memory::ByteBufferPtr;
   use super::super::test_common::*;
   use super::*;
+
+  use rand::distributions::{ Distribution, Standard };
 
   #[test]
   fn test_ceil() {
@@ -928,7 +929,7 @@ mod tests {
   }
 
   fn test_put_aligned_rand_numbers<T>(total: usize, num_bits: usize)
-      where T: Copy + Rand + Default + Debug + PartialEq {
+      where T: Copy + Default + Debug + PartialEq, Standard: Distribution<T> {
     assert!(num_bits <= 32);
     assert!(total % 2 == 0);
 
