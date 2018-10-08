@@ -1015,6 +1015,7 @@
 <span id="1015">1015</span>
 <span id="1016">1016</span>
 <span id="1017">1017</span>
+<span id="1018">1018</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -1628,12 +1629,13 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-  <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">Rand</span>;
   <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Debug</span>;
 
   <span class="kw">use</span> <span class="kw">super</span>::<span class="kw">super</span>::<span class="ident">memory</span>::<span class="ident">ByteBufferPtr</span>;
   <span class="kw">use</span> <span class="kw">super</span>::<span class="kw">super</span>::<span class="ident">test_common</span>::<span class="kw-2">*</span>;
   <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
+  <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::{ <span class="ident">Distribution</span>, <span class="ident">Standard</span> };
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_ceil</span>() {
@@ -1946,7 +1948,7 @@
   }
 
   <span class="kw">fn</span> <span class="ident">test_put_aligned_rand_numbers</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">total</span>: <span class="ident">usize</span>, <span class="ident">num_bits</span>: <span class="ident">usize</span>)
-      <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Copy</span> <span class="op">+</span> <span class="ident">Rand</span> <span class="op">+</span> <span class="ident">Default</span> <span class="op">+</span> <span class="ident">Debug</span> <span class="op">+</span> <span class="ident">PartialEq</span> {
+      <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Copy</span> <span class="op">+</span> <span class="ident">Default</span> <span class="op">+</span> <span class="ident">Debug</span> <span class="op">+</span> <span class="ident">PartialEq</span>, <span class="ident">Standard</span>: <span class="ident">Distribution</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">num_bits</span> <span class="op">&lt;=</span> <span class="number">32</span>);
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">total</span> <span class="op">%</span> <span class="number">2</span> <span class="op">==</span> <span class="number">0</span>);
 
