@@ -19,16 +19,19 @@
 //!
 //! The hierarchy of metadata is as follows:
 //!
-//! [`ParquetMetaData`] contains [`FileMetaData`] and zero or more [`RowGroupMetaData`]
-//! for each row group.
+//! [`ParquetMetaData`](struct.ParquetMetaData.html) contains
+//! [`FileMetaData`](struct.FileMetaData.html) and zero or more
+//! [`RowGroupMetaData`](struct.RowGroupMetaData.html) for each row group.
 //!
-//! [`FileMetaData`] includes file version, application specific metadata.
+//! [`FileMetaData`](struct.FileMetaData.html) includes file version, application specific
+//! metadata.
 //!
-//! Each [`RowGroupMetaData`] contains information about row group and one or more
-//! [`ColumnChunkMetaData`] for each column chunk.
+//! Each [`RowGroupMetaData`](struct.RowGroupMetaData.html) contains information about row
+//! group and one or more [`ColumnChunkMetaData`](struct.ColumnChunkMetaData.html) for
+//! each column chunk.
 //!
-//! [`ColumnChunkMetaData`] has information about column chunk (primitive leaf column),
-//! including encoding/compression, number of values, etc.
+//! [`ColumnChunkMetaData`](struct.ColumnChunkMetaData.html) has information about column
+//! chunk (primitive leaf column), including encoding/compression, number of values, etc.
 
 use std::rc::Rc;
 
