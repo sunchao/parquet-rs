@@ -715,6 +715,9 @@
 <span id="715">715</span>
 <span id="716">716</span>
 <span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -737,16 +740,19 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! The hierarchy of metadata is as follows:</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! [`ParquetMetaData`] contains [`FileMetaData`] and zero or more [`RowGroupMetaData`]</span>
-<span class="doccomment">//! for each row group.</span>
+<span class="doccomment">//! [`ParquetMetaData`](struct.ParquetMetaData.html) contains</span>
+<span class="doccomment">//! [`FileMetaData`](struct.FileMetaData.html) and zero or more</span>
+<span class="doccomment">//! [`RowGroupMetaData`](struct.RowGroupMetaData.html) for each row group.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! [`FileMetaData`] includes file version, application specific metadata.</span>
+<span class="doccomment">//! [`FileMetaData`](struct.FileMetaData.html) includes file version, application specific</span>
+<span class="doccomment">//! metadata.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! Each [`RowGroupMetaData`] contains information about row group and one or more</span>
-<span class="doccomment">//! [`ColumnChunkMetaData`] for each column chunk.</span>
+<span class="doccomment">//! Each [`RowGroupMetaData`](struct.RowGroupMetaData.html) contains information about row</span>
+<span class="doccomment">//! group and one or more [`ColumnChunkMetaData`](struct.ColumnChunkMetaData.html) for</span>
+<span class="doccomment">//! each column chunk.</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! [`ColumnChunkMetaData`] has information about column chunk (primitive leaf column),</span>
-<span class="doccomment">//! including encoding/compression, number of values, etc.</span>
+<span class="doccomment">//! [`ColumnChunkMetaData`](struct.ColumnChunkMetaData.html) has information about column</span>
+<span class="doccomment">//! chunk (primitive leaf column), including encoding/compression, number of values, etc.</span>
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
 
