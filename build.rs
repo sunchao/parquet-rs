@@ -20,10 +20,12 @@ use std::process::Command;
 fn main() {
   // Set Parquet version, build hash and "created by" string.
   let version = env!("CARGO_PKG_VERSION");
-  let git_hash = run(Command::new("git").arg("rev-parse").arg("HEAD")).unwrap();
-  let created_by = format!("parquet-rs version {} (build {})", version, git_hash);
+  let mut created_by = format!("parquet-rs version {}", version);
+  if let Ok(git_hash) = run(Command::new("git").arg("rev-parse").arg("HEAD")) {
+    created_by.push_str(format!(" (build {})", git_hash).as_str());
+    println!("cargo:rustc-env=PARQUET_BUILD={}", git_hash);
+  }
   println!("cargo:rustc-env=PARQUET_VERSION={}", version);
-  println!("cargo:rustc-env=PARQUET_BUILD={}", git_hash);
   println!("cargo:rustc-env=PARQUET_CREATED_BY={}", created_by);
 }
 
