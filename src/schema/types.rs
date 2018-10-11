@@ -589,6 +589,11 @@ impl ColumnDescriptor {
     &self.path
   }
 
+  /// Returns self type [`Type`](`::schema::types::Type`) for this leaf column.
+  pub fn self_type(&self) -> &Type {
+    self.primitive_type.as_ref()
+  }
+
   /// Returns root [`Type`](`::schema::types::Type`) (most top-level parent field) for
   /// this leaf column.
   pub fn root_type(&self) -> &Type {
