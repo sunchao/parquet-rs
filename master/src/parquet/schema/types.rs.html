@@ -1582,6 +1582,11 @@
 <span id="1582">1582</span>
 <span id="1583">1583</span>
 <span id="1584">1584</span>
+<span id="1585">1585</span>
+<span id="1586">1586</span>
+<span id="1587">1587</span>
+<span id="1588">1588</span>
+<span id="1589">1589</span>
 </pre><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -2172,6 +2177,11 @@
   <span class="doccomment">/// Returns [`ColumnPath`] for this column.</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">path</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">ColumnPath</span> {
     <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">path</span>
+  }
+
+  <span class="doccomment">/// Returns self type [`Type`](`::schema::types::Type`) for this leaf column.</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">self_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">Type</span> {
+    <span class="self">self</span>.<span class="ident">primitive_type</span>.<span class="ident">as_ref</span>()
   }
 
   <span class="doccomment">/// Returns root [`Type`](`::schema::types::Type`) (most top-level parent field) for</span>
