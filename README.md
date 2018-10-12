@@ -23,7 +23,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/sunchao/parquet-rs/badge.svg?branch=master)](https://coveralls.io/github/sunchao/parquet-rs?branch=master)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![](http://meritbadge.herokuapp.com/parquet)](https://crates.io/crates/parquet)
-[![API docs](https://img.shields.io/badge/docs-0.4.0-blue.svg)](https://sunchao.github.io/parquet-rs/0.4.0/parquet/)
+[![API docs](https://img.shields.io/badge/docs-0.4.1-blue.svg)](https://sunchao.github.io/parquet-rs/0.4.1/parquet/)
 [![Master API docs](https://img.shields.io/badge/docs-master-green.svg)](https://sunchao.github.io/parquet-rs/master/parquet/)
 
 
