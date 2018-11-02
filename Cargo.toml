@@ -31,7 +31,7 @@ repository = "https://github.com/sunchao/parquet-rs"
 keywords = ["parquet", "hadoop"]
 
 [dependencies]
-parquet-format = "2.4.0"
+parquet-format = "2.5.0"
 quick-error = "1.2.2"
 byteorder = "1"
 thrift = "0.0.4"
