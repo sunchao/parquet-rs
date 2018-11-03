@@ -58,6 +58,10 @@ pub trait RowAccessor {
   fn get_short(&self, i: usize) -> Result<i16>;
   fn get_int(&self, i: usize) -> Result<i32>;
   fn get_long(&self, i: usize) -> Result<i64>;
+  fn get_ubyte(&self, i: usize) -> Result<u8>;
+  fn get_ushort(&self, i: usize) -> Result<u16>;
+  fn get_uint(&self, i: usize) -> Result<u32>;
+  fn get_ulong(&self, i: usize) -> Result<u64>;
   fn get_float(&self, i: usize) -> Result<f32>;
   fn get_double(&self, i: usize) -> Result<f64>;
   fn get_timestamp(&self, i: usize) -> Result<u64>;
@@ -103,6 +107,10 @@ impl RowAccessor for Row {
   row_primitive_accessor!(get_short, Short, i16);
   row_primitive_accessor!(get_int, Int, i32);
   row_primitive_accessor!(get_long, Long, i64);
+  row_primitive_accessor!(get_ubyte, UByte, u8);
+  row_primitive_accessor!(get_ushort, UShort, u16);
+  row_primitive_accessor!(get_uint, UInt, u32);
+  row_primitive_accessor!(get_ulong, ULong, u64);
   row_primitive_accessor!(get_float, Float, f32);
   row_primitive_accessor!(get_double, Double, f64);
   row_primitive_accessor!(get_timestamp, Timestamp, u64);
@@ -163,6 +171,10 @@ pub trait ListAccessor {
   fn get_short(&self, i: usize) -> Result<i16>;
   fn get_int(&self, i: usize) -> Result<i32>;
   fn get_long(&self, i: usize) -> Result<i64>;
+  fn get_ubyte(&self, i: usize) -> Result<u8>;
+  fn get_ushort(&self, i: usize) -> Result<u16>;
+  fn get_uint(&self, i: usize) -> Result<u32>;
+  fn get_ulong(&self, i: usize) -> Result<u64>;
   fn get_float(&self, i: usize) -> Result<f32>;
   fn get_double(&self, i: usize) -> Result<f64>;
   fn get_timestamp(&self, i: usize) -> Result<u64>;
@@ -213,6 +225,10 @@ impl ListAccessor for List {
   list_primitive_accessor!(get_short, Short, i16);
   list_primitive_accessor!(get_int, Int, i32);
   list_primitive_accessor!(get_long, Long, i64);
+  list_primitive_accessor!(get_ubyte, UByte, u8);
+  list_primitive_accessor!(get_ushort, UShort, u16);
+  list_primitive_accessor!(get_uint, UInt, u32);
+  list_primitive_accessor!(get_ulong, ULong, u64);
   list_primitive_accessor!(get_float, Float, f32);
   list_primitive_accessor!(get_double, Double, f64);
   list_primitive_accessor!(get_timestamp, Timestamp, u64);
@@ -276,6 +292,10 @@ impl<'a> ListAccessor for MapList<'a> {
   map_list_primitive_accessor!(get_short, Short, i16);
   map_list_primitive_accessor!(get_int, Int, i32);
   map_list_primitive_accessor!(get_long, Long, i64);
+  map_list_primitive_accessor!(get_ubyte, UByte, u8);
+  map_list_primitive_accessor!(get_ushort, UShort, u16);
+  map_list_primitive_accessor!(get_uint, UInt, u32);
+  map_list_primitive_accessor!(get_ulong, ULong, u64);
   map_list_primitive_accessor!(get_float, Float, f32);
   map_list_primitive_accessor!(get_double, Double, f64);
   map_list_primitive_accessor!(get_timestamp, Timestamp, u64);
@@ -316,6 +336,14 @@ pub enum Field {
   Int(i32),
   /// Signed integer INT_64.
   Long(i64),
+  // Unsigned integer UINT_8.
+  UByte(u8),
+  // Unsigned integer UINT_16.
+  UShort(u16),
+  // Unsigned integer UINT_32.
+  UInt(u32),
+  // Unsigned integer UINT_64.
+  ULong(u64),
   /// IEEE 32-bit floating point value.
   Float(f32),
   /// IEEE 64-bit floating point value.
@@ -354,6 +382,10 @@ impl Field {
       Field::Short(_) => "Short",
       Field::Int(_) => "Int",
       Field::Long(_) => "Long",
+      Field::UByte(_) => "UByte",
+      Field::UShort(_) => "UShort",
+      Field::UInt(_) => "UInt",
+      Field::ULong(_) => "ULong",
       Field::Float(_) => "Float",
       Field::Double(_) => "Double",
       Field::Decimal(_) => "Decimal",
@@ -390,6 +422,9 @@ impl Field {
       LogicalType::INT_8 => Field::Byte(value as i8),
       LogicalType::INT_16 => Field::Short(value as i16),
       LogicalType::INT_32 | LogicalType::NONE => Field::Int(value),
+      LogicalType::UINT_8 => Field::UByte(value as u8),
+      LogicalType::UINT_16 => Field::UShort(value as u16),
+      LogicalType::UINT_32 => Field::UInt(value as u32),
       LogicalType::DATE => Field::Date(value as u32),
       LogicalType::DECIMAL => {
         Field::Decimal(Decimal::from_i32(
@@ -407,6 +442,8 @@ impl Field {
   pub fn convert_int64(descr: &ColumnDescPtr, value: i64) -> Self {
     match descr.logical_type() {
       LogicalType::INT_64 | LogicalType::NONE => Field::Long(value),
+      LogicalType::UINT_64 => Field::ULong(value as u64),
+      LogicalType::TIMESTAMP_MILLIS => Field::Timestamp(value as u64),
       LogicalType::DECIMAL => {
         Field::Decimal(Decimal::from_i64(
           value,
@@ -497,6 +534,10 @@ impl fmt::Display for Field {
       Field::Short(value) => write!(f, "{}", value),
       Field::Int(value) => write!(f, "{}", value),
       Field::Long(value) => write!(f, "{}", value),
+      Field::UByte(value) => write!(f, "{}", value),
+      Field::UShort(value) => write!(f, "{}", value),
+      Field::UInt(value) => write!(f, "{}", value),
+      Field::ULong(value) => write!(f, "{}", value),
       Field::Float(value) => {
         if value > 1e19 || value < 1e-15 {
           write!(f, "{:E}", value)
@@ -651,6 +692,18 @@ mod tests {
     let row = Field::convert_int32(&descr, 333);
     assert_eq!(row, Field::Int(333));
 
+    let descr = make_column_descr![PhysicalType::INT32, LogicalType::UINT_8];
+    let row = Field::convert_int32(&descr, -1);
+    assert_eq!(row, Field::UByte(255));
+
+    let descr = make_column_descr![PhysicalType::INT32, LogicalType::UINT_16];
+    let row = Field::convert_int32(&descr, 256);
+    assert_eq!(row, Field::UShort(256));
+
+    let descr = make_column_descr![PhysicalType::INT32, LogicalType::UINT_32];
+    let row = Field::convert_int32(&descr, 1234);
+    assert_eq!(row, Field::UInt(1234));
+
     let descr = make_column_descr![PhysicalType::INT32, LogicalType::NONE];
     let row = Field::convert_int32(&descr, 444);
     assert_eq!(row, Field::Int(444));
@@ -669,6 +722,14 @@ mod tests {
     let descr = make_column_descr![PhysicalType::INT64, LogicalType::INT_64];
     let row = Field::convert_int64(&descr, 1111);
     assert_eq!(row, Field::Long(1111));
+
+    let descr = make_column_descr![PhysicalType::INT64, LogicalType::UINT_64];
+    let row = Field::convert_int64(&descr, 78239823);
+    assert_eq!(row, Field::ULong(78239823));
+
+    let descr = make_column_descr![PhysicalType::INT64, LogicalType::TIMESTAMP_MILLIS];
+    let row = Field::convert_int64(&descr, 1541186529153);
+    assert_eq!(row, Field::Timestamp(1541186529153));
 
     let descr = make_column_descr![PhysicalType::INT64, LogicalType::NONE];
     let row = Field::convert_int64(&descr, 2222);
@@ -854,6 +915,10 @@ mod tests {
     assert_eq!(format!("{}", Field::Short(2)), "2");
     assert_eq!(format!("{}", Field::Int(3)), "3");
     assert_eq!(format!("{}", Field::Long(4)), "4");
+    assert_eq!(format!("{}", Field::UByte(1)), "1");
+    assert_eq!(format!("{}", Field::UShort(2)), "2");
+    assert_eq!(format!("{}", Field::UInt(3)), "3");
+    assert_eq!(format!("{}", Field::ULong(4)), "4");
     assert_eq!(format!("{}", Field::Float(5.0)), "5.0");
     assert_eq!(format!("{}", Field::Float(5.1234)), "5.1234");
     assert_eq!(format!("{}", Field::Double(6.0)), "6.0");
@@ -908,6 +973,10 @@ mod tests {
     assert!(Field::Short(2).is_primitive());
     assert!(Field::Int(3).is_primitive());
     assert!(Field::Long(4).is_primitive());
+    assert!(Field::UByte(1).is_primitive());
+    assert!(Field::UShort(2).is_primitive());
+    assert!(Field::UInt(3).is_primitive());
+    assert!(Field::ULong(4).is_primitive());
     assert!(Field::Float(5.0).is_primitive());
     assert!(Field::Float(5.1234).is_primitive());
     assert!(Field::Double(6.0).is_primitive());
@@ -949,11 +1018,15 @@ mod tests {
       ("d".to_string(), Field::Short(4)),
       ("e".to_string(), Field::Int(5)),
       ("f".to_string(), Field::Long(6)),
-      ("g".to_string(), Field::Float(7.1)),
-      ("h".to_string(), Field::Double(8.1)),
-      ("i".to_string(), Field::Str("abc".to_string())),
-      ("j".to_string(), Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5]))),
-      ("k".to_string(), Field::Decimal(Decimal::from_i32(4, 7, 2)))
+      ("g".to_string(), Field::UByte(3)),
+      ("h".to_string(), Field::UShort(4)),
+      ("i".to_string(), Field::UInt(5)),
+      ("j".to_string(), Field::ULong(6)),
+      ("k".to_string(), Field::Float(7.1)),
+      ("l".to_string(), Field::Double(8.1)),
+      ("m".to_string(), Field::Str("abc".to_string())),
+      ("n".to_string(), Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5]))),
+      ("o".to_string(), Field::Decimal(Decimal::from_i32(4, 7, 2)))
     ]);
 
     assert_eq!(false, row.get_bool(1).unwrap());
@@ -961,11 +1034,15 @@ mod tests {
     assert_eq!(4, row.get_short(3).unwrap());
     assert_eq!(5, row.get_int(4).unwrap());
     assert_eq!(6, row.get_long(5).unwrap());
-    assert_eq!(7.1, row.get_float(6).unwrap());
-    assert_eq!(8.1, row.get_double(7).unwrap());
-    assert_eq!("abc", row.get_string(8).unwrap());
-    assert_eq!(5, row.get_bytes(9).unwrap().len());
-    assert_eq!(7, row.get_decimal(10).unwrap().precision());
+    assert_eq!(3, row.get_ubyte(6).unwrap());
+    assert_eq!(4, row.get_ushort(7).unwrap());
+    assert_eq!(5, row.get_uint(8).unwrap());
+    assert_eq!(6, row.get_ulong(9).unwrap());
+    assert_eq!(7.1, row.get_float(10).unwrap());
+    assert_eq!(8.1, row.get_double(11).unwrap());
+    assert_eq!("abc", row.get_string(12).unwrap());
+    assert_eq!(5, row.get_bytes(13).unwrap().len());
+    assert_eq!(7, row.get_decimal(14).unwrap().precision());
   }
 
   #[test]
@@ -978,11 +1055,15 @@ mod tests {
       ("d".to_string(), Field::Short(4)),
       ("e".to_string(), Field::Int(5)),
       ("f".to_string(), Field::Long(6)),
-      ("g".to_string(), Field::Float(7.1)),
-      ("h".to_string(), Field::Double(8.1)),
-      ("i".to_string(), Field::Str("abc".to_string())),
-      ("j".to_string(), Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5]))),
-      ("k".to_string(), Field::Decimal(Decimal::from_i32(4, 7, 2)))
+      ("g".to_string(), Field::UByte(3)),
+      ("h".to_string(), Field::UShort(4)),
+      ("i".to_string(), Field::UInt(5)),
+      ("j".to_string(), Field::ULong(6)),
+      ("k".to_string(), Field::Float(7.1)),
+      ("l".to_string(), Field::Double(8.1)),
+      ("m".to_string(), Field::Str("abc".to_string())),
+      ("n".to_string(), Field::Bytes(ByteArray::from(vec![1, 2, 3, 4, 5]))),
+      ("o".to_string(), Field::Decimal(Decimal::from_i32(4, 7, 2)))
     ]);
 
     for i in 0..row.len() {
@@ -1061,6 +1142,18 @@ mod tests {
     let list = make_list(vec![Field::Long(6), Field::Long(7)]);
     assert_eq!(7, list.get_long(1).unwrap());
 
+    let list = make_list(vec![Field::UByte(3), Field::UByte(4)]);
+    assert_eq!(4, list.get_ubyte(1).unwrap());
+
+    let list = make_list(vec![Field::UShort(4), Field::UShort(5), Field::UShort(6)]);
+    assert_eq!(6, list.get_ushort(2).unwrap());
+
+    let list = make_list(vec![Field::UInt(5)]);
+    assert_eq!(5, list.get_uint(0).unwrap());
+
+    let list = make_list(vec![Field::ULong(6), Field::ULong(7)]);
+    assert_eq!(7, list.get_ulong(1).unwrap());
+
     let list = make_list(vec![Field::Float(8.1), Field::Float(9.2), Field::Float(10.3)]);
     assert_eq!(10.3, list.get_float(2).unwrap());
 
@@ -1093,6 +1186,18 @@ mod tests {
     assert!(list.get_long(0).is_err());
 
     let list = make_list(vec![Field::Long(6), Field::Long(7)]);
+    assert!(list.get_float(1).is_err());
+
+    let list = make_list(vec![Field::UByte(3), Field::UByte(4)]);
+    assert!(list.get_short(1).is_err());
+
+    let list = make_list(vec![Field::UShort(4), Field::UShort(5), Field::UShort(6)]);
+    assert!(list.get_int(2).is_err());
+
+    let list = make_list(vec![Field::UInt(5)]);
+    assert!(list.get_long(0).is_err());
+
+    let list = make_list(vec![Field::ULong(6), Field::ULong(7)]);
     assert!(list.get_float(1).is_err());
 
     let list = make_list(vec![Field::Float(8.1), Field::Float(9.2), Field::Float(10.3)]);
