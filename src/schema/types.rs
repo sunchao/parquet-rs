@@ -819,6 +819,11 @@ fn from_thrift_helper(
   elements: &[SchemaElement],
   index: usize
 ) -> Result<(usize, TypePtr)> {
+
+  // Whether or not the current node is root (message type).
+  // There is only one message type node in the schema tree.
+  let is_root_node = index == 0;
+
   if index > elements.len() {
     return Err(general_err!(
       "Index out of bound, index = {}, len = {}",
@@ -828,7 +833,12 @@ fn from_thrift_helper(
   let logical_type = LogicalType::from(elements[index].converted_type);
   let field_id = elements[index].field_id;
   match elements[index].num_children {
-    None => {
+    // From parquet-format:
+    //   The children count is used to construct the nested relationship.
+    //   This field is not set when the element is a primitive type
+    // Sometimes parquet-cpp sets num_children field to 0 for primitive types, so we
+    // have to handle this case too.
+    None | Some(0) => {
       // primitive type
       if elements[index].repetition_type.is_none() {
         return Err(general_err!(
@@ -865,7 +875,16 @@ fn from_thrift_helper(
         .with_logical_type(logical_type)
         .with_fields(&mut fields);
       if let Some(rep) = repetition {
-        builder = builder.with_repetition(rep);
+        // Sometimes parquet-cpp and parquet-mr set repetition level REQUIRED or REPEATED
+        // for root node.
+        //
+        // We only set repetition for group types that are not top-level message type.
+        // According to parquet-format:
+        //   Root of the schema does not have a repetition_type.
+        //   All other types must have one.
+        if !is_root_node {
+          builder = builder.with_repetition(rep);
+        }
       }
       if let Some(id) = field_id {
         builder = builder.with_id(id);
@@ -1583,6 +1602,55 @@ mod tests {
     ";
     let expected_schema = parse_message_type(message_type).unwrap();
     let thrift_schema = to_thrift(&expected_schema).unwrap();
+    let result_schema = from_thrift(&thrift_schema).unwrap();
+    assert_eq!(result_schema, Rc::new(expected_schema));
+  }
+
+  // Tests schema conversion from thrift, when num_children is set to Some(0) for a
+  // primitive type.
+  #[test]
+  fn test_schema_from_thrift_with_num_children_set() {
+    // schema definition written by parquet-cpp version 1.3.2-SNAPSHOT
+    let message_type = "
+    message schema {
+      OPTIONAL BYTE_ARRAY id (UTF8);
+      OPTIONAL BYTE_ARRAY name (UTF8);
+      OPTIONAL BYTE_ARRAY message (UTF8);
+      OPTIONAL INT32 type (UINT_8);
+      OPTIONAL INT64 author_time (TIMESTAMP_MILLIS);
+      OPTIONAL INT64 __index_level_0__;
+    }
+    ";
+
+    let expected_schema = parse_message_type(message_type).unwrap();
+    let mut thrift_schema = to_thrift(&expected_schema).unwrap();
+    // Change all of None to Some(0)
+    for mut elem in &mut thrift_schema[..] {
+      if elem.num_children == None {
+        elem.num_children = Some(0);
+      }
+    }
+
+    let result_schema = from_thrift(&thrift_schema).unwrap();
+    assert_eq!(result_schema, Rc::new(expected_schema));
+  }
+
+  // Sometimes parquet-cpp sets repetition level for the root node, which is against
+  // the format definition, but we need to handle it by setting it back to None.
+  #[test]
+  fn test_schema_from_thrift_root_has_repetition() {
+    // schema definition written by parquet-cpp version 1.3.2-SNAPSHOT
+    let message_type = "
+    message schema {
+      OPTIONAL BYTE_ARRAY a (UTF8);
+      OPTIONAL INT32 b (UINT_8);
+    }
+    ";
+
+    let expected_schema = parse_message_type(message_type).unwrap();
+    let mut thrift_schema = to_thrift(&expected_schema).unwrap();
+    thrift_schema[0].repetition_type = Some(Repetition::REQUIRED.into());
+
     let result_schema = from_thrift(&thrift_schema).unwrap();
     assert_eq!(result_schema, Rc::new(expected_schema));
   }
