@@ -1300,6 +1300,26 @@
 <span id="1300">1300</span>
 <span id="1301">1301</span>
 <span id="1302">1302</span>
+<span id="1303">1303</span>
+<span id="1304">1304</span>
+<span id="1305">1305</span>
+<span id="1306">1306</span>
+<span id="1307">1307</span>
+<span id="1308">1308</span>
+<span id="1309">1309</span>
+<span id="1310">1310</span>
+<span id="1311">1311</span>
+<span id="1312">1312</span>
+<span id="1313">1313</span>
+<span id="1314">1314</span>
+<span id="1315">1315</span>
+<span id="1316">1316</span>
+<span id="1317">1317</span>
+<span id="1318">1318</span>
+<span id="1319">1319</span>
+<span id="1320">1320</span>
+<span id="1321">1321</span>
+<span id="1322">1322</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -1762,16 +1782,26 @@
   <span class="doccomment">/// `Timestamp` value.</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">convert_int96</span>(<span class="ident">_descr</span>: <span class="kw-2">&amp;</span><span class="ident">ColumnDescPtr</span>, <span class="ident">value</span>: <span class="ident">Int96</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-    <span class="kw">const</span> <span class="ident">JULIAN_TO_UNIX_EPOCH_DAYS</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">2_440_588</span>;
-    <span class="kw">const</span> <span class="ident">MILLI_SECONDS_IN_A_DAY</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">86_400_000</span>;
-    <span class="kw">const</span> <span class="ident">NANO_SECONDS_IN_A_DAY</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">MILLI_SECONDS_IN_A_DAY</span> <span class="op">*</span> <span class="number">1_000_000</span>;
+    <span class="kw">const</span> <span class="ident">JULIAN_DAY_OF_EPOCH</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="number">2_440_588</span>;
+    <span class="kw">const</span> <span class="ident">SECONDS_PER_DAY</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="number">86_400</span>;
+    <span class="kw">const</span> <span class="ident">MILLIS_PER_SECOND</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="number">1_000</span>;
 
-    <span class="kw">let</span> <span class="ident">days_since_epoch</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">data</span>()[<span class="number">2</span>] <span class="kw">as</span> <span class="ident">u64</span> <span class="op">-</span> <span class="ident">JULIAN_TO_UNIX_EPOCH_DAYS</span>;
-    <span class="kw">let</span> <span class="ident">nanoseconds</span>: <span class="ident">u64</span> <span class="op">=</span> ((<span class="ident">value</span>.<span class="ident">data</span>()[<span class="number">1</span>] <span class="kw">as</span> <span class="ident">u64</span>) <span class="op">&lt;&lt;</span> <span class="number">32</span>) <span class="op">+</span> <span class="ident">value</span>.<span class="ident">data</span>()[<span class="number">0</span>] <span class="kw">as</span> <span class="ident">u64</span>;
-    <span class="kw">let</span> <span class="ident">nanos</span> <span class="op">=</span> <span class="ident">days_since_epoch</span> <span class="op">*</span> <span class="ident">NANO_SECONDS_IN_A_DAY</span> <span class="op">+</span> <span class="ident">nanoseconds</span>;
-    <span class="kw">let</span> <span class="ident">millis</span> <span class="op">=</span> <span class="ident">nanos</span> <span class="op">/</span> <span class="number">1_000_000</span>;
+    <span class="kw">let</span> <span class="ident">day</span> <span class="op">=</span> <span class="ident">value</span>.<span class="ident">data</span>()[<span class="number">2</span>] <span class="kw">as</span> <span class="ident">i64</span>;
+    <span class="kw">let</span> <span class="ident">nanoseconds</span> <span class="op">=</span> ((<span class="ident">value</span>.<span class="ident">data</span>()[<span class="number">1</span>] <span class="kw">as</span> <span class="ident">i64</span>) <span class="op">&lt;&lt;</span> <span class="number">32</span>) <span class="op">+</span> <span class="ident">value</span>.<span class="ident">data</span>()[<span class="number">0</span>] <span class="kw">as</span> <span class="ident">i64</span>;
+    <span class="kw">let</span> <span class="ident">seconds</span> <span class="op">=</span> (<span class="ident">day</span> <span class="op">-</span> <span class="ident">JULIAN_DAY_OF_EPOCH</span>) <span class="op">*</span> <span class="ident">SECONDS_PER_DAY</span>;
+    <span class="kw">let</span> <span class="ident">millis</span> <span class="op">=</span> <span class="ident">seconds</span> <span class="op">*</span> <span class="ident">MILLIS_PER_SECOND</span> <span class="op">+</span> <span class="ident">nanoseconds</span> <span class="op">/</span> <span class="number">1_000_000</span>;
 
-    <span class="ident">Field</span>::<span class="ident">Timestamp</span>(<span class="ident">millis</span>)
+    <span class="comment">// TODO: Add support for negative milliseconds.</span>
+    <span class="comment">// Chrono library does not handle negative timestamps, but we could probably write</span>
+    <span class="comment">// something similar to java.util.Date and java.util.Calendar.</span>
+    <span class="kw">if</span> <span class="ident">millis</span> <span class="op">&lt;</span> <span class="number">0</span> {
+      <span class="macro">panic</span><span class="macro">!</span>(
+        <span class="string">&quot;Expected non-negative milliseconds when converting Int96, found {}&quot;</span>,
+        <span class="ident">millis</span>
+      );
+    }
+
+    <span class="ident">Field</span>::<span class="ident">Timestamp</span>(<span class="ident">millis</span> <span class="kw">as</span> <span class="ident">u64</span>)
   }
 
   <span class="doccomment">/// Converts Parquet FLOAT type with logical type into `f32` value.</span>
@@ -2055,6 +2085,16 @@
     <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">Int96</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">4165425152</span>, <span class="number">13</span>, <span class="number">2454923</span>]);
     <span class="kw">let</span> <span class="ident">row</span> <span class="op">=</span> <span class="ident">Field</span>::<span class="ident">convert_int96</span>(<span class="kw-2">&amp;</span><span class="ident">descr</span>, <span class="ident">value</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">row</span>, <span class="ident">Field</span>::<span class="ident">Timestamp</span>(<span class="number">1238544060000</span>));
+  }
+
+  <span class="attribute">#[<span class="ident">test</span>]</span>
+  <span class="attribute">#[<span class="ident">should_panic</span>(<span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;Expected non-negative milliseconds when converting Int96&quot;</span>)]</span>
+  <span class="kw">fn</span> <span class="ident">test_row_convert_int96_invalid</span>() {
+    <span class="comment">// INT96 value does not depend on logical type</span>
+    <span class="kw">let</span> <span class="ident">descr</span> <span class="op">=</span> <span class="macro">make_column_descr</span><span class="macro">!</span>[<span class="ident">PhysicalType</span>::<span class="ident">INT96</span>, <span class="ident">LogicalType</span>::<span class="ident">NONE</span>];
+
+    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">Int96</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>]);
+    <span class="ident">Field</span>::<span class="ident">convert_int96</span>(<span class="kw-2">&amp;</span><span class="ident">descr</span>, <span class="ident">value</span>);
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
