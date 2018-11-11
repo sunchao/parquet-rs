@@ -41,7 +41,7 @@ fn murmur_hash2_64a<T: AsBytes>(data: &T, seed: u64) -> u64 {
   let data_bytes_64 = unsafe {
     ::std::slice::from_raw_parts(
       &data_bytes[0..len_64] as *const [u8] as *const u64,
-      len / 8
+      len / 8,
     )
   };
 
@@ -58,14 +58,30 @@ fn murmur_hash2_64a<T: AsBytes>(data: &T, seed: u64) -> u64 {
   let data2 = &data_bytes[len_64..];
 
   let v = len & 7;
-  if v == 7 { h ^= (data2[6] as u64) << 48; }
-  if v >= 6 { h ^= (data2[5] as u64) << 40; }
-  if v >= 5 { h ^= (data2[4] as u64) << 32; }
-  if v >= 4 { h ^= (data2[3] as u64) << 24; }
-  if v >= 3 { h ^= (data2[2] as u64) << 16; }
-  if v >= 2 { h ^= (data2[1] as u64) << 8; }
-  if v >= 1 { h ^= data2[0] as u64; }
-  if v > 0 { h = h.wrapping_mul(MURMUR_PRIME); }
+  if v == 7 {
+    h ^= (data2[6] as u64) << 48;
+  }
+  if v >= 6 {
+    h ^= (data2[5] as u64) << 40;
+  }
+  if v >= 5 {
+    h ^= (data2[4] as u64) << 32;
+  }
+  if v >= 4 {
+    h ^= (data2[3] as u64) << 24;
+  }
+  if v >= 3 {
+    h ^= (data2[2] as u64) << 16;
+  }
+  if v >= 2 {
+    h ^= (data2[1] as u64) << 8;
+  }
+  if v >= 1 {
+    h ^= data2[0] as u64;
+  }
+  if v > 0 {
+    h = h.wrapping_mul(MURMUR_PRIME);
+  }
 
   h ^= h >> MURMUR_R;
   h = h.wrapping_mul(MURMUR_PRIME);
@@ -88,11 +104,10 @@ unsafe fn crc32_hash<T: AsBytes>(data: &T, seed: u32) -> u32 {
   let num_words = num_bytes / u32_num_bytes;
   num_bytes %= u32_num_bytes;
 
-  let bytes_u32: &[u32] =
-    ::std::slice::from_raw_parts(
-      &bytes[0..num_words * u32_num_bytes]
-        as *const [u8] as *const u32,
-      num_words);
+  let bytes_u32: &[u32] = ::std::slice::from_raw_parts(
+    &bytes[0..num_words * u32_num_bytes] as *const [u8] as *const u32,
+    num_words,
+  );
 
   let mut offset = 0;
   let mut hash = seed;
@@ -112,7 +127,6 @@ unsafe fn crc32_hash<T: AsBytes>(data: &T, seed: u32) -> u32 {
   hash = (hash << 16) | (hash >> 16);
   hash
 }
-
 
 #[cfg(test)]
 mod tests {

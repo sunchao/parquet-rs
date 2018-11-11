@@ -1,0 +1,15 @@
+max_width = 90
+comment_width = 90
+tab_spaces = 2
+condense_wildcard_suffixes = true
+where_single_line = true
+format_strings = true
+merge_imports = true
+brace_style = "PreferSameLine"
+match_block_trailing_comma = true
+fn_single_line = true
+reorder_impl_items = true
+use_field_init_shorthand = true
+use_try_shorthand = true
+format_doc_comments = true
+wrap_comments = true

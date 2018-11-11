@@ -28,22 +28,19 @@ use common::*;
 
 use std::rc::Rc;
 
-use parquet::basic::*;
-use parquet::data_type::*;
-use parquet::encoding::*;
-use parquet::memory::MemTracker;
+use parquet::{basic::*, data_type::*, encoding::*, memory::MemTracker};
 
 macro_rules! plain {
   ($fname:ident, $batch_size:expr, $ty:ident, $pty:expr, $gen_data_fn:expr) => {
     #[bench]
     fn $fname(bench: &mut Bencher) {
       let mem_tracker = Rc::new(MemTracker::new());
-      let encoder = PlainEncoder::<$ty>::new(
-        Rc::new(col_desc(0, $pty)), mem_tracker, vec![]);
+      let encoder =
+        PlainEncoder::<$ty>::new(Rc::new(col_desc(0, $pty)), mem_tracker, vec![]);
       let (bytes, values) = $gen_data_fn($batch_size);
       bench_encoding(bench, bytes, values, Box::new(encoder));
     }
-  }
+  };
 }
 
 macro_rules! dict {
@@ -51,12 +48,11 @@ macro_rules! dict {
     #[bench]
     fn $fname(bench: &mut Bencher) {
       let mem_tracker = Rc::new(MemTracker::new());
-      let encoder = DictEncoder::<$ty>::new(
-        Rc::new(col_desc(0, $pty)), mem_tracker);
+      let encoder = DictEncoder::<$ty>::new(Rc::new(col_desc(0, $pty)), mem_tracker);
       let (bytes, values) = $gen_data_fn($batch_size);
       bench_encoding(bench, bytes, values, Box::new(encoder));
     }
-  }
+  };
 }
 
 macro_rules! delta_bit_pack {
@@ -67,15 +63,16 @@ macro_rules! delta_bit_pack {
       let (bytes, values) = $gen_data_fn($batch_size);
       bench_encoding(bench, bytes, values, Box::new(encoder));
     }
-  }
+  };
 }
 
 fn bench_encoding<T: DataType>(
   bench: &mut Bencher,
   bytes: usize,
   values: Vec<T::T>,
-  mut encoder: Box<Encoder<T>>
-) {
+  mut encoder: Box<Encoder<T>>,
+)
+{
   bench.bytes = bytes as u64;
   bench.iter(|| {
     encoder.put(&values[..]).expect("put() should be OK");
@@ -87,17 +84,53 @@ plain!(plain_i32_1k_10, 1024, Int32Type, Type::INT32, gen_10);
 plain!(plain_i32_1k_100, 1024, Int32Type, Type::INT32, gen_100);
 plain!(plain_i32_1k_1000, 1024, Int32Type, Type::INT32, gen_1000);
 plain!(plain_i32_1m_10, 1024 * 1024, Int32Type, Type::INT32, gen_10);
-plain!(plain_i32_1m_100, 1024 * 1024, Int32Type, Type::INT32, gen_100);
-plain!(plain_i32_1m_1000, 1024 * 1024, Int32Type, Type::INT32, gen_1000);
-plain!(plain_str_1m, 1024 * 1024, ByteArrayType, Type::BYTE_ARRAY, gen_test_strs);
+plain!(
+  plain_i32_1m_100,
+  1024 * 1024,
+  Int32Type,
+  Type::INT32,
+  gen_100
+);
+plain!(
+  plain_i32_1m_1000,
+  1024 * 1024,
+  Int32Type,
+  Type::INT32,
+  gen_1000
+);
+plain!(
+  plain_str_1m,
+  1024 * 1024,
+  ByteArrayType,
+  Type::BYTE_ARRAY,
+  gen_test_strs
+);
 
 dict!(dict_i32_1k_10, 1024, Int32Type, Type::INT32, gen_10);
 dict!(dict_i32_1k_100, 1024, Int32Type, Type::INT32, gen_100);
 dict!(dict_i32_1k_1000, 1024, Int32Type, Type::INT32, gen_1000);
 dict!(dict_i32_1m_10, 1024 * 1024, Int32Type, Type::INT32, gen_10);
-dict!(dict_i32_1m_100, 1024 * 1024, Int32Type, Type::INT32, gen_100);
-dict!(dict_i32_1m_1000, 1024 * 1024, Int32Type, Type::INT32, gen_1000);
-plain!(dict_str_1m, 1024 * 1024, ByteArrayType, Type::BYTE_ARRAY, gen_test_strs);
+dict!(
+  dict_i32_1m_100,
+  1024 * 1024,
+  Int32Type,
+  Type::INT32,
+  gen_100
+);
+dict!(
+  dict_i32_1m_1000,
+  1024 * 1024,
+  Int32Type,
+  Type::INT32,
+  gen_1000
+);
+plain!(
+  dict_str_1m,
+  1024 * 1024,
+  ByteArrayType,
+  Type::BYTE_ARRAY,
+  gen_test_strs
+);
 
 delta_bit_pack!(delta_bit_pack_i32_1k_10, 1024, Int32Type, gen_10);
 delta_bit_pack!(delta_bit_pack_i32_1k_100, 1024, Int32Type, gen_100);

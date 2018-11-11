@@ -22,12 +22,9 @@ extern crate lazy_static;
 extern crate test;
 use test::Bencher;
 
-use std::env;
-use std::fs::File;
+use std::{env, fs::File};
 
-use parquet::basic::Compression;
-use parquet::file::reader::*;
-use parquet::compression::*;
+use parquet::{basic::Compression, compression::*, file::reader::*};
 
 // 10k rows written in page v2 with type:
 //
@@ -73,9 +70,7 @@ macro_rules! compress {
     #[bench]
     fn $fname(bench: &mut Bencher) {
       lazy_static! {
-        static ref DATA: Vec<u8> = {
-          get_pages_bytes($col_idx)
-        };
+        static ref DATA: Vec<u8> = { get_pages_bytes($col_idx) };
       }
 
       let mut codec = create_codec($codec).unwrap().unwrap();
@@ -85,7 +80,7 @@ macro_rules! compress {
         codec.compress(&DATA[..], &mut v).unwrap();
       })
     }
-  }
+  };
 }
 
 macro_rules! decompress {
@@ -110,7 +105,7 @@ macro_rules! decompress {
         let _ = codec.decompress(&COMPRESSED_PAGES[..], &mut v).unwrap();
       })
     }
-  }
+  };
 }
 
 compress!(compress_brotli_binary, Compression::BROTLI, 0);

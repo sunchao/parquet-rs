@@ -36,16 +36,17 @@
 //! repetition levels and read them to verify write/read correctness.
 //!
 //! ```rust
-//! use std::fs;
-//! use std::path::Path;
-//! use std::rc::Rc;
+//! use std::{fs, path::Path, rc::Rc};
 //!
-//! use parquet::column::reader::ColumnReader;
-//! use parquet::column::writer::ColumnWriter;
-//! use parquet::file::properties::WriterProperties;
-//! use parquet::file::reader::{FileReader, SerializedFileReader};
-//! use parquet::file::writer::{FileWriter, SerializedFileWriter};
-//! use parquet::schema::parser::parse_message_type;
+//! use parquet::{
+//!   column::{reader::ColumnReader, writer::ColumnWriter},
+//!   file::{
+//!     properties::WriterProperties,
+//!     reader::{FileReader, SerializedFileReader},
+//!     writer::{FileWriter, SerializedFileWriter},
+//!   },
+//!   schema::parser::parse_message_type,
+//! };
 //!
 //! let path = Path::new("target/debug/examples/column_sample.parquet");
 //!
@@ -69,13 +70,11 @@
 //!   match col_writer {
 //!     // You can also use `get_typed_column_writer` method to extract typed writer.
 //!     ColumnWriter::Int32ColumnWriter(ref mut typed_writer) => {
-//!       typed_writer.write_batch(
-//!         &[1, 2, 3],
-//!         Some(&[3, 3, 3, 2, 2]),
-//!         Some(&[0, 1, 0, 1, 1])
-//!       ).unwrap();
+//!       typed_writer
+//!         .write_batch(&[1, 2, 3], Some(&[3, 3, 3, 2, 2]), Some(&[0, 1, 0, 1, 1]))
+//!         .unwrap();
 //!     },
-//!     _ => { }
+//!     _ => {},
 //!   }
 //!   row_group_writer.close_column(col_writer).unwrap();
 //! }
@@ -106,10 +105,10 @@
 //!           8, // batch size
 //!           Some(&mut def_levels),
 //!           Some(&mut rep_levels),
-//!           &mut values
+//!           &mut values,
 //!         );
 //!       },
-//!       _ => { }
+//!       _ => {},
 //!     }
 //!   }
 //! }

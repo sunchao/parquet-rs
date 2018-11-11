@@ -27,9 +27,8 @@
 //! # Example of reading an existing file
 //!
 //! ```rust
-//! use std::fs::File;
-//! use std::path::Path;
 //! use parquet::file::reader::{FileReader, SerializedFileReader};
+//! use std::{fs::File, path::Path};
 //!
 //! let path = Path::new("data/alltypes_plain.parquet");
 //! let file = File::open(&path).unwrap();
@@ -45,13 +44,15 @@
 //! # Example of writing a new file
 //!
 //! ```rust
-//!use std::fs;
-//! use std::path::Path;
-//! use std::rc::Rc;
+//! use std::{fs, path::Path, rc::Rc};
 //!
-//! use parquet::file::properties::WriterProperties;
-//! use parquet::file::writer::{FileWriter, SerializedFileWriter};
-//! use parquet::schema::parser::parse_message_type;
+//! use parquet::{
+//!   file::{
+//!     properties::WriterProperties,
+//!     writer::{FileWriter, SerializedFileWriter},
+//!   },
+//!   schema::parser::parse_message_type,
+//! };
 //!
 //! let path = Path::new("target/debug/examples/sample.parquet");
 //!
@@ -79,8 +80,8 @@
 pub mod metadata;
 pub mod properties;
 pub mod reader;
-pub mod writer;
 pub mod statistics;
+pub mod writer;
 
 const FOOTER_SIZE: usize = 8;
 const PARQUET_MAGIC: [u8; 4] = [b'P', b'A', b'R', b'1'];

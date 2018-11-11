@@ -17,10 +17,7 @@
 
 //! Common Parquet errors and macros.
 
-use std::cell;
-use std::convert;
-use std::io;
-use std::result;
+use std::{cell, convert, io, result};
 
 use snap;
 use thrift;
@@ -62,9 +59,7 @@ pub type Result<T> = result::Result<T, ParquetError>;
 // Conversion from `ParquetError` to other types of `Error`s
 
 impl convert::From<ParquetError> for io::Error {
-  fn from(e: ParquetError) -> Self {
-    io::Error::new(io::ErrorKind::Other, e)
-  }
+  fn from(e: ParquetError) -> Self { io::Error::new(io::ErrorKind::Other, e) }
 }
 
 // ----------------------------------------------------------------------

@@ -21,9 +21,11 @@ extern crate rand;
 use rand::{thread_rng, Rng};
 use std::rc::Rc;
 
-use parquet::basic::*;
-use parquet::data_type::*;
-use parquet::schema::types::{Type as SchemaType, ColumnDescriptor, ColumnPath};
+use parquet::{
+  basic::*,
+  data_type::*,
+  schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType},
+};
 
 macro_rules! gen_random_ints {
   ($fname:ident, $limit:expr) => {
@@ -36,7 +38,7 @@ macro_rules! gen_random_ints {
       let bytes = values.len() * ::std::mem::size_of::<i32>();
       (bytes, values)
     }
-  }
+  };
 }
 
 gen_random_ints!(gen_10, 10);

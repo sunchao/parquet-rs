@@ -16,10 +16,7 @@
 // under the License.
 
 use file::reader::ParquetReader;
-use std::cmp;
-use std::fs::File;
-use std::io::*;
-use std::sync::Mutex;
+use std::{cmp, fs::File, io::*, sync::Mutex};
 
 // ----------------------------------------------------------------------
 // Read/Write wrappers for `File`.
@@ -43,7 +40,7 @@ pub trait Position {
 pub struct FileSource<R: ParquetReader> {
   reader: Mutex<BufReader<R>>,
   start: u64, // start position in a file
-  end: u64 // end position in a file
+  end: u64,   // end position in a file
 }
 
 impl<R: ParquetReader> FileSource<R> {
@@ -51,15 +48,17 @@ impl<R: ParquetReader> FileSource<R> {
   pub fn new(fd: &R, start: u64, length: usize) -> Self {
     Self {
       reader: Mutex::new(BufReader::new(fd.try_clone().unwrap())),
-      start: start,
-      end: start + length as u64
+      start,
+      end: start + length as u64,
     }
   }
 }
 
 impl<R: ParquetReader> Read for FileSource<R> {
   fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-    let mut reader = self.reader.lock()
+    let mut reader = self
+      .reader
+      .lock()
       .map_err(|err| Error::new(ErrorKind::Other, err.to_string()))?;
 
     let bytes_to_read = cmp::min(buf.len(), (self.end - self.start) as usize);
@@ -76,9 +75,7 @@ impl<R: ParquetReader> Read for FileSource<R> {
 }
 
 impl<R: ParquetReader> Position for FileSource<R> {
-  fn pos(&self) -> u64 {
-    self.start
-  }
+  fn pos(&self) -> u64 { self.start }
 }
 
 /// Struct that represents `File` output stream with position tracking.
@@ -87,7 +84,7 @@ pub struct FileSink {
   buf: BufWriter<File>,
   // This is not necessarily position in the underlying file,
   // but rather current position in the sink.
-  pos: u64
+  pos: u64,
 }
 
 impl FileSink {
@@ -98,7 +95,7 @@ impl FileSink {
     let pos = owned_file.seek(SeekFrom::Current(0)).unwrap();
     Self {
       buf: BufWriter::new(owned_file),
-      pos: pos
+      pos,
     }
   }
 }
@@ -110,24 +107,17 @@ impl Write for FileSink {
     Ok(num_bytes)
   }
 
-  fn flush(&mut self) -> Result<()> {
-    self.buf.flush()
-  }
+  fn flush(&mut self) -> Result<()> { self.buf.flush() }
 }
 
 impl Position for FileSink {
-  fn pos(& self) -> u64 {
-    self.pos
-  }
+  fn pos(&self) -> u64 { self.pos }
 }
 
 // Position implementation for Cursor to use in various tests.
 impl<'a> Position for Cursor<&'a mut Vec<u8>> {
-  fn pos(&self) -> u64 {
-    self.position()
-  }
+  fn pos(&self) -> u64 { self.position() }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -187,7 +177,9 @@ mod tests {
     let mut file = get_test_file("alltypes_plain.parquet");
     let mut src = FileSource::new(&file, 0, 4);
 
-    file.seek(SeekFrom::Start(5 as u64)).expect("File seek to a position");
+    file
+      .seek(SeekFrom::Start(5 as u64))
+      .expect("File seek to a position");
 
     let bytes_read = src.read(&mut buf[..]).unwrap();
     assert_eq!(bytes_read, 4);

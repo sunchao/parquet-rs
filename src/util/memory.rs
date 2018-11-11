@@ -17,12 +17,14 @@
 
 //! Utility methods and structs for working with memory.
 
-use std::cell::Cell;
-use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
-use std::io::{Result as IoResult, Write};
-use std::mem;
-use std::ops::{Index, IndexMut};
-use std::rc::{Rc, Weak};
+use std::{
+  cell::Cell,
+  fmt::{Debug, Display, Formatter, Result as FmtResult},
+  io::{Result as IoResult, Write},
+  mem,
+  ops::{Index, IndexMut},
+  rc::{Rc, Weak},
+};
 
 // ----------------------------------------------------------------------
 // Memory Tracker classes
@@ -37,7 +39,7 @@ pub type WeakMemTrackerPtr = Weak<MemTracker>;
 pub struct MemTracker {
   // In the tuple, the first element is the current memory allocated (in bytes),
   // and the second element is the maximum memory allocated so far (in bytes).
-  memory_usage: Cell<(i64, i64)>
+  memory_usage: Cell<(i64, i64)>,
 }
 
 impl MemTracker {
@@ -45,19 +47,15 @@ impl MemTracker {
   #[inline]
   pub fn new() -> MemTracker {
     MemTracker {
-      memory_usage: Cell::new((0, 0))
+      memory_usage: Cell::new((0, 0)),
     }
   }
 
   /// Returns the current memory consumption, in bytes.
-  pub fn memory_usage(&self) -> i64 {
-    self.memory_usage.get().0
-  }
+  pub fn memory_usage(&self) -> i64 { self.memory_usage.get().0 }
 
   /// Returns the maximum memory consumption so far, in bytes.
-  pub fn max_memory_usage(&self) -> i64 {
-    self.memory_usage.get().1
-  }
+  pub fn max_memory_usage(&self) -> i64 { self.memory_usage.get().1 }
 
   /// Adds `num_bytes` to the memory consumption tracked by this memory tracker.
   #[inline]
@@ -86,11 +84,10 @@ pub type ByteBufferPtr = BufferPtr<u8>;
 /// the buffer, while the latter is the actual number of elements.
 /// Invariant: `capacity` >= `size`.
 /// The total allocated bytes for a buffer equals to `capacity * sizeof<T>()`.
-///
 pub struct Buffer<T: Clone> {
   data: Vec<T>,
   mem_tracker: Option<MemTrackerPtr>,
-  type_length: usize
+  type_length: usize,
 }
 
 impl<T: Clone> Buffer<T> {
@@ -99,7 +96,7 @@ impl<T: Clone> Buffer<T> {
     Buffer {
       data: vec![],
       mem_tracker: None,
-      type_length: ::std::mem::size_of::<T>()
+      type_length: ::std::mem::size_of::<T>(),
     }
   }
 
@@ -113,9 +110,7 @@ impl<T: Clone> Buffer<T> {
 
   /// Returns slice of data in this buffer.
   #[inline]
-  pub fn data(&self) -> &[T] {
-    self.data.as_slice()
-  }
+  pub fn data(&self) -> &[T] { self.data.as_slice() }
 
   /// Sets data for this buffer.
   #[inline]
@@ -145,9 +140,7 @@ impl<T: Clone> Buffer<T> {
 
   /// Clears underlying data.
   #[inline]
-  pub fn clear(&mut self) {
-    self.data.clear()
-  }
+  pub fn clear(&mut self) { self.data.clear() }
 
   /// Reserves capacity `additional_capacity` for underlying data vector.
   ///
@@ -178,48 +171,35 @@ impl<T: Clone> Buffer<T> {
 
   /// Adds `value` to the buffer.
   #[inline]
-  pub fn push(&mut self, value: T) {
-    self.data.push(value)
-  }
+  pub fn push(&mut self, value: T) { self.data.push(value) }
 
   /// Returns current capacity for the buffer.
   #[inline]
-  pub fn capacity(&self) -> usize {
-    self.data.capacity()
-  }
+  pub fn capacity(&self) -> usize { self.data.capacity() }
 
   /// Returns current size for the buffer.
   #[inline]
-  pub fn size(&self) -> usize {
-    self.data.len()
-  }
+  pub fn size(&self) -> usize { self.data.len() }
 
   /// Returns `true` if memory tracker is added to buffer, `false` otherwise.
   #[inline]
-  pub fn is_mem_tracked(&self) -> bool {
-    self.mem_tracker.is_some()
-  }
+  pub fn is_mem_tracked(&self) -> bool { self.mem_tracker.is_some() }
 
   /// Returns memory tracker associated with this buffer.
   /// This may panic, if memory tracker is not set, use method above to check if
   /// memory tracker is available.
   #[inline]
-  pub fn mem_tracker(&self) -> &MemTrackerPtr {
-    self.mem_tracker.as_ref().unwrap()
-  }
+  pub fn mem_tracker(&self) -> &MemTrackerPtr { self.mem_tracker.as_ref().unwrap() }
 }
 
 impl<T: Sized + Clone> Index<usize> for Buffer<T> {
   type Output = T;
-  fn index(&self, index: usize) -> &T {
-    &self.data[index]
-  }
+
+  fn index(&self, index: usize) -> &T { &self.data[index] }
 }
 
 impl<T: Sized + Clone> IndexMut<usize> for Buffer<T> {
-  fn index_mut(&mut self, index: usize) -> &mut T {
-    &mut self.data[index]
-  }
+  fn index_mut(&mut self, index: usize) -> &mut T { &mut self.data[index] }
 }
 
 // TODO: implement this for other types
@@ -243,9 +223,7 @@ impl Write for Buffer<u8> {
 }
 
 impl AsRef<[u8]> for Buffer<u8> {
-  fn as_ref(&self) -> &[u8] {
-    self.data.as_slice()
-  }
+  fn as_ref(&self) -> &[u8] { self.data.as_slice() }
 }
 
 impl<T: Clone> Drop for Buffer<T> {
@@ -269,7 +247,7 @@ pub struct BufferPtr<T> {
   start: usize,
   len: usize,
   // TODO: will this create too many references? rethink about this.
-  mem_tracker: Option<MemTrackerPtr>
+  mem_tracker: Option<MemTrackerPtr>,
 }
 
 impl<T> BufferPtr<T> {
@@ -279,15 +257,13 @@ impl<T> BufferPtr<T> {
     Self {
       data: Rc::new(v),
       start: 0,
-      len: len,
-      mem_tracker: None
+      len,
+      mem_tracker: None,
     }
   }
 
   /// Returns slice of data in this buffer.
-  pub fn data(&self) -> &[T] {
-    &self.data[self.start..self.start + self.len]
-  }
+  pub fn data(&self) -> &[T] { &self.data[self.start..self.start + self.len] }
 
   /// Updates this buffer with new `start` position and length `len`.
   ///
@@ -307,19 +283,13 @@ impl<T> BufferPtr<T> {
   }
 
   /// Returns start position of this buffer.
-  pub fn start(&self) -> usize {
-    self.start
-  }
+  pub fn start(&self) -> usize { self.start }
 
   /// Returns length of this buffer
-  pub fn len(&self) -> usize {
-    self.len
-  }
+  pub fn len(&self) -> usize { self.len }
 
   /// Returns `true` if this buffer has memory tracker, `false` otherwise.
-  pub fn is_mem_tracked(&self) -> bool {
-    self.mem_tracker.is_some()
-  }
+  pub fn is_mem_tracked(&self) -> bool { self.mem_tracker.is_some() }
 
   /// Returns a shallow copy of the buffer.
   /// Reference counted pointer to the data is copied.
@@ -328,7 +298,7 @@ impl<T> BufferPtr<T> {
       data: self.data.clone(),
       start: self.start,
       len: self.len,
-      mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
+      mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone()),
     }
   }
 
@@ -339,7 +309,7 @@ impl<T> BufferPtr<T> {
       data: self.data.clone(),
       start: self.start + start,
       len: self.len - start,
-      mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
+      mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone()),
     }
   }
 
@@ -349,14 +319,15 @@ impl<T> BufferPtr<T> {
     BufferPtr {
       data: self.data.clone(),
       start: self.start + start,
-      len: len,
-      mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone())
+      len,
+      mem_tracker: self.mem_tracker.as_ref().map(|p| p.clone()),
     }
   }
 }
 
 impl<T: Sized> Index<usize> for BufferPtr<T> {
   type Output = T;
+
   fn index(&self, index: usize) -> &T {
     assert!(index < self.len);
     &self.data[self.start + index]
@@ -364,15 +335,15 @@ impl<T: Sized> Index<usize> for BufferPtr<T> {
 }
 
 impl<T: Debug> Display for BufferPtr<T> {
-  fn fmt(&self, f: &mut Formatter) -> FmtResult {
-    write!(f, "{:?}", self.data)
-  }
+  fn fmt(&self, f: &mut Formatter) -> FmtResult { write!(f, "{:?}", self.data) }
 }
 
 impl<T> Drop for BufferPtr<T> {
   fn drop(&mut self) {
-    if self.is_mem_tracked() &&
-      Rc::strong_count(&self.data) == 1 && Rc::weak_count(&self.data) == 0 {
+    if self.is_mem_tracked()
+      && Rc::strong_count(&self.data) == 1
+      && Rc::weak_count(&self.data) == 0
+    {
       let mc = self.mem_tracker.as_ref().unwrap();
       mc.alloc(-(self.data.capacity() as i64));
     }
@@ -380,11 +351,8 @@ impl<T> Drop for BufferPtr<T> {
 }
 
 impl AsRef<[u8]> for BufferPtr<u8> {
-  fn as_ref(&self) -> &[u8] {
-    &self.data[self.start..self.start + self.len]
-  }
+  fn as_ref(&self) -> &[u8] { &self.data[self.start..self.start + self.len] }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -394,22 +362,25 @@ mod tests {
   fn test_byte_buffer_mem_tracker() {
     let mem_tracker = Rc::new(MemTracker::new());
 
-    let mut buffer = ByteBuffer::new()
-      .with_mem_tracker(mem_tracker.clone());
+    let mut buffer = ByteBuffer::new().with_mem_tracker(mem_tracker.clone());
     buffer.set_data(vec![0; 10]);
     assert_eq!(mem_tracker.memory_usage(), buffer.capacity() as i64);
     buffer.set_data(vec![0; 20]);
     let capacity = buffer.capacity() as i64;
     assert_eq!(mem_tracker.memory_usage(), capacity);
 
-    let max_capacity =
-    {
-      let mut buffer2 = ByteBuffer::new()
-        .with_mem_tracker(mem_tracker.clone());
+    let max_capacity = {
+      let mut buffer2 = ByteBuffer::new().with_mem_tracker(mem_tracker.clone());
       buffer2.reserve(30);
-      assert_eq!(mem_tracker.memory_usage(), buffer2.capacity() as i64 + capacity);
+      assert_eq!(
+        mem_tracker.memory_usage(),
+        buffer2.capacity() as i64 + capacity
+      );
       buffer2.set_data(vec![0; 100]);
-      assert_eq!(mem_tracker.memory_usage(), buffer2.capacity() as i64 + capacity);
+      assert_eq!(
+        mem_tracker.memory_usage(),
+        buffer2.capacity() as i64 + capacity
+      );
       buffer2.capacity() as i64 + capacity
     };
 
@@ -427,8 +398,7 @@ mod tests {
   fn test_byte_ptr_mem_tracker() {
     let mem_tracker = Rc::new(MemTracker::new());
 
-    let mut buffer = ByteBuffer::new()
-      .with_mem_tracker(mem_tracker.clone());
+    let mut buffer = ByteBuffer::new().with_mem_tracker(mem_tracker.clone());
     buffer.set_data(vec![0; 60]);
 
     {

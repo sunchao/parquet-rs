@@ -42,8 +42,8 @@
 //! ```
 //! #![feature(try_from)]
 //!
-//! use std::convert::TryFrom;
 //! use parquet::file::reader::{FileReader, SerializedFileReader};
+//! use std::convert::TryFrom;
 //!
 //! let reader = SerializedFileReader::try_from("data/alltypes_plain.parquet").unwrap();
 //!
@@ -63,8 +63,8 @@
 //! ```
 //! #![feature(try_from)]
 //!
-//! use std::convert::TryFrom;
 //! use parquet::file::reader::{FileReader, SerializedFileReader};
+//! use std::convert::TryFrom;
 //!
 //! let reader = SerializedFileReader::try_from("data/alltypes_plain.parquet").unwrap();
 //!
@@ -124,22 +124,21 @@
 #![feature(rustc_private)]
 #![feature(specialization)]
 #![feature(try_from)]
-
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
 
 #[macro_use]
 extern crate quick_error;
-extern crate byteorder;
-extern crate thrift;
 extern crate arena;
-extern crate snap;
 extern crate brotli;
-extern crate flate2;
-extern crate parquet_format;
+extern crate byteorder;
 extern crate chrono;
+extern crate flate2;
 extern crate lz4;
 extern crate num_bigint;
+extern crate parquet_format;
+extern crate snap;
+extern crate thrift;
 extern crate zstd;
 
 #[cfg(test)]
@@ -151,15 +150,14 @@ pub mod basic;
 pub mod data_type;
 
 // Exported for external use, such as benchmarks
+pub use encodings::{decoding, encoding};
 pub use util::memory;
-pub use encodings::encoding;
-pub use encodings::decoding;
 
 #[macro_use]
 mod util;
-mod encodings;
-pub mod compression;
 pub mod column;
+pub mod compression;
+mod encodings;
+pub mod file;
 pub mod record;
 pub mod schema;
-pub mod file;

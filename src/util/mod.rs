@@ -19,8 +19,8 @@ pub mod io;
 pub mod memory;
 #[macro_use]
 pub mod bit_util;
-pub mod hash_util;
 mod bit_packing;
+pub mod hash_util;
 
 #[cfg(test)]
 pub mod test_common;

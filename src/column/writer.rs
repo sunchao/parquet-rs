@@ -17,20 +17,21 @@
 
 //! Contains column writer API.
 
-use std::cmp;
-use std::collections::VecDeque;
-use std::mem;
-use std::rc::Rc;
+use std::{cmp, collections::VecDeque, mem, rc::Rc};
 
 use basic::{Compression, Encoding, PageType, Type};
 use column::page::{CompressedPage, Page, PageWriteSpec, PageWriter};
-use compression::{Codec, create_codec};
+use compression::{create_codec, Codec};
 use data_type::*;
-use encodings::encoding::{DictEncoder, Encoder, get_encoder};
-use encodings::levels::{LevelEncoder, max_buffer_size};
+use encodings::{
+  encoding::{get_encoder, DictEncoder, Encoder},
+  levels::{max_buffer_size, LevelEncoder},
+};
 use errors::{ParquetError, Result};
-use file::metadata::ColumnChunkMetaData;
-use file::properties::{WriterPropertiesPtr, WriterVersion};
+use file::{
+  metadata::ColumnChunkMetaData,
+  properties::{WriterPropertiesPtr, WriterVersion},
+};
 use schema::types::ColumnDescPtr;
 use util::memory::{ByteBufferPtr, MemTracker};
 
@@ -43,32 +44,43 @@ pub enum ColumnWriter {
   FloatColumnWriter(ColumnWriterImpl<FloatType>),
   DoubleColumnWriter(ColumnWriterImpl<DoubleType>),
   ByteArrayColumnWriter(ColumnWriterImpl<ByteArrayType>),
-  FixedLenByteArrayColumnWriter(ColumnWriterImpl<FixedLenByteArrayType>)
+  FixedLenByteArrayColumnWriter(ColumnWriterImpl<FixedLenByteArrayType>),
 }
 
 /// Gets a specific column writer corresponding to column descriptor `descr`.
 pub fn get_column_writer(
   descr: ColumnDescPtr,
   props: WriterPropertiesPtr,
-  page_writer: Box<PageWriter>
-) -> ColumnWriter {
+  page_writer: Box<PageWriter>,
+) -> ColumnWriter
+{
   match descr.physical_type() {
-    Type::BOOLEAN => ColumnWriter::BoolColumnWriter(
-      ColumnWriterImpl::new(descr, props, page_writer)),
-    Type::INT32 => ColumnWriter::Int32ColumnWriter(
-      ColumnWriterImpl::new(descr, props, page_writer)),
-    Type::INT64 => ColumnWriter::Int64ColumnWriter(
-      ColumnWriterImpl::new(descr, props, page_writer)),
-    Type::INT96 => ColumnWriter::Int96ColumnWriter(
-      ColumnWriterImpl::new(descr, props, page_writer)),
-    Type::FLOAT => ColumnWriter::FloatColumnWriter(
-      ColumnWriterImpl::new(descr, props, page_writer)),
-    Type::DOUBLE => ColumnWriter::DoubleColumnWriter(
-      ColumnWriterImpl::new(descr, props, page_writer)),
-    Type::BYTE_ARRAY => ColumnWriter::ByteArrayColumnWriter(
-      ColumnWriterImpl::new(descr, props, page_writer)),
+    Type::BOOLEAN => {
+      ColumnWriter::BoolColumnWriter(ColumnWriterImpl::new(descr, props, page_writer))
+    },
+    Type::INT32 => {
+      ColumnWriter::Int32ColumnWriter(ColumnWriterImpl::new(descr, props, page_writer))
+    },
+    Type::INT64 => {
+      ColumnWriter::Int64ColumnWriter(ColumnWriterImpl::new(descr, props, page_writer))
+    },
+    Type::INT96 => {
+      ColumnWriter::Int96ColumnWriter(ColumnWriterImpl::new(descr, props, page_writer))
+    },
+    Type::FLOAT => {
+      ColumnWriter::FloatColumnWriter(ColumnWriterImpl::new(descr, props, page_writer))
+    },
+    Type::DOUBLE => {
+      ColumnWriter::DoubleColumnWriter(ColumnWriterImpl::new(descr, props, page_writer))
+    },
+    Type::BYTE_ARRAY => ColumnWriter::ByteArrayColumnWriter(ColumnWriterImpl::new(
+      descr,
+      props,
+      page_writer,
+    )),
     Type::FIXED_LEN_BYTE_ARRAY => ColumnWriter::FixedLenByteArrayColumnWriter(
-      ColumnWriterImpl::new(descr, props, page_writer))
+      ColumnWriterImpl::new(descr, props, page_writer),
+    ),
   }
 }
 
@@ -78,7 +90,7 @@ pub fn get_column_writer(
 /// NOTE: the caller MUST guarantee that the actual enum value for `col_writer` matches
 /// the type `T`. Otherwise, disastrous consequence could happen.
 pub fn get_typed_column_writer<T: DataType>(
-  col_writer: ColumnWriter
+  col_writer: ColumnWriter,
 ) -> ColumnWriterImpl<T> {
   match col_writer {
     ColumnWriter::BoolColumnWriter(r) => unsafe { mem::transmute(r) },
@@ -88,7 +100,7 @@ pub fn get_typed_column_writer<T: DataType>(
     ColumnWriter::FloatColumnWriter(r) => unsafe { mem::transmute(r) },
     ColumnWriter::DoubleColumnWriter(r) => unsafe { mem::transmute(r) },
     ColumnWriter::ByteArrayColumnWriter(r) => unsafe { mem::transmute(r) },
-    ColumnWriter::FixedLenByteArrayColumnWriter(r) => unsafe { mem::transmute(r) }
+    ColumnWriter::FixedLenByteArrayColumnWriter(r) => unsafe { mem::transmute(r) },
   }
 }
 
@@ -118,15 +130,16 @@ pub struct ColumnWriterImpl<T: DataType> {
   // Reused buffers
   def_levels_sink: Vec<i16>,
   rep_levels_sink: Vec<i16>,
-  data_pages: VecDeque<CompressedPage>
+  data_pages: VecDeque<CompressedPage>,
 }
 
 impl<T: DataType> ColumnWriterImpl<T> {
   pub fn new(
     descr: ColumnDescPtr,
     props: WriterPropertiesPtr,
-    page_writer: Box<PageWriter>
-  ) -> Self {
+    page_writer: Box<PageWriter>,
+  ) -> Self
+  {
     let codec = props.compression(descr.path());
     let compressor = create_codec(codec).unwrap();
 
@@ -144,18 +157,19 @@ impl<T: DataType> ColumnWriterImpl<T> {
     let fallback_encoder = get_encoder(
       descr.clone(),
       props.encoding(descr.path()),
-      Rc::new(MemTracker::new())
-    ).unwrap();
+      Rc::new(MemTracker::new()),
+    )
+    .unwrap();
 
     Self {
-      descr: descr,
-      props: props,
-      page_writer: page_writer,
-      has_dictionary: has_dictionary,
-      dict_encoder: dict_encoder,
+      descr,
+      props,
+      page_writer,
+      has_dictionary,
+      dict_encoder,
       encoder: fallback_encoder,
-      codec: codec,
-      compressor: compressor,
+      codec,
+      compressor,
       num_buffered_values: 0,
       num_buffered_encoded_values: 0,
       num_buffered_rows: 0,
@@ -168,7 +182,7 @@ impl<T: DataType> ColumnWriterImpl<T> {
       data_page_offset: None,
       def_levels_sink: vec![],
       rep_levels_sink: vec![],
-      data_pages: VecDeque::new()
+      data_pages: VecDeque::new(),
     }
   }
 
@@ -188,8 +202,9 @@ impl<T: DataType> ColumnWriterImpl<T> {
     &mut self,
     values: &[T::T],
     def_levels: Option<&[i16]>,
-    rep_levels: Option<&[i16]>
-  ) -> Result<usize> {
+    rep_levels: Option<&[i16]>,
+  ) -> Result<usize>
+  {
     // We check for DataPage limits only after we have inserted the values. If a user
     // writes a large number of values, the DataPage size can be well above the limit.
     //
@@ -219,7 +234,7 @@ impl<T: DataType> ColumnWriterImpl<T> {
       values_offset += self.write_mini_batch(
         &values[values_offset..values_offset + write_batch_size],
         def_levels.map(|lv| &lv[levels_offset..levels_offset + write_batch_size]),
-        rep_levels.map(|lv| &lv[levels_offset..levels_offset + write_batch_size])
+        rep_levels.map(|lv| &lv[levels_offset..levels_offset + write_batch_size]),
       )?;
       levels_offset += write_batch_size;
     }
@@ -227,7 +242,7 @@ impl<T: DataType> ColumnWriterImpl<T> {
     values_offset += self.write_mini_batch(
       &values[values_offset..],
       def_levels.map(|lv| &lv[levels_offset..]),
-      rep_levels.map(|lv| &lv[levels_offset..])
+      rep_levels.map(|lv| &lv[levels_offset..]),
     )?;
 
     // Return total number of values processed.
@@ -236,15 +251,11 @@ impl<T: DataType> ColumnWriterImpl<T> {
 
   /// Returns total number of bytes written by this column writer so far.
   /// This value is also returned when column writer is closed.
-  pub fn get_total_bytes_written(&self) -> u64 {
-    self.total_bytes_written
-  }
+  pub fn get_total_bytes_written(&self) -> u64 { self.total_bytes_written }
 
   /// Returns total number of rows written by this column writer so far.
   /// This value is also returned when column writer is closed.
-  pub fn get_total_rows_written(&self) -> u64 {
-    self.total_rows_written
-  }
+  pub fn get_total_rows_written(&self) -> u64 { self.total_rows_written }
 
   /// Finalises writes and closes the column writer.
   /// Returns total bytes written, total rows written and column chunk metadata.
@@ -267,8 +278,9 @@ impl<T: DataType> ColumnWriterImpl<T> {
     &mut self,
     values: &[T::T],
     def_levels: Option<&[i16]>,
-    rep_levels: Option<&[i16]>
-  ) -> Result<usize> {
+    rep_levels: Option<&[i16]>,
+  ) -> Result<usize>
+  {
     let num_values;
     let mut values_to_write = 0;
 
@@ -370,7 +382,7 @@ impl<T: DataType> ColumnWriterImpl<T> {
   fn write_values(&mut self, values: &[T::T]) -> Result<()> {
     match self.dict_encoder {
       Some(ref mut encoder) => encoder.put(values),
-      None => self.encoder.put(values)
+      None => self.encoder.put(values),
     }
   }
 
@@ -384,7 +396,7 @@ impl<T: DataType> ColumnWriterImpl<T> {
       Some(ref encoder) => {
         encoder.dict_encoded_size() >= self.props.dictionary_pagesize_limit()
       },
-      None => false
+      None => false,
     }
   }
 
@@ -410,7 +422,7 @@ impl<T: DataType> ColumnWriterImpl<T> {
     // Extract encoded values
     let value_bytes = match self.dict_encoder {
       Some(ref mut encoder) => encoder.write_indices()?,
-      None => self.encoder.flush_buffer()?
+      None => self.encoder.flush_buffer()?,
     };
 
     // Select encoding based on current encoder and writer version (v1 or v2).
@@ -430,14 +442,20 @@ impl<T: DataType> ColumnWriterImpl<T> {
         if max_rep_level > 0 {
           buffer.extend_from_slice(
             &self.encode_levels_v1(
-              Encoding::RLE, &self.rep_levels_sink[..], max_rep_level)?[..]
+              Encoding::RLE,
+              &self.rep_levels_sink[..],
+              max_rep_level,
+            )?[..],
           );
         }
 
         if max_def_level > 0 {
           buffer.extend_from_slice(
             &self.encode_levels_v1(
-              Encoding::RLE, &self.def_levels_sink[..], max_def_level)?[..]
+              Encoding::RLE,
+              &self.def_levels_sink[..],
+              max_def_level,
+            )?[..],
           );
         }
 
@@ -453,11 +471,11 @@ impl<T: DataType> ColumnWriterImpl<T> {
         let data_page = Page::DataPage {
           buf: ByteBufferPtr::new(buffer),
           num_values: self.num_buffered_values,
-          encoding: encoding,
+          encoding,
           def_level_encoding: Encoding::RLE,
           rep_level_encoding: Encoding::RLE,
           // TODO: process statistics
-          statistics: None
+          statistics: None,
         };
 
         CompressedPage::new(data_page, uncompressed_size)
@@ -491,24 +509,24 @@ impl<T: DataType> ColumnWriterImpl<T> {
           },
           None => {
             buffer.extend_from_slice(value_bytes.data());
-          }
+          },
         }
 
         let data_page = Page::DataPageV2 {
           buf: ByteBufferPtr::new(buffer),
           num_values: self.num_buffered_values,
-          encoding: encoding,
+          encoding,
           num_nulls: self.num_buffered_values - self.num_buffered_encoded_values,
           num_rows: self.num_buffered_rows,
           def_levels_byte_len: def_levels_byte_len as u32,
           rep_levels_byte_len: rep_levels_byte_len as u32,
           is_compressed: self.compressor.is_some(),
           // TODO: process statistics
-          statistics: None
+          statistics: None,
         };
 
         CompressedPage::new(data_page, uncompressed_size)
-      }
+      },
     };
 
     // Check if we need to buffer data page or flush it to the sink directly.
@@ -598,8 +616,9 @@ impl<T: DataType> ColumnWriterImpl<T> {
     &self,
     encoding: Encoding,
     levels: &[i16],
-    max_level: i16
-  ) -> Result<Vec<u8>> {
+    max_level: i16,
+  ) -> Result<Vec<u8>>
+  {
     let size = max_buffer_size(encoding, max_level, levels.len());
     let mut encoder = LevelEncoder::v1(encoding, max_level, vec![0; size]);
     encoder.put(&levels)?;
@@ -648,7 +667,7 @@ impl<T: DataType> ColumnWriterImpl<T> {
         buf: values_buf,
         num_values: num_values as u32,
         encoding: self.props.dictionary_page_encoding(),
-        is_sorted: is_sorted
+        is_sorted,
       };
       CompressedPage::new(dict_page, uncompressed_size)
     };
@@ -679,32 +698,34 @@ impl<T: DataType> ColumnWriterImpl<T> {
         );
         self.dictionary_page_offset = Some(page_spec.offset);
       },
-      _ => { }
+      _ => {},
     }
   }
 
   /// Returns reference to the underlying page writer.
   /// This method is intended to use in tests only.
-  fn get_page_writer_ref(&self) -> &Box<PageWriter> {
-    &self.page_writer
-  }
+  fn get_page_writer_ref(&self) -> &Box<PageWriter> { &self.page_writer }
 }
-
 
 #[cfg(test)]
 mod tests {
   use super::*;
   use rand::distributions::range::SampleRange;
 
-  use std::error::Error;
-  use column::page::PageReader;
-  use column::reader::{ColumnReaderImpl, get_column_reader, get_typed_column_reader};
-  use file::properties::WriterProperties;
-  use file::reader::SerializedPageReader;
-  use file::writer::SerializedPageWriter;
+  use column::{
+    page::PageReader,
+    reader::{get_column_reader, get_typed_column_reader, ColumnReaderImpl},
+  };
+  use file::{
+    properties::WriterProperties, reader::SerializedPageReader,
+    writer::SerializedPageWriter,
+  };
   use schema::types::{ColumnDescriptor, ColumnPath, Type as SchemaType};
-  use util::io::{FileSink, FileSource};
-  use util::test_common::{get_temp_file, random_numbers_range};
+  use std::error::Error;
+  use util::{
+    io::{FileSink, FileSource},
+    test_common::{get_temp_file, random_numbers_range},
+  };
 
   #[test]
   fn test_column_writer_inconsistent_def_rep_length() {
@@ -759,7 +780,10 @@ mod tests {
     let res = writer.write_batch(&[1, 2], Some(&[1, 1, 1, 1]), None);
     assert!(res.is_err());
     if let Err(err) = res {
-      assert_eq!(err.description(), "Expected to write 4 values, but have only 2");
+      assert_eq!(
+        err.description(),
+        "Expected to write 4 values, but have only 2"
+      );
     }
   }
 
@@ -779,8 +803,11 @@ mod tests {
   #[test]
   fn test_column_writer_error_when_writing_disabled_dictionary() {
     let page_writer = get_test_page_writer();
-    let props =
-      Rc::new(WriterProperties::builder().set_dictionary_enabled(false).build());
+    let props = Rc::new(
+      WriterProperties::builder()
+        .set_dictionary_enabled(false)
+        .build(),
+    );
     let mut writer = get_test_column_writer::<Int32Type>(page_writer, 0, 0, props);
     writer.write_batch(&[1, 2, 3, 4], None, None).unwrap();
     let res = writer.write_dictionary_page();
@@ -820,23 +847,43 @@ mod tests {
   #[test]
   fn test_column_writer_non_nullable_values_roundtrip() {
     let props = WriterProperties::builder().build();
-    column_roundtrip_random::<Int32Type>("test_col_writer_rnd_2", props, 1024,
-      ::std::i32::MIN, ::std::i32::MAX, 0, 0);
+    column_roundtrip_random::<Int32Type>(
+      "test_col_writer_rnd_2",
+      props,
+      1024,
+      ::std::i32::MIN,
+      ::std::i32::MAX,
+      0,
+      0,
+    );
   }
 
   #[test]
   fn test_column_writer_nullable_non_repeated_values_roundtrip() {
     let props = WriterProperties::builder().build();
     column_roundtrip_random::<Int32Type>(
-      "test_column_writer_nullable_non_repeated_values_roundtrip", props, 1024,
-      ::std::i32::MIN, ::std::i32::MAX, 10, 0);
+      "test_column_writer_nullable_non_repeated_values_roundtrip",
+      props,
+      1024,
+      ::std::i32::MIN,
+      ::std::i32::MAX,
+      10,
+      0,
+    );
   }
 
   #[test]
   fn test_column_writer_nullable_repeated_values_roundtrip() {
     let props = WriterProperties::builder().build();
-    column_roundtrip_random::<Int32Type>("test_col_writer_rnd_3", props, 1024,
-      ::std::i32::MIN, ::std::i32::MAX, 10, 10);
+    column_roundtrip_random::<Int32Type>(
+      "test_col_writer_rnd_3",
+      props,
+      1024,
+      ::std::i32::MIN,
+      ::std::i32::MAX,
+      10,
+      10,
+    );
   }
 
   #[test]
@@ -845,19 +892,31 @@ mod tests {
       .set_dictionary_pagesize_limit(32)
       .set_data_pagesize_limit(32)
       .build();
-    column_roundtrip_random::<Int32Type>("test_col_writer_rnd_4", props, 1024,
-      ::std::i32::MIN, ::std::i32::MAX, 10, 10);
+    column_roundtrip_random::<Int32Type>(
+      "test_col_writer_rnd_4",
+      props,
+      1024,
+      ::std::i32::MIN,
+      ::std::i32::MAX,
+      10,
+      10,
+    );
   }
 
   #[test]
   fn test_column_writer_small_write_batch_size() {
     for i in vec![1, 2, 5, 10, 11, 1023] {
-      let props = WriterProperties::builder()
-        .set_write_batch_size(i)
-        .build();
+      let props = WriterProperties::builder().set_write_batch_size(i).build();
 
-      column_roundtrip_random::<Int32Type>("test_col_writer_rnd_5", props, 1024,
-        ::std::i32::MIN, ::std::i32::MAX, 10, 10);
+      column_roundtrip_random::<Int32Type>(
+        "test_col_writer_rnd_5",
+        props,
+        1024,
+        ::std::i32::MIN,
+        ::std::i32::MAX,
+        10,
+        10,
+      );
     }
   }
 
@@ -867,8 +926,15 @@ mod tests {
       .set_writer_version(WriterVersion::PARQUET_1_0)
       .set_dictionary_enabled(false)
       .build();
-    column_roundtrip_random::<Int32Type>("test_col_writer_rnd_6", props, 1024,
-      ::std::i32::MIN, ::std::i32::MAX, 10, 10);
+    column_roundtrip_random::<Int32Type>(
+      "test_col_writer_rnd_6",
+      props,
+      1024,
+      ::std::i32::MIN,
+      ::std::i32::MAX,
+      10,
+      10,
+    );
   }
 
   #[test]
@@ -877,8 +943,15 @@ mod tests {
       .set_writer_version(WriterVersion::PARQUET_2_0)
       .set_dictionary_enabled(false)
       .build();
-    column_roundtrip_random::<Int32Type>("test_col_writer_rnd_7", props, 1024,
-      ::std::i32::MIN, ::std::i32::MAX, 10, 10);
+    column_roundtrip_random::<Int32Type>(
+      "test_col_writer_rnd_7",
+      props,
+      1024,
+      ::std::i32::MIN,
+      ::std::i32::MAX,
+      10,
+      10,
+    );
   }
 
   #[test]
@@ -887,8 +960,15 @@ mod tests {
       .set_writer_version(WriterVersion::PARQUET_1_0)
       .set_compression(Compression::SNAPPY)
       .build();
-    column_roundtrip_random::<Int32Type>("test_col_writer_rnd_8", props, 2048,
-      ::std::i32::MIN, ::std::i32::MAX, 10, 10);
+    column_roundtrip_random::<Int32Type>(
+      "test_col_writer_rnd_8",
+      props,
+      2048,
+      ::std::i32::MIN,
+      ::std::i32::MAX,
+      10,
+      10,
+    );
   }
 
   #[test]
@@ -897,8 +977,15 @@ mod tests {
       .set_writer_version(WriterVersion::PARQUET_2_0)
       .set_compression(Compression::SNAPPY)
       .build();
-    column_roundtrip_random::<Int32Type>("test_col_writer_rnd_9", props, 2048,
-      ::std::i32::MIN, ::std::i32::MAX, 10, 10);
+    column_roundtrip_random::<Int32Type>(
+      "test_col_writer_rnd_9",
+      props,
+      2048,
+      ::std::i32::MIN,
+      ::std::i32::MAX,
+      10,
+      10,
+    );
   }
 
   /// Performs write-read roundtrip with randomly generated values and levels.
@@ -911,8 +998,10 @@ mod tests {
     min_value: T::T,
     max_value: T::T,
     max_def_level: i16,
-    max_rep_level: i16
-  ) where T::T: PartialOrd + SampleRange + Copy {
+    max_rep_level: i16,
+  ) where
+    T::T: PartialOrd + SampleRange + Copy,
+  {
     let mut num_values: usize = 0;
 
     let mut buf: Vec<i16> = Vec::new();
@@ -949,20 +1038,21 @@ mod tests {
     props: WriterProperties,
     values: &[T::T],
     def_levels: Option<&[i16]>,
-    rep_levels: Option<&[i16]>
-  ) {
+    rep_levels: Option<&[i16]>,
+  )
+  {
     let file = get_temp_file(file_name, &[]);
     let sink = FileSink::new(&file);
     let page_writer = Box::new(SerializedPageWriter::new(sink));
 
     let max_def_level = match def_levels {
       Some(buf) => *buf.iter().max().unwrap_or(&0i16),
-      None => 0i16
+      None => 0i16,
     };
 
     let max_rep_level = match rep_levels {
       Some(buf) => *buf.iter().max().unwrap_or(&0i16),
-      None => 0i16
+      None => 0i16,
     };
 
     let mut max_batch_size = values.len();
@@ -977,7 +1067,7 @@ mod tests {
       page_writer,
       max_def_level,
       max_rep_level,
-      Rc::new(props)
+      Rc::new(props),
     );
 
     let values_written = writer.write_batch(values, def_levels, rep_levels).unwrap();
@@ -985,26 +1075,25 @@ mod tests {
     let (bytes_written, rows_written, column_metadata) = writer.close().unwrap();
 
     let source = FileSource::new(&file, 0, bytes_written as usize);
-    let page_reader = Box::new(SerializedPageReader::new(
-      source,
-      column_metadata.num_values(),
-      column_metadata.compression(),
-      T::get_physical_type()
-    ).unwrap());
-    let reader = get_test_column_reader::<T>(
-      page_reader,
-      max_def_level,
-      max_rep_level
+    let page_reader = Box::new(
+      SerializedPageReader::new(
+        source,
+        column_metadata.num_values(),
+        column_metadata.compression(),
+        T::get_physical_type(),
+      )
+      .unwrap(),
     );
+    let reader = get_test_column_reader::<T>(page_reader, max_def_level, max_rep_level);
 
     let mut actual_values = vec![T::T::default(); max_batch_size];
     let mut actual_def_levels = match def_levels {
       Some(_) => Some(vec![0i16; max_batch_size]),
-      None => None
+      None => None,
     };
     let mut actual_rep_levels = match rep_levels {
       Some(_) => Some(vec![0i16; max_batch_size]),
-      None => None
+      None => None,
     };
 
     let (values_read, levels_read) = read_fully(
@@ -1012,7 +1101,7 @@ mod tests {
       max_batch_size,
       actual_def_levels.as_mut(),
       actual_rep_levels.as_mut(),
-      actual_values.as_mut_slice()
+      actual_values.as_mut_slice(),
     );
 
     // Assert values, definition and repetition levels.
@@ -1020,11 +1109,11 @@ mod tests {
     assert_eq!(&actual_values[..values_read], values);
     match actual_def_levels {
       Some(ref vec) => assert_eq!(Some(&vec[..levels_read]), def_levels),
-      None => assert_eq!(None, def_levels)
+      None => assert_eq!(None, def_levels),
     }
     match actual_rep_levels {
       Some(ref vec) => assert_eq!(Some(&vec[..levels_read]), rep_levels),
-      None => assert_eq!(None, rep_levels)
+      None => assert_eq!(None, rep_levels),
     }
 
     // Assert written rows.
@@ -1051,17 +1140,20 @@ mod tests {
     batch_size: usize,
     mut def_levels: Option<&mut Vec<i16>>,
     mut rep_levels: Option<&mut Vec<i16>>,
-    values: &mut [T::T]
-  ) -> (usize, usize) {
+    values: &mut [T::T],
+  ) -> (usize, usize)
+  {
     let actual_def_levels = match &mut def_levels {
       Some(ref mut vec) => Some(&mut vec[..]),
-      None => None
+      None => None,
     };
     let actual_rep_levels = match rep_levels {
       Some(ref mut vec) => Some(&mut vec[..]),
-      None => None
+      None => None,
     };
-    reader.read_batch(batch_size, actual_def_levels, actual_rep_levels, values).unwrap()
+    reader
+      .read_batch(batch_size, actual_def_levels, actual_rep_levels, values)
+      .unwrap()
   }
 
   /// Returns column writer.
@@ -1069,8 +1161,9 @@ mod tests {
     page_writer: Box<PageWriter>,
     max_def_level: i16,
     max_rep_level: i16,
-    props: WriterPropertiesPtr
-  ) -> ColumnWriterImpl<T> {
+    props: WriterPropertiesPtr,
+  ) -> ColumnWriterImpl<T>
+  {
     let descr = Rc::new(get_test_column_descr::<T>(max_def_level, max_rep_level));
     let column_writer = get_column_writer(descr, props, page_writer);
     get_typed_column_writer::<T>(column_writer)
@@ -1080,8 +1173,9 @@ mod tests {
   fn get_test_column_reader<T: DataType>(
     page_reader: Box<PageReader>,
     max_def_level: i16,
-    max_rep_level: i16
-  ) -> ColumnReaderImpl<T> {
+    max_rep_level: i16,
+  ) -> ColumnReaderImpl<T>
+  {
     let descr = Rc::new(get_test_column_descr::<T>(max_def_level, max_rep_level));
     let column_reader = get_column_reader(descr, page_reader);
     get_typed_column_reader::<T>(column_reader)
@@ -1090,18 +1184,18 @@ mod tests {
   /// Returns descriptor for primitive column.
   fn get_test_column_descr<T: DataType>(
     max_def_level: i16,
-    max_rep_level: i16
-  ) -> ColumnDescriptor {
+    max_rep_level: i16,
+  ) -> ColumnDescriptor
+  {
     let path = ColumnPath::from("col");
     let tpe = SchemaType::primitive_type_builder("col", T::get_physical_type())
-      .build().unwrap();
+      .build()
+      .unwrap();
     ColumnDescriptor::new(Rc::new(tpe), None, max_def_level, max_rep_level, path)
   }
 
   /// Returns page writer that collects pages without serializing them.
-  fn get_test_page_writer() -> Box<PageWriter> {
-    Box::new(TestPageWriter {})
-  }
+  fn get_test_page_writer() -> Box<PageWriter> { Box::new(TestPageWriter {}) }
 
   struct TestPageWriter {}
 
@@ -1117,12 +1211,8 @@ mod tests {
       Ok(res)
     }
 
-    fn write_metadata(&mut self, _metadata: &ColumnChunkMetaData) -> Result<()> {
-      Ok(())
-    }
+    fn write_metadata(&mut self, _metadata: &ColumnChunkMetaData) -> Result<()> { Ok(()) }
 
-    fn close(&mut self) -> Result<()> {
-      Ok(())
-    }
+    fn close(&mut self) -> Result<()> { Ok(()) }
   }
 }

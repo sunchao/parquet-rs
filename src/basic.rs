@@ -18,10 +18,7 @@
 //! Contains Rust mappings for Thrift definition.
 //! Refer to `parquet.thrift` file to see raw definitions.
 
-use std::convert;
-use std::fmt;
-use std::result;
-use std::str;
+use std::{convert, fmt, result, str};
 
 use errors::ParquetError;
 use parquet_format as parquet;
@@ -46,7 +43,7 @@ pub enum Type {
   FLOAT,
   DOUBLE,
   BYTE_ARRAY,
-  FIXED_LEN_BYTE_ARRAY
+  FIXED_LEN_BYTE_ARRAY,
 }
 
 // ----------------------------------------------------------------------
@@ -145,7 +142,7 @@ pub enum LogicalType {
   /// the number of days associated with the duration and the third identifies
   /// the number of milliseconds associated with the provided duration.
   /// This duration of time is independent of any particular timezone or date.
-  INTERVAL
+  INTERVAL,
 }
 
 // ----------------------------------------------------------------------
@@ -159,7 +156,7 @@ pub enum Repetition {
   /// Field is optional (can be null) and each record has 0 or 1 values.
   OPTIONAL,
   /// Field is repeated and can contain 0 or more values.
-  REPEATED
+  REPEATED,
 }
 
 // ----------------------------------------------------------------------
@@ -217,7 +214,7 @@ pub enum Encoding {
   /// Dictionary encoding.
   ///
   /// The ids are encoded using the RLE encoding.
-  RLE_DICTIONARY
+  RLE_DICTIONARY,
 }
 
 // ----------------------------------------------------------------------
@@ -232,7 +229,7 @@ pub enum Compression {
   LZO,
   BROTLI,
   LZ4,
-  ZSTD
+  ZSTD,
 }
 
 // ----------------------------------------------------------------------
@@ -245,7 +242,7 @@ pub enum PageType {
   DATA_PAGE,
   INDEX_PAGE,
   DICTIONARY_PAGE,
-  DATA_PAGE_V2
+  DATA_PAGE_V2,
 }
 
 // ----------------------------------------------------------------------
@@ -259,7 +256,6 @@ pub enum PageType {
 ///
 /// See reference in
 /// https://github.com/apache/parquet-cpp/blob/master/src/parquet/types.h
-///
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SortOrder {
   /// Signed (either value or legacy byte-wise) comparison.
@@ -267,7 +263,7 @@ pub enum SortOrder {
   /// Unsigned (depending on physical type either value or byte-wise) comparison.
   UNSIGNED,
   /// Comparison is undefined.
-  UNDEFINED
+  UNDEFINED,
 }
 
 /// Column order that specifies what method was used to aggregate min/max values for
@@ -282,7 +278,7 @@ pub enum ColumnOrder {
   TYPE_DEFINED_ORDER(SortOrder),
   /// Undefined column order, means legacy behaviour before parquet-format 2.4.0.
   /// Sort order is always SIGNED.
-  UNDEFINED
+  UNDEFINED,
 }
 
 impl ColumnOrder {
@@ -290,39 +286,38 @@ impl ColumnOrder {
   pub fn get_sort_order(logical_type: LogicalType, physical_type: Type) -> SortOrder {
     match logical_type {
       // Unsigned byte-wise comparison.
-      LogicalType::UTF8 |
-      LogicalType::JSON |
-      LogicalType::BSON |
-      LogicalType::ENUM => SortOrder::UNSIGNED,
+      LogicalType::UTF8 | LogicalType::JSON | LogicalType::BSON | LogicalType::ENUM => {
+        SortOrder::UNSIGNED
+      },
 
-      LogicalType::INT_8 |
-      LogicalType::INT_16 |
-      LogicalType::INT_32 |
-      LogicalType::INT_64 => SortOrder::SIGNED,
+      LogicalType::INT_8
+      | LogicalType::INT_16
+      | LogicalType::INT_32
+      | LogicalType::INT_64 => SortOrder::SIGNED,
 
-      LogicalType::UINT_8 |
-      LogicalType::UINT_16 |
-      LogicalType::UINT_32 |
-      LogicalType::UINT_64 => SortOrder::UNSIGNED,
+      LogicalType::UINT_8
+      | LogicalType::UINT_16
+      | LogicalType::UINT_32
+      | LogicalType::UINT_64 => SortOrder::UNSIGNED,
 
       // Signed comparison of the represented value.
       LogicalType::DECIMAL => SortOrder::SIGNED,
 
       LogicalType::DATE => SortOrder::SIGNED,
 
-      LogicalType::TIME_MILLIS |
-      LogicalType::TIME_MICROS |
-      LogicalType::TIMESTAMP_MILLIS |
-      LogicalType::TIMESTAMP_MICROS => SortOrder::SIGNED,
+      LogicalType::TIME_MILLIS
+      | LogicalType::TIME_MICROS
+      | LogicalType::TIMESTAMP_MILLIS
+      | LogicalType::TIMESTAMP_MICROS => SortOrder::SIGNED,
 
       LogicalType::INTERVAL => SortOrder::UNSIGNED,
 
-      LogicalType::LIST |
-      LogicalType::MAP |
-      LogicalType::MAP_KEY_VALUE => SortOrder::UNDEFINED,
+      LogicalType::LIST | LogicalType::MAP | LogicalType::MAP_KEY_VALUE => {
+        SortOrder::UNDEFINED
+      },
 
       // Fall back to physical type.
-      LogicalType::NONE => Self::get_default_sort_order(physical_type)
+      LogicalType::NONE => Self::get_default_sort_order(physical_type),
     }
   }
 
@@ -341,7 +336,7 @@ impl ColumnOrder {
       // When looking for NaN values, min and max should be ignored.
       Type::FLOAT | Type::DOUBLE => SortOrder::SIGNED,
       // unsigned byte-wise comparison
-      Type::BYTE_ARRAY | Type::FIXED_LEN_BYTE_ARRAY => SortOrder::UNSIGNED
+      Type::BYTE_ARRAY | Type::FIXED_LEN_BYTE_ARRAY => SortOrder::UNSIGNED,
     }
   }
 
@@ -349,57 +344,41 @@ impl ColumnOrder {
   pub fn sort_order(&self) -> SortOrder {
     match *self {
       ColumnOrder::TYPE_DEFINED_ORDER(order) => order,
-      ColumnOrder::UNDEFINED => SortOrder::SIGNED
+      ColumnOrder::UNDEFINED => SortOrder::SIGNED,
     }
   }
 }
 
 impl fmt::Display for Type {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self)
-  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:?}", self) }
 }
 
 impl fmt::Display for LogicalType {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self)
-  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:?}", self) }
 }
 
 impl fmt::Display for Repetition {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self)
-  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:?}", self) }
 }
 
 impl fmt::Display for Encoding {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self)
-  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:?}", self) }
 }
 
 impl fmt::Display for Compression {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self)
-  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:?}", self) }
 }
 
 impl fmt::Display for PageType {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self)
-  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:?}", self) }
 }
 
 impl fmt::Display for SortOrder {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self)
-  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:?}", self) }
 }
 
 impl fmt::Display for ColumnOrder {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{:?}", self)
-  }
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:?}", self) }
 }
 
 // ----------------------------------------------------------------------
@@ -415,7 +394,7 @@ impl convert::From<parquet::Type> for Type {
       parquet::Type::FLOAT => Type::FLOAT,
       parquet::Type::DOUBLE => Type::DOUBLE,
       parquet::Type::BYTE_ARRAY => Type::BYTE_ARRAY,
-      parquet::Type::FIXED_LEN_BYTE_ARRAY => Type::FIXED_LEN_BYTE_ARRAY
+      parquet::Type::FIXED_LEN_BYTE_ARRAY => Type::FIXED_LEN_BYTE_ARRAY,
     }
   }
 }
@@ -430,7 +409,7 @@ impl convert::From<Type> for parquet::Type {
       Type::FLOAT => parquet::Type::FLOAT,
       Type::DOUBLE => parquet::Type::DOUBLE,
       Type::BYTE_ARRAY => parquet::Type::BYTE_ARRAY,
-      Type::FIXED_LEN_BYTE_ARRAY => parquet::Type::FIXED_LEN_BYTE_ARRAY
+      Type::FIXED_LEN_BYTE_ARRAY => parquet::Type::FIXED_LEN_BYTE_ARRAY,
     }
   }
 }
@@ -442,32 +421,30 @@ impl convert::From<Option<parquet::ConvertedType>> for LogicalType {
   fn from(option: Option<parquet::ConvertedType>) -> Self {
     match option {
       None => LogicalType::NONE,
-      Some(value) => {
-        match value {
-          parquet::ConvertedType::UTF8 => LogicalType::UTF8,
-          parquet::ConvertedType::MAP => LogicalType::MAP,
-          parquet::ConvertedType::MAP_KEY_VALUE => LogicalType::MAP_KEY_VALUE,
-          parquet::ConvertedType::LIST => LogicalType::LIST,
-          parquet::ConvertedType::ENUM => LogicalType::ENUM,
-          parquet::ConvertedType::DECIMAL => LogicalType::DECIMAL,
-          parquet::ConvertedType::DATE => LogicalType::DATE,
-          parquet::ConvertedType::TIME_MILLIS => LogicalType::TIME_MILLIS,
-          parquet::ConvertedType::TIME_MICROS => LogicalType::TIME_MICROS,
-          parquet::ConvertedType::TIMESTAMP_MILLIS => LogicalType::TIMESTAMP_MILLIS,
-          parquet::ConvertedType::TIMESTAMP_MICROS => LogicalType::TIMESTAMP_MICROS,
-          parquet::ConvertedType::UINT_8 => LogicalType::UINT_8,
-          parquet::ConvertedType::UINT_16 => LogicalType::UINT_16,
-          parquet::ConvertedType::UINT_32 => LogicalType::UINT_32,
-          parquet::ConvertedType::UINT_64 => LogicalType::UINT_64,
-          parquet::ConvertedType::INT_8 => LogicalType::INT_8,
-          parquet::ConvertedType::INT_16 => LogicalType::INT_16,
-          parquet::ConvertedType::INT_32 => LogicalType::INT_32,
-          parquet::ConvertedType::INT_64 => LogicalType::INT_64,
-          parquet::ConvertedType::JSON => LogicalType::JSON,
-          parquet::ConvertedType::BSON => LogicalType::BSON,
-          parquet::ConvertedType::INTERVAL => LogicalType::INTERVAL
-        }
-      }
+      Some(value) => match value {
+        parquet::ConvertedType::UTF8 => LogicalType::UTF8,
+        parquet::ConvertedType::MAP => LogicalType::MAP,
+        parquet::ConvertedType::MAP_KEY_VALUE => LogicalType::MAP_KEY_VALUE,
+        parquet::ConvertedType::LIST => LogicalType::LIST,
+        parquet::ConvertedType::ENUM => LogicalType::ENUM,
+        parquet::ConvertedType::DECIMAL => LogicalType::DECIMAL,
+        parquet::ConvertedType::DATE => LogicalType::DATE,
+        parquet::ConvertedType::TIME_MILLIS => LogicalType::TIME_MILLIS,
+        parquet::ConvertedType::TIME_MICROS => LogicalType::TIME_MICROS,
+        parquet::ConvertedType::TIMESTAMP_MILLIS => LogicalType::TIMESTAMP_MILLIS,
+        parquet::ConvertedType::TIMESTAMP_MICROS => LogicalType::TIMESTAMP_MICROS,
+        parquet::ConvertedType::UINT_8 => LogicalType::UINT_8,
+        parquet::ConvertedType::UINT_16 => LogicalType::UINT_16,
+        parquet::ConvertedType::UINT_32 => LogicalType::UINT_32,
+        parquet::ConvertedType::UINT_64 => LogicalType::UINT_64,
+        parquet::ConvertedType::INT_8 => LogicalType::INT_8,
+        parquet::ConvertedType::INT_16 => LogicalType::INT_16,
+        parquet::ConvertedType::INT_32 => LogicalType::INT_32,
+        parquet::ConvertedType::INT_64 => LogicalType::INT_64,
+        parquet::ConvertedType::JSON => LogicalType::JSON,
+        parquet::ConvertedType::BSON => LogicalType::BSON,
+        parquet::ConvertedType::INTERVAL => LogicalType::INTERVAL,
+      },
     }
   }
 }
@@ -497,7 +474,7 @@ impl convert::From<LogicalType> for Option<parquet::ConvertedType> {
       LogicalType::INT_64 => Some(parquet::ConvertedType::INT_64),
       LogicalType::JSON => Some(parquet::ConvertedType::JSON),
       LogicalType::BSON => Some(parquet::ConvertedType::BSON),
-      LogicalType::INTERVAL => Some(parquet::ConvertedType::INTERVAL)
+      LogicalType::INTERVAL => Some(parquet::ConvertedType::INTERVAL),
     }
   }
 }
@@ -510,7 +487,7 @@ impl convert::From<parquet::FieldRepetitionType> for Repetition {
     match value {
       parquet::FieldRepetitionType::REQUIRED => Repetition::REQUIRED,
       parquet::FieldRepetitionType::OPTIONAL => Repetition::OPTIONAL,
-      parquet::FieldRepetitionType::REPEATED => Repetition::REPEATED
+      parquet::FieldRepetitionType::REPEATED => Repetition::REPEATED,
     }
   }
 }
@@ -520,7 +497,7 @@ impl convert::From<Repetition> for parquet::FieldRepetitionType {
     match value {
       Repetition::REQUIRED => parquet::FieldRepetitionType::REQUIRED,
       Repetition::OPTIONAL => parquet::FieldRepetitionType::OPTIONAL,
-      Repetition::REPEATED => parquet::FieldRepetitionType::REPEATED
+      Repetition::REPEATED => parquet::FieldRepetitionType::REPEATED,
     }
   }
 }
@@ -538,7 +515,7 @@ impl convert::From<parquet::Encoding> for Encoding {
       parquet::Encoding::DELTA_BINARY_PACKED => Encoding::DELTA_BINARY_PACKED,
       parquet::Encoding::DELTA_LENGTH_BYTE_ARRAY => Encoding::DELTA_LENGTH_BYTE_ARRAY,
       parquet::Encoding::DELTA_BYTE_ARRAY => Encoding::DELTA_BYTE_ARRAY,
-      parquet::Encoding::RLE_DICTIONARY => Encoding::RLE_DICTIONARY
+      parquet::Encoding::RLE_DICTIONARY => Encoding::RLE_DICTIONARY,
     }
   }
 }
@@ -553,7 +530,7 @@ impl convert::From<Encoding> for parquet::Encoding {
       Encoding::DELTA_BINARY_PACKED => parquet::Encoding::DELTA_BINARY_PACKED,
       Encoding::DELTA_LENGTH_BYTE_ARRAY => parquet::Encoding::DELTA_LENGTH_BYTE_ARRAY,
       Encoding::DELTA_BYTE_ARRAY => parquet::Encoding::DELTA_BYTE_ARRAY,
-      Encoding::RLE_DICTIONARY => parquet::Encoding::RLE_DICTIONARY
+      Encoding::RLE_DICTIONARY => parquet::Encoding::RLE_DICTIONARY,
     }
   }
 }
@@ -570,7 +547,7 @@ impl convert::From<parquet::CompressionCodec> for Compression {
       parquet::CompressionCodec::LZO => Compression::LZO,
       parquet::CompressionCodec::BROTLI => Compression::BROTLI,
       parquet::CompressionCodec::LZ4 => Compression::LZ4,
-      parquet::CompressionCodec::ZSTD => Compression::ZSTD
+      parquet::CompressionCodec::ZSTD => Compression::ZSTD,
     }
   }
 }
@@ -584,7 +561,7 @@ impl convert::From<Compression> for parquet::CompressionCodec {
       Compression::LZO => parquet::CompressionCodec::LZO,
       Compression::BROTLI => parquet::CompressionCodec::BROTLI,
       Compression::LZ4 => parquet::CompressionCodec::LZ4,
-      Compression::ZSTD => parquet::CompressionCodec::ZSTD
+      Compression::ZSTD => parquet::CompressionCodec::ZSTD,
     }
   }
 }
@@ -598,7 +575,7 @@ impl convert::From<parquet::PageType> for PageType {
       parquet::PageType::DATA_PAGE => PageType::DATA_PAGE,
       parquet::PageType::INDEX_PAGE => PageType::INDEX_PAGE,
       parquet::PageType::DICTIONARY_PAGE => PageType::DICTIONARY_PAGE,
-      parquet::PageType::DATA_PAGE_V2 => PageType::DATA_PAGE_V2
+      parquet::PageType::DATA_PAGE_V2 => PageType::DATA_PAGE_V2,
     }
   }
 }
@@ -609,7 +586,7 @@ impl convert::From<PageType> for parquet::PageType {
       PageType::DATA_PAGE => parquet::PageType::DATA_PAGE,
       PageType::INDEX_PAGE => parquet::PageType::INDEX_PAGE,
       PageType::DICTIONARY_PAGE => parquet::PageType::DICTIONARY_PAGE,
-      PageType::DATA_PAGE_V2 => parquet::PageType::DATA_PAGE_V2
+      PageType::DATA_PAGE_V2 => parquet::PageType::DATA_PAGE_V2,
     }
   }
 }
@@ -619,6 +596,7 @@ impl convert::From<PageType> for parquet::PageType {
 
 impl str::FromStr for Repetition {
   type Err = ParquetError;
+
   fn from_str(s: &str) -> result::Result<Self, Self::Err> {
     match s {
       "REQUIRED" => Ok(Repetition::REQUIRED),
@@ -631,6 +609,7 @@ impl str::FromStr for Repetition {
 
 impl str::FromStr for Type {
   type Err = ParquetError;
+
   fn from_str(s: &str) -> result::Result<Self, Self::Err> {
     match s {
       "BOOLEAN" => Ok(Type::BOOLEAN),
@@ -648,6 +627,7 @@ impl str::FromStr for Type {
 
 impl str::FromStr for LogicalType {
   type Err = ParquetError;
+
   fn from_str(s: &str) -> result::Result<Self, Self::Err> {
     match s {
       "NONE" => Ok(LogicalType::NONE),
@@ -678,7 +658,6 @@ impl str::FromStr for LogicalType {
   }
 }
 
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -692,7 +671,10 @@ mod tests {
     assert_eq!(Type::FLOAT.to_string(), "FLOAT");
     assert_eq!(Type::DOUBLE.to_string(), "DOUBLE");
     assert_eq!(Type::BYTE_ARRAY.to_string(), "BYTE_ARRAY");
-    assert_eq!(Type::FIXED_LEN_BYTE_ARRAY.to_string(), "FIXED_LEN_BYTE_ARRAY");
+    assert_eq!(
+      Type::FIXED_LEN_BYTE_ARRAY.to_string(),
+      "FIXED_LEN_BYTE_ARRAY"
+    );
   }
 
   #[test]
@@ -719,21 +701,48 @@ mod tests {
     assert_eq!(parquet::Type::FLOAT, Type::FLOAT.into());
     assert_eq!(parquet::Type::DOUBLE, Type::DOUBLE.into());
     assert_eq!(parquet::Type::BYTE_ARRAY, Type::BYTE_ARRAY.into());
-    assert_eq!(parquet::Type::FIXED_LEN_BYTE_ARRAY, Type::FIXED_LEN_BYTE_ARRAY.into());
+    assert_eq!(
+      parquet::Type::FIXED_LEN_BYTE_ARRAY,
+      Type::FIXED_LEN_BYTE_ARRAY.into()
+    );
   }
 
   #[test]
   fn test_from_string_into_type() {
-    assert_eq!(Type::BOOLEAN.to_string().parse::<Type>().unwrap(), Type::BOOLEAN);
-    assert_eq!(Type::INT32.to_string().parse::<Type>().unwrap(), Type::INT32);
-    assert_eq!(Type::INT64.to_string().parse::<Type>().unwrap(), Type::INT64);
-    assert_eq!(Type::INT96.to_string().parse::<Type>().unwrap(), Type::INT96);
-    assert_eq!(Type::FLOAT.to_string().parse::<Type>().unwrap(), Type::FLOAT);
-    assert_eq!(Type::DOUBLE.to_string().parse::<Type>().unwrap(), Type::DOUBLE);
-    assert_eq!(Type::BYTE_ARRAY.to_string().parse::<Type>().unwrap(), Type::BYTE_ARRAY);
+    assert_eq!(
+      Type::BOOLEAN.to_string().parse::<Type>().unwrap(),
+      Type::BOOLEAN
+    );
+    assert_eq!(
+      Type::INT32.to_string().parse::<Type>().unwrap(),
+      Type::INT32
+    );
+    assert_eq!(
+      Type::INT64.to_string().parse::<Type>().unwrap(),
+      Type::INT64
+    );
+    assert_eq!(
+      Type::INT96.to_string().parse::<Type>().unwrap(),
+      Type::INT96
+    );
+    assert_eq!(
+      Type::FLOAT.to_string().parse::<Type>().unwrap(),
+      Type::FLOAT
+    );
+    assert_eq!(
+      Type::DOUBLE.to_string().parse::<Type>().unwrap(),
+      Type::DOUBLE
+    );
+    assert_eq!(
+      Type::BYTE_ARRAY.to_string().parse::<Type>().unwrap(),
+      Type::BYTE_ARRAY
+    );
     assert_eq!("BINARY".parse::<Type>().unwrap(), Type::BYTE_ARRAY);
     assert_eq!(
-      Type::FIXED_LEN_BYTE_ARRAY.to_string().parse::<Type>().unwrap(),
+      Type::FIXED_LEN_BYTE_ARRAY
+        .to_string()
+        .parse::<Type>()
+        .unwrap(),
       Type::FIXED_LEN_BYTE_ARRAY
     );
   }
@@ -751,8 +760,14 @@ mod tests {
     assert_eq!(LogicalType::TIME_MILLIS.to_string(), "TIME_MILLIS");
     assert_eq!(LogicalType::DATE.to_string(), "DATE");
     assert_eq!(LogicalType::TIME_MICROS.to_string(), "TIME_MICROS");
-    assert_eq!(LogicalType::TIMESTAMP_MILLIS.to_string(), "TIMESTAMP_MILLIS");
-    assert_eq!(LogicalType::TIMESTAMP_MICROS.to_string(), "TIMESTAMP_MICROS");
+    assert_eq!(
+      LogicalType::TIMESTAMP_MILLIS.to_string(),
+      "TIMESTAMP_MILLIS"
+    );
+    assert_eq!(
+      LogicalType::TIMESTAMP_MICROS.to_string(),
+      "TIMESTAMP_MICROS"
+    );
     assert_eq!(LogicalType::UINT_8.to_string(), "UINT_8");
     assert_eq!(LogicalType::UINT_16.to_string(), "UINT_16");
     assert_eq!(LogicalType::UINT_32.to_string(), "UINT_32");
@@ -766,12 +781,9 @@ mod tests {
     assert_eq!(LogicalType::INTERVAL.to_string(), "INTERVAL");
   }
 
-    #[test]
+  #[test]
   fn test_from_logical_type() {
-    assert_eq!(
-      LogicalType::from(None),
-      LogicalType::NONE
-    );
+    assert_eq!(LogicalType::from(None), LogicalType::NONE);
     assert_eq!(
       LogicalType::from(Some(parquet::ConvertedType::UTF8)),
       LogicalType::UTF8
@@ -866,34 +878,19 @@ mod tests {
   fn test_into_logical_type() {
     let converted_type: Option<parquet::ConvertedType> = None;
     assert_eq!(converted_type, LogicalType::NONE.into());
-    assert_eq!(
-      Some(parquet::ConvertedType::UTF8),
-      LogicalType::UTF8.into()
-    );
-    assert_eq!(
-      Some(parquet::ConvertedType::MAP),
-      LogicalType::MAP.into()
-    );
+    assert_eq!(Some(parquet::ConvertedType::UTF8), LogicalType::UTF8.into());
+    assert_eq!(Some(parquet::ConvertedType::MAP), LogicalType::MAP.into());
     assert_eq!(
       Some(parquet::ConvertedType::MAP_KEY_VALUE),
       LogicalType::MAP_KEY_VALUE.into()
     );
-    assert_eq!(
-      Some(parquet::ConvertedType::LIST),
-      LogicalType::LIST.into()
-    );
-    assert_eq!(
-      Some(parquet::ConvertedType::ENUM),
-      LogicalType::ENUM.into()
-    );
+    assert_eq!(Some(parquet::ConvertedType::LIST), LogicalType::LIST.into());
+    assert_eq!(Some(parquet::ConvertedType::ENUM), LogicalType::ENUM.into());
     assert_eq!(
       Some(parquet::ConvertedType::DECIMAL),
       LogicalType::DECIMAL.into()
     );
-    assert_eq!(
-      Some(parquet::ConvertedType::DATE),
-      LogicalType::DATE.into()
-    );
+    assert_eq!(Some(parquet::ConvertedType::DATE), LogicalType::DATE.into());
     assert_eq!(
       Some(parquet::ConvertedType::TIME_MILLIS),
       LogicalType::TIME_MILLIS.into()
@@ -942,14 +939,8 @@ mod tests {
       Some(parquet::ConvertedType::INT_64),
       LogicalType::INT_64.into()
     );
-    assert_eq!(
-      Some(parquet::ConvertedType::JSON),
-      LogicalType::JSON.into()
-    );
-    assert_eq!(
-      Some(parquet::ConvertedType::BSON),
-      LogicalType::BSON.into()
-    );
+    assert_eq!(Some(parquet::ConvertedType::JSON), LogicalType::JSON.into());
+    assert_eq!(Some(parquet::ConvertedType::BSON), LogicalType::BSON.into());
     assert_eq!(
       Some(parquet::ConvertedType::INTERVAL),
       LogicalType::INTERVAL.into()
@@ -959,11 +950,17 @@ mod tests {
   #[test]
   fn test_from_string_into_logical_type() {
     assert_eq!(
-      LogicalType::NONE.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::NONE
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::NONE
     );
     assert_eq!(
-      LogicalType::UTF8.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::UTF8
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::UTF8
     );
     assert_eq!(
@@ -971,83 +968,143 @@ mod tests {
       LogicalType::MAP
     );
     assert_eq!(
-      LogicalType::MAP_KEY_VALUE.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::MAP_KEY_VALUE
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::MAP_KEY_VALUE
     );
     assert_eq!(
-      LogicalType::LIST.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::LIST
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::LIST
     );
     assert_eq!(
-      LogicalType::ENUM.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::ENUM
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::ENUM
     );
     assert_eq!(
-      LogicalType::DECIMAL.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::DECIMAL
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::DECIMAL
     );
     assert_eq!(
-      LogicalType::DATE.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::DATE
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::DATE
     );
     assert_eq!(
-      LogicalType::TIME_MILLIS.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::TIME_MILLIS
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::TIME_MILLIS
     );
     assert_eq!(
-      LogicalType::TIME_MICROS.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::TIME_MICROS
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::TIME_MICROS
     );
     assert_eq!(
-      LogicalType::TIMESTAMP_MILLIS.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::TIMESTAMP_MILLIS
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::TIMESTAMP_MILLIS
     );
     assert_eq!(
-      LogicalType::TIMESTAMP_MICROS.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::TIMESTAMP_MICROS
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::TIMESTAMP_MICROS
     );
     assert_eq!(
-      LogicalType::UINT_8.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::UINT_8
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::UINT_8
     );
     assert_eq!(
-      LogicalType::UINT_16.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::UINT_16
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::UINT_16
     );
     assert_eq!(
-      LogicalType::UINT_32.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::UINT_32
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::UINT_32
     );
     assert_eq!(
-      LogicalType::UINT_64.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::UINT_64
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::UINT_64
     );
     assert_eq!(
-      LogicalType::INT_8.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::INT_8
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::INT_8
     );
     assert_eq!(
-      LogicalType::INT_16.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::INT_16
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::INT_16
     );
     assert_eq!(
-      LogicalType::INT_32.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::INT_32
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::INT_32
     );
     assert_eq!(
-      LogicalType::INT_64.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::INT_64
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::INT_64
     );
     assert_eq!(
-      LogicalType::JSON.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::JSON
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::JSON
     );
     assert_eq!(
-      LogicalType::BSON.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::BSON
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::BSON
     );
     assert_eq!(
-      LogicalType::INTERVAL.to_string().parse::<LogicalType>().unwrap(),
+      LogicalType::INTERVAL
+        .to_string()
+        .parse::<LogicalType>()
+        .unwrap(),
       LogicalType::INTERVAL
     );
   }
@@ -1094,15 +1151,24 @@ mod tests {
   #[test]
   fn test_from_string_into_repetition() {
     assert_eq!(
-      Repetition::REQUIRED.to_string().parse::<Repetition>().unwrap(),
+      Repetition::REQUIRED
+        .to_string()
+        .parse::<Repetition>()
+        .unwrap(),
       Repetition::REQUIRED
     );
     assert_eq!(
-      Repetition::OPTIONAL.to_string().parse::<Repetition>().unwrap(),
+      Repetition::OPTIONAL
+        .to_string()
+        .parse::<Repetition>()
+        .unwrap(),
       Repetition::OPTIONAL
     );
     assert_eq!(
-      Repetition::REPEATED.to_string().parse::<Repetition>().unwrap(),
+      Repetition::REPEATED
+        .to_string()
+        .parse::<Repetition>()
+        .unwrap(),
       Repetition::REPEATED
     );
   }
@@ -1113,26 +1179,26 @@ mod tests {
     assert_eq!(Encoding::PLAIN_DICTIONARY.to_string(), "PLAIN_DICTIONARY");
     assert_eq!(Encoding::RLE.to_string(), "RLE");
     assert_eq!(Encoding::BIT_PACKED.to_string(), "BIT_PACKED");
-    assert_eq!(Encoding::DELTA_BINARY_PACKED.to_string(), "DELTA_BINARY_PACKED");
-    assert_eq!(Encoding::DELTA_LENGTH_BYTE_ARRAY.to_string(), "DELTA_LENGTH_BYTE_ARRAY");
+    assert_eq!(
+      Encoding::DELTA_BINARY_PACKED.to_string(),
+      "DELTA_BINARY_PACKED"
+    );
+    assert_eq!(
+      Encoding::DELTA_LENGTH_BYTE_ARRAY.to_string(),
+      "DELTA_LENGTH_BYTE_ARRAY"
+    );
     assert_eq!(Encoding::DELTA_BYTE_ARRAY.to_string(), "DELTA_BYTE_ARRAY");
     assert_eq!(Encoding::RLE_DICTIONARY.to_string(), "RLE_DICTIONARY");
   }
 
   #[test]
   fn test_from_encoding() {
-    assert_eq!(
-      Encoding::from(parquet::Encoding::PLAIN),
-      Encoding::PLAIN
-    );
+    assert_eq!(Encoding::from(parquet::Encoding::PLAIN), Encoding::PLAIN);
     assert_eq!(
       Encoding::from(parquet::Encoding::PLAIN_DICTIONARY),
       Encoding::PLAIN_DICTIONARY
     );
-    assert_eq!(
-      Encoding::from(parquet::Encoding::RLE),
-      Encoding::RLE
-    );
+    assert_eq!(Encoding::from(parquet::Encoding::RLE), Encoding::RLE);
     assert_eq!(
       Encoding::from(parquet::Encoding::BIT_PACKED),
       Encoding::BIT_PACKED
@@ -1153,22 +1219,13 @@ mod tests {
 
   #[test]
   fn test_into_encoding() {
-    assert_eq!(
-      parquet::Encoding::PLAIN,
-      Encoding::PLAIN.into()
-    );
+    assert_eq!(parquet::Encoding::PLAIN, Encoding::PLAIN.into());
     assert_eq!(
       parquet::Encoding::PLAIN_DICTIONARY,
       Encoding::PLAIN_DICTIONARY.into()
     );
-    assert_eq!(
-      parquet::Encoding::RLE,
-      Encoding::RLE.into()
-    );
-    assert_eq!(
-      parquet::Encoding::BIT_PACKED,
-      Encoding::BIT_PACKED.into()
-    );
+    assert_eq!(parquet::Encoding::RLE, Encoding::RLE.into());
+    assert_eq!(parquet::Encoding::BIT_PACKED, Encoding::BIT_PACKED.into());
     assert_eq!(
       parquet::Encoding::DELTA_BINARY_PACKED,
       Encoding::DELTA_BINARY_PACKED.into()
@@ -1236,26 +1293,14 @@ mod tests {
       parquet::CompressionCodec::SNAPPY,
       Compression::SNAPPY.into()
     );
-    assert_eq!(
-      parquet::CompressionCodec::GZIP,
-      Compression::GZIP.into()
-    );
-    assert_eq!(
-      parquet::CompressionCodec::LZO,
-      Compression::LZO.into()
-    );
+    assert_eq!(parquet::CompressionCodec::GZIP, Compression::GZIP.into());
+    assert_eq!(parquet::CompressionCodec::LZO, Compression::LZO.into());
     assert_eq!(
       parquet::CompressionCodec::BROTLI,
       Compression::BROTLI.into()
     );
-    assert_eq!(
-      parquet::CompressionCodec::LZ4,
-      Compression::LZ4.into()
-    );
-    assert_eq!(
-      parquet::CompressionCodec::ZSTD,
-      Compression::ZSTD.into()
-    );
+    assert_eq!(parquet::CompressionCodec::LZ4, Compression::LZ4.into());
+    assert_eq!(parquet::CompressionCodec::ZSTD, Compression::ZSTD.into());
   }
 
   #[test]
@@ -1268,21 +1313,36 @@ mod tests {
 
   #[test]
   fn test_from_page_type() {
-    assert_eq!(PageType::from(parquet::PageType::DATA_PAGE), PageType::DATA_PAGE);
-    assert_eq!(PageType::from(parquet::PageType::INDEX_PAGE), PageType::INDEX_PAGE);
+    assert_eq!(
+      PageType::from(parquet::PageType::DATA_PAGE),
+      PageType::DATA_PAGE
+    );
+    assert_eq!(
+      PageType::from(parquet::PageType::INDEX_PAGE),
+      PageType::INDEX_PAGE
+    );
     assert_eq!(
       PageType::from(parquet::PageType::DICTIONARY_PAGE),
       PageType::DICTIONARY_PAGE
     );
-    assert_eq!(PageType::from(parquet::PageType::DATA_PAGE_V2), PageType::DATA_PAGE_V2);
+    assert_eq!(
+      PageType::from(parquet::PageType::DATA_PAGE_V2),
+      PageType::DATA_PAGE_V2
+    );
   }
 
   #[test]
   fn test_into_page_type() {
     assert_eq!(parquet::PageType::DATA_PAGE, PageType::DATA_PAGE.into());
     assert_eq!(parquet::PageType::INDEX_PAGE, PageType::INDEX_PAGE.into());
-    assert_eq!(parquet::PageType::DICTIONARY_PAGE, PageType::DICTIONARY_PAGE.into());
-    assert_eq!(parquet::PageType::DATA_PAGE_V2, PageType::DATA_PAGE_V2.into());
+    assert_eq!(
+      parquet::PageType::DICTIONARY_PAGE,
+      PageType::DICTIONARY_PAGE.into()
+    );
+    assert_eq!(
+      parquet::PageType::DATA_PAGE_V2,
+      PageType::DATA_PAGE_V2.into()
+    );
   }
 
   #[test]
@@ -1332,7 +1392,7 @@ mod tests {
       LogicalType::UINT_16,
       LogicalType::UINT_32,
       LogicalType::UINT_64,
-      LogicalType::INTERVAL
+      LogicalType::INTERVAL,
     ];
     check_sort_order(unsigned, SortOrder::UNSIGNED);
 
@@ -1347,7 +1407,7 @@ mod tests {
       LogicalType::TIME_MILLIS,
       LogicalType::TIME_MICROS,
       LogicalType::TIMESTAMP_MILLIS,
-      LogicalType::TIMESTAMP_MICROS
+      LogicalType::TIMESTAMP_MICROS,
     ];
     check_sort_order(signed, SortOrder::SIGNED);
 
@@ -1355,7 +1415,7 @@ mod tests {
     let undefined = vec![
       LogicalType::LIST,
       LogicalType::MAP,
-      LogicalType::MAP_KEY_VALUE
+      LogicalType::MAP_KEY_VALUE,
     ];
     check_sort_order(undefined, SortOrder::UNDEFINED);
 
@@ -1367,12 +1427,30 @@ mod tests {
   #[test]
   fn test_column_order_get_default_sort_order() {
     // Comparison based on physical type
-    assert_eq!(ColumnOrder::get_default_sort_order(Type::BOOLEAN), SortOrder::UNSIGNED);
-    assert_eq!(ColumnOrder::get_default_sort_order(Type::INT32), SortOrder::SIGNED);
-    assert_eq!(ColumnOrder::get_default_sort_order(Type::INT64), SortOrder::SIGNED);
-    assert_eq!(ColumnOrder::get_default_sort_order(Type::INT96), SortOrder::UNDEFINED);
-    assert_eq!(ColumnOrder::get_default_sort_order(Type::FLOAT), SortOrder::SIGNED);
-    assert_eq!(ColumnOrder::get_default_sort_order(Type::DOUBLE), SortOrder::SIGNED);
+    assert_eq!(
+      ColumnOrder::get_default_sort_order(Type::BOOLEAN),
+      SortOrder::UNSIGNED
+    );
+    assert_eq!(
+      ColumnOrder::get_default_sort_order(Type::INT32),
+      SortOrder::SIGNED
+    );
+    assert_eq!(
+      ColumnOrder::get_default_sort_order(Type::INT64),
+      SortOrder::SIGNED
+    );
+    assert_eq!(
+      ColumnOrder::get_default_sort_order(Type::INT96),
+      SortOrder::UNDEFINED
+    );
+    assert_eq!(
+      ColumnOrder::get_default_sort_order(Type::FLOAT),
+      SortOrder::SIGNED
+    );
+    assert_eq!(
+      ColumnOrder::get_default_sort_order(Type::DOUBLE),
+      SortOrder::SIGNED
+    );
     assert_eq!(
       ColumnOrder::get_default_sort_order(Type::BYTE_ARRAY),
       SortOrder::UNSIGNED
@@ -1397,9 +1475,6 @@ mod tests {
       ColumnOrder::TYPE_DEFINED_ORDER(SortOrder::UNDEFINED).sort_order(),
       SortOrder::UNDEFINED
     );
-    assert_eq!(
-      ColumnOrder::UNDEFINED.sort_order(),
-      SortOrder::SIGNED
-    );
+    assert_eq!(ColumnOrder::UNDEFINED.sort_order(), SortOrder::SIGNED);
   }
 }

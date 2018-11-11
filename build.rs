@@ -37,11 +37,7 @@ fn run(command: &mut Command) -> Result<String, String> {
     Ok(ref output) if output.status.success() => {
       Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     },
-    Ok(ref output) => {
-      Err(format!("Failed: `{:?}` ({})", command, output.status))
-    },
-    Err(error) => {
-      Err(format!("Failed: `{:?}` ({})", command, error))
-    }
+    Ok(ref output) => Err(format!("Failed: `{:?}` ({})", command, output.status)),
+    Err(error) => Err(format!("Failed: `{:?}` ({})", command, error)),
   }
 }

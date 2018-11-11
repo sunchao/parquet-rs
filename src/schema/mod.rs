@@ -20,10 +20,11 @@
 //! # Example
 //!
 //! ```rust
+//! use parquet::{
+//!   basic::{LogicalType, Repetition, Type as PhysicalType},
+//!   schema::{parser, printer, types::Type},
+//! };
 //! use std::rc::Rc;
-//! use parquet::basic::{Type as PhysicalType, LogicalType, Repetition};
-//! use parquet::schema::{parser, printer};
-//! use parquet::schema::types::Type;
 //!
 //! // Create the following schema:
 //! //
@@ -60,6 +61,6 @@
 //! assert_eq!(schema, parsed_schema);
 //! ```
 
-pub mod types;
-pub mod printer;
 pub mod parser;
+pub mod printer;
+pub mod types;

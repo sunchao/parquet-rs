@@ -18,28 +18,30 @@
 //! Contains file reader API and provides methods to access file metadata, row group
 //! readers to read individual column chunks, or access record iterator.
 
-use std::convert::TryFrom;
-use std::fs::File;
-use std::io::{BufReader, Cursor, Read, Seek, SeekFrom};
-use std::path::Path;
-use std::rc::Rc;
+use std::{
+  convert::TryFrom,
+  fs::File,
+  io::{BufReader, Cursor, Read, Seek, SeekFrom},
+  path::Path,
+  rc::Rc,
+};
 
 use basic::{ColumnOrder, Compression, Encoding, Type};
-use byteorder::{LittleEndian, ByteOrder};
-use column::page::{Page, PageReader};
-use column::reader::{ColumnReader, ColumnReaderImpl};
+use byteorder::{ByteOrder, LittleEndian};
+use column::{
+  page::{Page, PageReader},
+  reader::{ColumnReader, ColumnReaderImpl},
+};
 use compression::{create_codec, Codec};
 use errors::{ParquetError, Result};
-use file::{FOOTER_SIZE, PARQUET_MAGIC};
-use file::metadata::*;
-use file::statistics;
-use parquet_format::{ColumnOrder as TColumnOrder, FileMetaData as TFileMetaData};
-use parquet_format::{PageType, PageHeader};
+use file::{metadata::*, statistics, FOOTER_SIZE, PARQUET_MAGIC};
+use parquet_format::{
+  ColumnOrder as TColumnOrder, FileMetaData as TFileMetaData, PageHeader, PageType,
+};
 use record::reader::RowIter;
 use schema::types::{self, SchemaDescriptor, Type as SchemaType};
 use thrift::protocol::TCompactInputProtocol;
-use util::io::FileSource;
-use util::memory::ByteBufferPtr;
+use util::{io::FileSource, memory::ByteBufferPtr};
 
 // ----------------------------------------------------------------------
 // APIs for file & row group readers
@@ -92,7 +94,7 @@ pub trait RowGroupReader {
 
 /// Length should return the amount of bytes that implementor contains.
 /// It's mainly used to read the metadata, which is at the end of the source.
-pub trait Length  {
+pub trait Length {
   /// Returns the amount of bytes of the inner source.
   fn len(&self) -> u64;
 }
@@ -106,29 +108,19 @@ pub trait TryClone: Sized {
 }
 
 impl Length for File {
-  fn len(&self) -> u64 {
-    self.metadata()
-        .map(|m| m.len())
-        .unwrap_or(0u64)
-  }
+  fn len(&self) -> u64 { self.metadata().map(|m| m.len()).unwrap_or(0u64) }
 }
 
 impl TryClone for File {
-  fn try_clone(&self) -> Result<Self> {
-    self.try_clone().map_err(|e| e.into())
-  }
+  fn try_clone(&self) -> Result<Self> { self.try_clone().map_err(|e| e.into()) }
 }
 
 impl<'a> Length for Cursor<&'a [u8]> {
-  fn len(&self) -> u64 {
-    self.get_ref().len() as u64
-  }
+  fn len(&self) -> u64 { self.get_ref().len() as u64 }
 }
 
 impl<'a> TryClone for Cursor<&'a [u8]> {
-  fn try_clone(&self) -> Result<Self> {
-    Ok(self.clone())
-  }
+  fn try_clone(&self) -> Result<Self> { Ok(self.clone()) }
 }
 
 /// ParquetReader is the interface which needs to be fulfilled to be able to parse a
@@ -139,7 +131,7 @@ impl<T: Read + Seek + Length + TryClone> ParquetReader for T {}
 /// A serialized implementation for Parquet [`FileReader`].
 pub struct SerializedFileReader<R: ParquetReader> {
   buf: BufReader<R>,
-  metadata: ParquetMetaDataPtr
+  metadata: ParquetMetaDataPtr,
 }
 
 impl<R: ParquetReader> SerializedFileReader<R> {
@@ -148,7 +140,10 @@ impl<R: ParquetReader> SerializedFileReader<R> {
   pub fn new(reader: R) -> Result<Self> {
     let mut buf = BufReader::new(reader);
     let metadata = Self::parse_metadata(&mut buf)?;
-    Ok(Self { buf: buf, metadata: Rc::new(metadata) })
+    Ok(Self {
+      buf,
+      metadata: Rc::new(metadata),
+    })
   }
 
   // Layout of Parquet file
@@ -160,7 +155,9 @@ impl<R: ParquetReader> SerializedFileReader<R> {
   fn parse_metadata(buf: &mut BufReader<R>) -> Result<ParquetMetaData> {
     let file_size = buf.get_ref().len();
     if file_size < (FOOTER_SIZE as u64) {
-      return Err(general_err!("Invalid Parquet file. Size is smaller than footer"));
+      return Err(general_err!(
+        "Invalid Parquet file. Size is smaller than footer"
+      ));
     }
     let mut footer_buffer: [u8; FOOTER_SIZE] = [0; FOOTER_SIZE];
     buf.seek(SeekFrom::End(-(FOOTER_SIZE as i64)))?;
@@ -194,7 +191,10 @@ impl<R: ParquetReader> SerializedFileReader<R> {
     let schema_descr = Rc::new(SchemaDescriptor::new(schema.clone()));
     let mut row_groups = Vec::new();
     for rg in t_file_metadata.row_groups {
-      row_groups.push(Rc::new(RowGroupMetaData::from_thrift(schema_descr.clone(), rg)?));
+      row_groups.push(Rc::new(RowGroupMetaData::from_thrift(
+        schema_descr.clone(),
+        rg,
+      )?));
     }
     let column_orders =
       Self::parse_column_orders(t_file_metadata.column_orders, &schema_descr);
@@ -205,7 +205,7 @@ impl<R: ParquetReader> SerializedFileReader<R> {
       t_file_metadata.created_by,
       schema,
       schema_descr,
-      column_orders
+      column_orders,
     );
     Ok(ParquetMetaData::new(file_metadata, row_groups))
   }
@@ -214,46 +214,49 @@ impl<R: ParquetReader> SerializedFileReader<R> {
   /// If no column orders are defined, returns `None`.
   fn parse_column_orders(
     t_column_orders: Option<Vec<TColumnOrder>>,
-    schema_descr: &SchemaDescriptor
-  ) -> Option<Vec<ColumnOrder>> {
+    schema_descr: &SchemaDescriptor,
+  ) -> Option<Vec<ColumnOrder>>
+  {
     match t_column_orders {
       Some(orders) => {
         // Should always be the case
-        assert_eq!(orders.len(), schema_descr.num_columns(),
-          "Column order length mismatch");
+        assert_eq!(
+          orders.len(),
+          schema_descr.num_columns(),
+          "Column order length mismatch"
+        );
         let mut res = Vec::new();
         for (i, column) in schema_descr.columns().iter().enumerate() {
           match orders[i] {
             TColumnOrder::TYPEORDER(_) => {
               let sort_order = ColumnOrder::get_sort_order(
                 column.logical_type(),
-                column.physical_type()
+                column.physical_type(),
               );
               res.push(ColumnOrder::TYPE_DEFINED_ORDER(sort_order));
-            }
+            },
           }
         }
         Some(res)
       },
-      None => None
+      None => None,
     }
   }
 }
 
 impl<R: 'static + ParquetReader> FileReader for SerializedFileReader<R> {
-  fn metadata(&self) -> ParquetMetaDataPtr {
-    self.metadata.clone()
-  }
+  fn metadata(&self) -> ParquetMetaDataPtr { self.metadata.clone() }
 
-  fn num_row_groups(&self) -> usize {
-    self.metadata.num_row_groups()
-  }
+  fn num_row_groups(&self) -> usize { self.metadata.num_row_groups() }
 
   fn get_row_group(&self, i: usize) -> Result<Box<RowGroupReader>> {
     let row_group_metadata = self.metadata.row_group(i);
     // Row groups should be processed sequentially.
     let f = self.buf.get_ref().try_clone()?;
-    Ok(Box::new(SerializedRowGroupReader::new(f, row_group_metadata)))
+    Ok(Box::new(SerializedRowGroupReader::new(
+      f,
+      row_group_metadata,
+    )))
   }
 
   fn get_row_iter(&self, projection: Option<SchemaType>) -> Result<RowIter> {
@@ -264,9 +267,7 @@ impl<R: 'static + ParquetReader> FileReader for SerializedFileReader<R> {
 impl TryFrom<File> for SerializedFileReader<File> {
   type Error = ParquetError;
 
-  fn try_from(file: File) -> Result<Self> {
-    Self::new(file)
-  }
+  fn try_from(file: File) -> Result<Self> { Self::new(file) }
 }
 
 impl<'a> TryFrom<&'a Path> for SerializedFileReader<File> {
@@ -281,23 +282,19 @@ impl<'a> TryFrom<&'a Path> for SerializedFileReader<File> {
 impl TryFrom<String> for SerializedFileReader<File> {
   type Error = ParquetError;
 
-  fn try_from(path: String) -> Result<Self> {
-    Self::try_from(Path::new(&path))
-  }
+  fn try_from(path: String) -> Result<Self> { Self::try_from(Path::new(&path)) }
 }
 
 impl<'a> TryFrom<&'a str> for SerializedFileReader<File> {
   type Error = ParquetError;
 
-  fn try_from(path: &str) -> Result<Self> {
-    Self::try_from(Path::new(&path))
-  }
+  fn try_from(path: &str) -> Result<Self> { Self::try_from(Path::new(&path)) }
 }
 
 /// A serialized implementation for Parquet [`RowGroupReader`].
 pub struct SerializedRowGroupReader<R: ParquetReader> {
   buf: BufReader<R>,
-  metadata: RowGroupMetaDataPtr
+  metadata: RowGroupMetaDataPtr,
 }
 
 impl<R: 'static + ParquetReader> SerializedRowGroupReader<R> {
@@ -309,13 +306,9 @@ impl<R: 'static + ParquetReader> SerializedRowGroupReader<R> {
 }
 
 impl<R: 'static + ParquetReader> RowGroupReader for SerializedRowGroupReader<R> {
-  fn metadata(&self) -> RowGroupMetaDataPtr {
-    self.metadata.clone()
-  }
+  fn metadata(&self) -> RowGroupMetaDataPtr { self.metadata.clone() }
 
-  fn num_columns(&self) -> usize {
-    self.metadata.num_columns()
-  }
+  fn num_columns(&self) -> usize { self.metadata.num_columns() }
 
   // TODO: fix PARQUET-816
   fn get_column_page_reader(&self, i: usize) -> Result<Box<PageReader>> {
@@ -325,13 +318,13 @@ impl<R: 'static + ParquetReader> RowGroupReader for SerializedRowGroupReader<R> 
       col_start = col.dictionary_page_offset().unwrap();
     }
     let col_length = col.compressed_size();
-    let file_chunk = FileSource::new(
-      self.buf.get_ref(), col_start as u64, col_length as usize);
+    let file_chunk =
+      FileSource::new(self.buf.get_ref(), col_start as u64, col_length as usize);
     let page_reader = SerializedPageReader::new(
       file_chunk,
       col.num_values(),
       col.compression(),
-      col.column_descr().physical_type()
+      col.column_descr().physical_type(),
     )?;
     Ok(Box::new(page_reader))
   }
@@ -341,22 +334,32 @@ impl<R: 'static + ParquetReader> RowGroupReader for SerializedRowGroupReader<R> 
     let col_descr = schema_descr.column(i);
     let col_page_reader = self.get_column_page_reader(i)?;
     let col_reader = match col_descr.physical_type() {
-      Type::BOOLEAN => ColumnReader::BoolColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
-      Type::INT32 => ColumnReader::Int32ColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
-      Type::INT64 => ColumnReader::Int64ColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
-      Type::INT96 => ColumnReader::Int96ColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
-      Type::FLOAT => ColumnReader::FloatColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
-      Type::DOUBLE => ColumnReader::DoubleColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
-      Type::BYTE_ARRAY => ColumnReader::ByteArrayColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
+      Type::BOOLEAN => {
+        ColumnReader::BoolColumnReader(ColumnReaderImpl::new(col_descr, col_page_reader))
+      },
+      Type::INT32 => {
+        ColumnReader::Int32ColumnReader(ColumnReaderImpl::new(col_descr, col_page_reader))
+      },
+      Type::INT64 => {
+        ColumnReader::Int64ColumnReader(ColumnReaderImpl::new(col_descr, col_page_reader))
+      },
+      Type::INT96 => {
+        ColumnReader::Int96ColumnReader(ColumnReaderImpl::new(col_descr, col_page_reader))
+      },
+      Type::FLOAT => {
+        ColumnReader::FloatColumnReader(ColumnReaderImpl::new(col_descr, col_page_reader))
+      },
+      Type::DOUBLE => ColumnReader::DoubleColumnReader(ColumnReaderImpl::new(
+        col_descr,
+        col_page_reader,
+      )),
+      Type::BYTE_ARRAY => ColumnReader::ByteArrayColumnReader(ColumnReaderImpl::new(
+        col_descr,
+        col_page_reader,
+      )),
       Type::FIXED_LEN_BYTE_ARRAY => ColumnReader::FixedLenByteArrayColumnReader(
-        ColumnReaderImpl::new(col_descr, col_page_reader)),
+        ColumnReaderImpl::new(col_descr, col_page_reader),
+      ),
     };
     Ok(col_reader)
   }
@@ -382,7 +385,7 @@ pub struct SerializedPageReader<T: Read> {
   total_num_values: i64,
 
   // Column chunk type.
-  physical_type: Type
+  physical_type: Type,
 }
 
 impl<T: Read> SerializedPageReader<T> {
@@ -391,15 +394,16 @@ impl<T: Read> SerializedPageReader<T> {
     buf: T,
     total_num_values: i64,
     compression: Compression,
-    physical_type: Type
-  ) -> Result<Self> {
+    physical_type: Type,
+  ) -> Result<Self>
+  {
     let decompressor = create_codec(compression)?;
     let result = Self {
-      buf: buf,
-      total_num_values: total_num_values,
+      buf,
+      total_num_values,
       seen_num_values: 0,
-      decompressor: decompressor,
-      physical_type: physical_type
+      decompressor,
+      physical_type,
     };
     Ok(result)
   }
@@ -427,8 +431,8 @@ impl<T: Read> PageReader for SerializedPageReader<T> {
       let mut can_decompress = true;
 
       if let Some(ref header_v2) = page_header.data_page_header_v2 {
-        offset = (header_v2.definition_levels_byte_length +
-          header_v2.repetition_levels_byte_length) as usize;
+        offset = (header_v2.definition_levels_byte_length
+          + header_v2.repetition_levels_byte_length) as usize;
         // When is_compressed flag is missing the page is considered compressed
         can_decompress = header_v2.is_compressed.unwrap_or(true);
       }
@@ -448,8 +452,7 @@ impl<T: Read> PageReader for SerializedPageReader<T> {
             decompressor.decompress(&buffer[offset..], &mut decompressed_buffer)?;
           if decompressed_size != uncompressed_len {
             return Err(general_err!(
-              "Actual decompressed size doesn't \
-               match the expected one ({} vs {})",
+              "Actual decompressed size doesn't match the expected one ({} vs {})",
               decompressed_size,
               uncompressed_len
             ));
@@ -473,7 +476,7 @@ impl<T: Read> PageReader for SerializedPageReader<T> {
             buf: ByteBufferPtr::new(buffer),
             num_values: dict_header.num_values as u32,
             encoding: Encoding::from(dict_header.encoding),
-            is_sorted: is_sorted
+            is_sorted,
           }
         },
         PageType::DATA_PAGE => {
@@ -486,7 +489,7 @@ impl<T: Read> PageReader for SerializedPageReader<T> {
             encoding: Encoding::from(header.encoding),
             def_level_encoding: Encoding::from(header.definition_level_encoding),
             rep_level_encoding: Encoding::from(header.repetition_level_encoding),
-            statistics: statistics::from_thrift(self.physical_type, header.statistics)
+            statistics: statistics::from_thrift(self.physical_type, header.statistics),
           }
         },
         PageType::DATA_PAGE_V2 => {
@@ -502,14 +505,14 @@ impl<T: Read> PageReader for SerializedPageReader<T> {
             num_rows: header.num_rows as u32,
             def_levels_byte_len: header.definition_levels_byte_length as u32,
             rep_levels_byte_len: header.repetition_levels_byte_length as u32,
-            is_compressed: is_compressed,
-            statistics: statistics::from_thrift(self.physical_type, header.statistics)
+            is_compressed,
+            statistics: statistics::from_thrift(self.physical_type, header.statistics),
           }
         },
         _ => {
           // For unknown page type (e.g., INDEX_PAGE), skip and read next.
           continue;
-        }
+        },
       };
       return Ok(Some(result));
     }
@@ -519,12 +522,11 @@ impl<T: Read> PageReader for SerializedPageReader<T> {
   }
 }
 
-
 #[cfg(test)]
 mod tests {
+  use super::*;
   use basic::SortOrder;
   use parquet_format::TypeDefinedOrder;
-  use super::*;
   use util::test_common::{get_temp_file, get_test_file, get_test_path};
 
   #[test]
@@ -543,8 +545,9 @@ mod tests {
     let buffer = include_bytes!("../../data/alltypes_plain.parquet");
     let cursor = Cursor::new(buffer.as_ref());
 
-    let read_from_file = SerializedFileReader::new(
-      File::open("data/alltypes_plain.parquet").unwrap()).unwrap();
+    let read_from_file =
+      SerializedFileReader::new(File::open("data/alltypes_plain.parquet").unwrap())
+        .unwrap();
     let read_from_cursor = SerializedFileReader::new(cursor).unwrap();
 
     let file_iter = read_from_file.get_row_iter(None).unwrap();
@@ -592,8 +595,16 @@ mod tests {
   fn test_file_reader_column_orders_parse() {
     // Define simple schema, we do not need to provide logical types.
     let mut fields = vec![
-      Rc::new(SchemaType::primitive_type_builder("col1", Type::INT32).build().unwrap()),
-      Rc::new(SchemaType::primitive_type_builder("col2", Type::FLOAT).build().unwrap())
+      Rc::new(
+        SchemaType::primitive_type_builder("col1", Type::INT32)
+          .build()
+          .unwrap(),
+      ),
+      Rc::new(
+        SchemaType::primitive_type_builder("col2", Type::FLOAT)
+          .build()
+          .unwrap(),
+      ),
     ];
     let schema = SchemaType::group_type_builder("schema")
       .with_fields(&mut fields)
@@ -603,7 +614,7 @@ mod tests {
 
     let t_column_orders = Some(vec![
       TColumnOrder::TYPEORDER(TypeDefinedOrder::new()),
-      TColumnOrder::TYPEORDER(TypeDefinedOrder::new())
+      TColumnOrder::TYPEORDER(TypeDefinedOrder::new()),
     ]);
 
     assert_eq!(
@@ -627,9 +638,7 @@ mod tests {
     let schema = SchemaType::group_type_builder("schema").build().unwrap();
     let schema_descr = SchemaDescriptor::new(Rc::new(schema));
 
-    let t_column_orders = Some(vec![
-      TColumnOrder::TYPEORDER(TypeDefinedOrder::new())
-    ]);
+    let t_column_orders = Some(vec![TColumnOrder::TYPEORDER(TypeDefinedOrder::new())]);
 
     SerializedFileReader::<File>::parse_column_orders(t_column_orders, &schema_descr);
   }
@@ -725,7 +734,10 @@ mod tests {
     let row_group_reader_result = reader.get_row_group(0);
     assert!(row_group_reader_result.is_ok());
     let row_group_reader: Box<RowGroupReader> = row_group_reader_result.unwrap();
-    assert_eq!(row_group_reader.num_columns(), row_group_metadata.num_columns());
+    assert_eq!(
+      row_group_reader.num_columns(),
+      row_group_metadata.num_columns()
+    );
     assert_eq!(
       row_group_reader.metadata().total_byte_size(),
       row_group_metadata.total_byte_size()
@@ -743,7 +755,7 @@ mod tests {
           buf,
           num_values,
           encoding,
-          is_sorted
+          is_sorted,
         } => {
           assert_eq!(buf.len(), 32);
           assert_eq!(num_values, 8);
@@ -757,7 +769,7 @@ mod tests {
           encoding,
           def_level_encoding,
           rep_level_encoding,
-          statistics
+          statistics,
         } => {
           assert_eq!(buf.len(), 11);
           assert_eq!(num_values, 8);
@@ -767,7 +779,7 @@ mod tests {
           assert!(statistics.is_none());
           true
         },
-        _ => false
+        _ => false,
       };
       assert!(is_expected_page);
       page_count += 1;
@@ -808,7 +820,10 @@ mod tests {
     let row_group_reader_result = reader.get_row_group(0);
     assert!(row_group_reader_result.is_ok());
     let row_group_reader: Box<RowGroupReader> = row_group_reader_result.unwrap();
-    assert_eq!(row_group_reader.num_columns(), row_group_metadata.num_columns());
+    assert_eq!(
+      row_group_reader.num_columns(),
+      row_group_metadata.num_columns()
+    );
     assert_eq!(
       row_group_reader.metadata().total_byte_size(),
       row_group_metadata.total_byte_size()
@@ -826,7 +841,7 @@ mod tests {
           buf,
           num_values,
           encoding,
-          is_sorted
+          is_sorted,
         } => {
           assert_eq!(buf.len(), 7);
           assert_eq!(num_values, 1);
@@ -843,7 +858,7 @@ mod tests {
           def_levels_byte_len,
           rep_levels_byte_len,
           is_compressed,
-          statistics
+          statistics,
         } => {
           assert_eq!(buf.len(), 4);
           assert_eq!(num_values, 5);
@@ -856,7 +871,7 @@ mod tests {
           assert!(statistics.is_some());
           true
         },
-        _ => false
+        _ => false,
       };
       assert!(is_expected_page);
       page_count += 1;

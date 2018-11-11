@@ -17,10 +17,9 @@
 
 //! Contains Parquet Page definitions and page reader interface.
 
-use basic::{PageType, Encoding};
+use basic::{Encoding, PageType};
 use errors::Result;
-use file::metadata::ColumnChunkMetaData;
-use file::statistics::Statistics;
+use file::{metadata::ColumnChunkMetaData, statistics::Statistics};
 use util::memory::ByteBufferPtr;
 
 /// Parquet Page definition.
@@ -35,7 +34,7 @@ pub enum Page {
     encoding: Encoding,
     def_level_encoding: Encoding,
     rep_level_encoding: Encoding,
-    statistics: Option<Statistics>
+    statistics: Option<Statistics>,
   },
   DataPageV2 {
     buf: ByteBufferPtr,
@@ -46,14 +45,14 @@ pub enum Page {
     def_levels_byte_len: u32,
     rep_levels_byte_len: u32,
     is_compressed: bool,
-    statistics: Option<Statistics>
+    statistics: Option<Statistics>,
   },
   DictionaryPage {
     buf: ByteBufferPtr,
     num_values: u32,
     encoding: Encoding,
-    is_sorted: bool
-  }
+    is_sorted: bool,
+  },
 }
 
 impl Page {
@@ -62,7 +61,7 @@ impl Page {
     match self {
       &Page::DataPage { .. } => PageType::DATA_PAGE,
       &Page::DataPageV2 { .. } => PageType::DATA_PAGE_V2,
-      &Page::DictionaryPage { .. } => PageType::DICTIONARY_PAGE
+      &Page::DictionaryPage { .. } => PageType::DICTIONARY_PAGE,
     }
   }
 
@@ -71,7 +70,7 @@ impl Page {
     match self {
       &Page::DataPage { ref buf, .. } => &buf,
       &Page::DataPageV2 { ref buf, .. } => &buf,
-      &Page::DictionaryPage { ref buf, .. } => &buf
+      &Page::DictionaryPage { ref buf, .. } => &buf,
     }
   }
 
@@ -80,7 +79,7 @@ impl Page {
     match self {
       &Page::DataPage { num_values, .. } => num_values,
       &Page::DataPageV2 { num_values, .. } => num_values,
-      &Page::DictionaryPage { num_values, .. } => num_values
+      &Page::DictionaryPage { num_values, .. } => num_values,
     }
   }
 
@@ -89,16 +88,16 @@ impl Page {
     match self {
       &Page::DataPage { encoding, .. } => encoding,
       &Page::DataPageV2 { encoding, .. } => encoding,
-      &Page::DictionaryPage { encoding, .. } => encoding
+      &Page::DictionaryPage { encoding, .. } => encoding,
     }
   }
 
   /// Returns optional [`Statistics`](`::file::metadata::Statistics`).
   pub fn statistics(&self) -> Option<&Statistics> {
     match self {
-      &Page::DataPage { ref statistics, ..} => statistics.as_ref(),
-      &Page::DataPageV2 { ref statistics, ..} => statistics.as_ref(),
-      &Page::DictionaryPage { .. } => None
+      &Page::DataPage { ref statistics, .. } => statistics.as_ref(),
+      &Page::DataPageV2 { ref statistics, .. } => statistics.as_ref(),
+      &Page::DictionaryPage { .. } => None,
     }
   }
 }
@@ -110,7 +109,7 @@ impl Page {
 /// The difference with `Page` is that `Page` buffer is always uncompressed.
 pub struct CompressedPage {
   compressed_page: Page,
-  uncompressed_size: usize
+  uncompressed_size: usize,
 }
 
 impl CompressedPage {
@@ -118,48 +117,34 @@ impl CompressedPage {
   /// uncompressed size.
   pub fn new(compressed_page: Page, uncompressed_size: usize) -> Self {
     Self {
-      compressed_page: compressed_page,
-      uncompressed_size: uncompressed_size
+      compressed_page,
+      uncompressed_size,
     }
   }
 
   /// Returns page type.
-  pub fn page_type(&self) -> PageType {
-    self.compressed_page.page_type()
-  }
+  pub fn page_type(&self) -> PageType { self.compressed_page.page_type() }
 
   /// Returns underlying page with potentially compressed buffer.
-  pub fn compressed_page(&self) -> &Page {
-    &self.compressed_page
-  }
+  pub fn compressed_page(&self) -> &Page { &self.compressed_page }
 
   /// Returns uncompressed size in bytes.
-  pub fn uncompressed_size(&self) -> usize {
-    self.uncompressed_size
-  }
+  pub fn uncompressed_size(&self) -> usize { self.uncompressed_size }
 
   /// Returns compressed size in bytes.
   ///
   /// Note that it is assumed that buffer is compressed, but it may not be. In this
   /// case compressed size will be equal to uncompressed size.
-  pub fn compressed_size(&self) -> usize {
-    self.compressed_page.buffer().len()
-  }
+  pub fn compressed_size(&self) -> usize { self.compressed_page.buffer().len() }
 
   /// Number of values in page.
-  pub fn num_values(&self) -> u32 {
-    self.compressed_page.num_values()
-  }
+  pub fn num_values(&self) -> u32 { self.compressed_page.num_values() }
 
   /// Returns encoding for values in page.
-  pub fn encoding(&self) -> Encoding {
-    self.compressed_page.encoding()
-  }
+  pub fn encoding(&self) -> Encoding { self.compressed_page.encoding() }
 
   /// Returns slice of compressed buffer in the page.
-  pub fn data(&self) -> &[u8] {
-    self.compressed_page.buffer().data()
-  }
+  pub fn data(&self) -> &[u8] { self.compressed_page.buffer().data() }
 }
 
 /// Contains page write metrics.
@@ -169,7 +154,7 @@ pub struct PageWriteSpec {
   pub compressed_size: usize,
   pub num_values: u32,
   pub offset: u64,
-  pub bytes_written: u64
+  pub bytes_written: u64,
 }
 
 impl PageWriteSpec {
@@ -181,7 +166,7 @@ impl PageWriteSpec {
       compressed_size: 0,
       num_values: 0,
       offset: 0,
-      bytes_written: 0
+      bytes_written: 0,
     }
   }
 }
@@ -218,7 +203,6 @@ pub trait PageWriter {
   fn close(&mut self) -> Result<()>;
 }
 
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -231,7 +215,7 @@ mod tests {
       encoding: Encoding::PLAIN,
       def_level_encoding: Encoding::RLE,
       rep_level_encoding: Encoding::RLE,
-      statistics: Some(Statistics::int32(Some(1), Some(2), None, 1, true))
+      statistics: Some(Statistics::int32(Some(1), Some(2), None, 1, true)),
     };
     assert_eq!(data_page.page_type(), PageType::DATA_PAGE);
     assert_eq!(data_page.buffer().data(), vec![0, 1, 2].as_slice());
@@ -251,7 +235,7 @@ mod tests {
       def_levels_byte_len: 30,
       rep_levels_byte_len: 40,
       is_compressed: false,
-      statistics: Some(Statistics::int32(Some(1), Some(2), None, 1, true))
+      statistics: Some(Statistics::int32(Some(1), Some(2), None, 1, true)),
     };
     assert_eq!(data_page_v2.page_type(), PageType::DATA_PAGE_V2);
     assert_eq!(data_page_v2.buffer().data(), vec![0, 1, 2].as_slice());
@@ -266,7 +250,7 @@ mod tests {
       buf: ByteBufferPtr::new(vec![0, 1, 2]),
       num_values: 10,
       encoding: Encoding::PLAIN,
-      is_sorted: false
+      is_sorted: false,
     };
     assert_eq!(dict_page.page_type(), PageType::DICTIONARY_PAGE);
     assert_eq!(dict_page.buffer().data(), vec![0, 1, 2].as_slice());
@@ -283,7 +267,7 @@ mod tests {
       encoding: Encoding::PLAIN,
       def_level_encoding: Encoding::RLE,
       rep_level_encoding: Encoding::RLE,
-      statistics: Some(Statistics::int32(Some(1), Some(2), None, 1, true))
+      statistics: Some(Statistics::int32(Some(1), Some(2), None, 1, true)),
     };
 
     let cpage = CompressedPage::new(data_page, 5);

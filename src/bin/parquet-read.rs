@@ -54,10 +54,7 @@
 
 extern crate parquet;
 
-use std::env;
-use std::fs::File;
-use std::path::Path;
-use std::process;
+use std::{env, fs::File, path::Path, process};
 
 use parquet::file::reader::{FileReader, SerializedFileReader};
 
@@ -72,7 +69,7 @@ fn main() {
   if args.len() == 3 {
     match args[2].parse() {
       Ok(value) => num_records = Some(value),
-      Err(e) => panic!("Error when reading value for [num-records], {}", e)
+      Err(e) => panic!("Error when reading value for [num-records], {}", e),
     }
   }
 
@@ -90,7 +87,7 @@ fn main() {
   while all_records || start < end {
     match iter.next() {
       Some(row) => println!("{}", row),
-      None => break
+      None => break,
     }
     start += 1;
   }

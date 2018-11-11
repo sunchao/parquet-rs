@@ -35,10 +35,12 @@ rust:
 
 before_script:
   - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
+  - rustup component add rustfmt-preview
   - cargo install cargo-travis || echo "Skipping cargo-travis installation as it is already cached"
   - export PATH=$HOME/.cargo/bin:$PATH
 
 script:
+  - cargo fmt --all -- --check
   - cargo build
   - cargo test
   - cargo doc --no-deps

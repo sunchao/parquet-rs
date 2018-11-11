@@ -19,14 +19,14 @@
 extern crate parquet;
 extern crate test;
 
-use std::collections::HashMap;
-use std::fs::File;
-use std::path::Path;
+use std::{collections::HashMap, fs::File, path::Path};
 
-use parquet::column::reader::{ColumnReader, get_typed_column_reader};
-use parquet::data_type::*;
-use parquet::file::reader::{FileReader, SerializedFileReader};
-use parquet::schema::types::ColumnPath;
+use parquet::{
+  column::reader::{get_typed_column_reader, ColumnReader},
+  data_type::*,
+  file::reader::{FileReader, SerializedFileReader},
+  schema::types::ColumnPath,
+};
 
 use test::Bencher;
 
@@ -76,7 +76,6 @@ fn record_reader_stock_simulated_column(bench: &mut Bencher) {
     let mut current_row_group = 0;
 
     while current_row_group < num_row_groups {
-
       let row_group_reader = parquet_reader.get_row_group(current_row_group).unwrap();
       let num_rows = row_group_reader.metadata().num_rows() as usize;
 
@@ -88,7 +87,7 @@ fn record_reader_stock_simulated_column(bench: &mut Bencher) {
         let col_path = col_meta.column_path().clone();
         paths.insert(col_path, col_index);
       }
-      
+
       let mut readers = Vec::new();
       for field in descr.root_schema().get_fields() {
         let col_path = ColumnPath::new(vec![field.name().to_owned()]);
@@ -107,13 +106,15 @@ fn record_reader_stock_simulated_column(bench: &mut Bencher) {
             let mut val = vec![0; batch_size];
             let mut typed_reader = get_typed_column_reader::<Int64Type>(r);
             while let Ok((values_read, _levels_read)) = typed_reader.read_batch(
-                batch_size,
-                def_levels.as_mut().map(|x| &mut x[..]),
-                rep_levels.as_mut().map(|x| &mut x[..]),
-                &mut val)
-            {
-                data_collected.extend_from_slice(&val);
-                if values_read < batch_size { break }
+              batch_size,
+              def_levels.as_mut().map(|x| &mut x[..]),
+              rep_levels.as_mut().map(|x| &mut x[..]),
+              &mut val,
+            ) {
+              data_collected.extend_from_slice(&val);
+              if values_read < batch_size {
+                break;
+              }
             }
           },
           r @ ColumnReader::DoubleColumnReader(..) => {
@@ -121,13 +122,15 @@ fn record_reader_stock_simulated_column(bench: &mut Bencher) {
             let mut val = vec![0.0; batch_size];
             let mut typed_reader = get_typed_column_reader::<DoubleType>(r);
             while let Ok((values_read, _levels_read)) = typed_reader.read_batch(
-                batch_size,
-                def_levels.as_mut().map(|x| &mut x[..]),
-                rep_levels.as_mut().map(|x| &mut x[..]),
-                &mut val)
-            {
-                data_collected.extend_from_slice(&val);
-                if values_read < batch_size { break }
+              batch_size,
+              def_levels.as_mut().map(|x| &mut x[..]),
+              rep_levels.as_mut().map(|x| &mut x[..]),
+              &mut val,
+            ) {
+              data_collected.extend_from_slice(&val);
+              if values_read < batch_size {
+                break;
+              }
             }
           },
           _ => unimplemented!(),

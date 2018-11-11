@@ -23,12 +23,11 @@
 //! # Example
 //!
 //! ```rust
-//! use parquet::basic::Compression;
-//! use parquet::compression::create_codec;
+//! use parquet::{basic::Compression, compression::create_codec};
 //!
 //! let mut codec = match create_codec(Compression::SNAPPY) {
 //!   Ok(Some(codec)) => codec,
-//!   _ => panic!()
+//!   _ => panic!(),
 //! };
 //!
 //! let data = vec![b'p', b'a', b'r', b'q', b'u', b'e', b't'];
@@ -44,11 +43,11 @@
 use std::io::{self, Read, Write};
 
 use basic::Compression as CodecType;
-use errors::{Result, ParquetError};
 use brotli;
-use flate2::{Compression, read, write};
-use snap::{decompress_len, max_compress_len, Decoder, Encoder};
+use errors::{ParquetError, Result};
+use flate2::{read, write, Compression};
 use lz4;
+use snap::{decompress_len, max_compress_len, Decoder, Encoder};
 use zstd;
 
 /// Parquet compression codec interface.
@@ -75,14 +74,14 @@ pub fn create_codec(codec: CodecType) -> Result<Option<Box<Codec>>> {
     CodecType::LZ4 => Ok(Some(Box::new(LZ4Codec::new()))),
     CodecType::ZSTD => Ok(Some(Box::new(ZSTDCodec::new()))),
     CodecType::UNCOMPRESSED => Ok(None),
-    _ => Err(nyi_err!("The codec type {} is not supported yet", codec))
+    _ => Err(nyi_err!("The codec type {} is not supported yet", codec)),
   }
 }
 
 /// Codec for Snappy compression format.
 pub struct SnappyCodec {
   decoder: Decoder,
-  encoder: Encoder
+  encoder: Encoder,
 }
 
 impl SnappyCodec {
@@ -90,7 +89,7 @@ impl SnappyCodec {
   fn new() -> Self {
     Self {
       decoder: Decoder::new(),
-      encoder: Encoder::new()
+      encoder: Encoder::new(),
     }
   }
 }
@@ -99,7 +98,10 @@ impl Codec for SnappyCodec {
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
     let len = decompress_len(input_buf)?;
     output_buf.resize(len, 0);
-    self.decoder.decompress(input_buf, output_buf).map_err(|e| e.into())
+    self
+      .decoder
+      .decompress(input_buf, output_buf)
+      .map_err(|e| e.into())
   }
 
   fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
@@ -118,9 +120,7 @@ pub struct GZipCodec {}
 
 impl GZipCodec {
   /// Creates new GZIP compression codec.
-  fn new() -> Self {
-    Self {}
-  }
+  fn new() -> Self { Self {} }
 }
 
 impl Codec for GZipCodec {
@@ -145,15 +145,14 @@ pub struct BrotliCodec {}
 
 impl BrotliCodec {
   /// Creates new Brotli compression codec.
-  fn new() -> Self {
-    Self {}
-  }
+  fn new() -> Self { Self {} }
 }
 
 impl Codec for BrotliCodec {
   fn decompress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<usize> {
     brotli::Decompressor::new(input_buf, BROTLI_DEFAULT_BUFFER_SIZE)
-      .read_to_end(output_buf).map_err(|e| e.into())
+      .read_to_end(output_buf)
+      .map_err(|e| e.into())
   }
 
   fn compress(&mut self, input_buf: &[u8], output_buf: &mut Vec<u8>) -> Result<()> {
@@ -161,13 +160,12 @@ impl Codec for BrotliCodec {
       output_buf,
       BROTLI_DEFAULT_BUFFER_SIZE,
       BROTLI_DEFAULT_COMPRESSION_QUALITY,
-      BROTLI_DEFAULT_LG_WINDOW_SIZE
+      BROTLI_DEFAULT_LG_WINDOW_SIZE,
     );
     encoder.write_all(&input_buf[..])?;
     encoder.flush().map_err(|e| e.into())
   }
 }
-
 
 const LZ4_BUFFER_SIZE: usize = 4096;
 
@@ -176,9 +174,7 @@ pub struct LZ4Codec {}
 
 impl LZ4Codec {
   /// Creates new LZ4 compression codec.
-  fn new() -> Self {
-    Self {}
-  }
+  fn new() -> Self { Self {} }
 }
 
 impl Codec for LZ4Codec {
@@ -213,14 +209,11 @@ impl Codec for LZ4Codec {
 }
 
 /// Codec for Zstandard compression algorithm.
-pub struct ZSTDCodec {
-}
+pub struct ZSTDCodec {}
 
 impl ZSTDCodec {
   /// Creates new Zstandard compression codec.
-  fn new() -> Self {
-    Self { }
-  }
+  fn new() -> Self { Self {} }
 }
 
 /// Compression level (1-21) for ZSTD. Choose 1 here for better compression speed.
@@ -231,7 +224,7 @@ impl Codec for ZSTDCodec {
     let mut decoder = zstd::Decoder::new(input_buf)?;
     match io::copy(&mut decoder, output_buf) {
       Ok(n) => Ok(n as usize),
-      Err(e) => Err(e.into())
+      Err(e) => Err(e.into()),
     }
   }
 
@@ -240,7 +233,7 @@ impl Codec for ZSTDCodec {
     encoder.write_all(&input_buf[..])?;
     match encoder.finish() {
       Ok(_) => Ok(()),
-      Err(e) => Err(e.into())
+      Err(e) => Err(e.into()),
     }
   }
 }
@@ -257,10 +250,12 @@ mod tests {
     // Compress with c1
     let mut compressed = Vec::new();
     let mut decompressed = Vec::new();
-    c1.compress(data.as_slice(), &mut compressed).expect("Error when compressing");
+    c1.compress(data.as_slice(), &mut compressed)
+      .expect("Error when compressing");
 
     // Decompress with c2
-    let mut decompressed_size = c2.decompress(compressed.as_slice(), &mut decompressed)
+    let mut decompressed_size = c2
+      .decompress(compressed.as_slice(), &mut decompressed)
       .expect("Error when decompressing");
     assert_eq!(data.len(), decompressed_size);
     decompressed.truncate(decompressed_size);
@@ -269,10 +264,12 @@ mod tests {
     compressed.clear();
 
     // Compress with c2
-    c2.compress(data.as_slice(), &mut compressed).expect("Error when compressing");
+    c2.compress(data.as_slice(), &mut compressed)
+      .expect("Error when compressing");
 
     // Decompress with c1
-    decompressed_size = c1.decompress(compressed.as_slice(), &mut decompressed)
+    decompressed_size = c1
+      .decompress(compressed.as_slice(), &mut decompressed)
       .expect("Error when decompressing");
     assert_eq!(data.len(), decompressed_size);
     decompressed.truncate(decompressed_size);
@@ -288,28 +285,18 @@ mod tests {
   }
 
   #[test]
-  fn test_codec_snappy() {
-    test_codec(CodecType::SNAPPY);
-  }
+  fn test_codec_snappy() { test_codec(CodecType::SNAPPY); }
 
   #[test]
-  fn test_codec_gzip() {
-    test_codec(CodecType::GZIP);
-  }
+  fn test_codec_gzip() { test_codec(CodecType::GZIP); }
 
   #[test]
-  fn test_codec_brotli() {
-    test_codec(CodecType::BROTLI);
-  }
+  fn test_codec_brotli() { test_codec(CodecType::BROTLI); }
 
   #[test]
-  fn test_codec_lz4() {
-    test_codec(CodecType::LZ4);
-  }
+  fn test_codec_lz4() { test_codec(CodecType::LZ4); }
 
   #[test]
-  fn test_codec_zstd() {
-    test_codec(CodecType::ZSTD);
-  }
+  fn test_codec_zstd() { test_codec(CodecType::ZSTD); }
 
 }
