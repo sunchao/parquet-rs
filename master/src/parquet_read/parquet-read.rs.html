@@ -92,9 +92,6 @@
 <span id="92">92</span>
 <span id="93">93</span>
 <span id="94">94</span>
-<span id="95">95</span>
-<span id="96">96</span>
-<span id="97">97</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -152,10 +149,7 @@
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">parquet</span>;
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">env</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">File</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">process</span>;
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">env</span>, <span class="ident">fs</span>::<span class="ident">File</span>, <span class="ident">path</span>::<span class="ident">Path</span>, <span class="ident">process</span>};
 
 <span class="kw">use</span> <span class="ident">parquet</span>::<span class="ident">file</span>::<span class="ident">reader</span>::{<span class="ident">FileReader</span>, <span class="ident">SerializedFileReader</span>};
 
@@ -170,7 +164,7 @@
   <span class="kw">if</span> <span class="ident">args</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">3</span> {
     <span class="kw">match</span> <span class="ident">args</span>[<span class="number">2</span>].<span class="ident">parse</span>() {
       <span class="prelude-val">Ok</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">num_records</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>),
-      <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Error when reading value for [num-records], {}&quot;</span>, <span class="ident">e</span>)
+      <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Error when reading value for [num-records], {}&quot;</span>, <span class="ident">e</span>),
     }
   }
 
@@ -188,7 +182,7 @@
   <span class="kw">while</span> <span class="ident">all_records</span> <span class="op">||</span> <span class="ident">start</span> <span class="op">&lt;</span> <span class="ident">end</span> {
     <span class="kw">match</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
       <span class="prelude-val">Some</span>(<span class="ident">row</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">row</span>),
-      <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">break</span>
+      <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">break</span>,
     }
     <span class="ident">start</span> <span class="op">+=</span> <span class="number">1</span>;
   }

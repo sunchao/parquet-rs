@@ -864,6 +864,21 @@
 <span id="864">864</span>
 <span id="865">865</span>
 <span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
+<span id="879">879</span>
+<span id="880">880</span>
+<span id="881">881</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -885,28 +900,30 @@
 <span class="doccomment">//! Contains file reader API and provides methods to access file metadata, row group</span>
 <span class="doccomment">//! readers to read individual column chunks, or access record iterator.</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">convert</span>::<span class="ident">TryFrom</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">File</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">BufReader</span>, <span class="ident">Cursor</span>, <span class="ident">Read</span>, <span class="ident">Seek</span>, <span class="ident">SeekFrom</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
+<span class="kw">use</span> <span class="ident">std</span>::{
+  <span class="ident">convert</span>::<span class="ident">TryFrom</span>,
+  <span class="ident">fs</span>::<span class="ident">File</span>,
+  <span class="ident">io</span>::{<span class="ident">BufReader</span>, <span class="ident">Cursor</span>, <span class="ident">Read</span>, <span class="ident">Seek</span>, <span class="ident">SeekFrom</span>},
+  <span class="ident">path</span>::<span class="ident">Path</span>,
+  <span class="ident">rc</span>::<span class="ident">Rc</span>,
+};
 
 <span class="kw">use</span> <span class="ident">basic</span>::{<span class="ident">ColumnOrder</span>, <span class="ident">Compression</span>, <span class="ident">Encoding</span>, <span class="ident">Type</span>};
-<span class="kw">use</span> <span class="ident">byteorder</span>::{<span class="ident">LittleEndian</span>, <span class="ident">ByteOrder</span>};
-<span class="kw">use</span> <span class="ident">column</span>::<span class="ident">page</span>::{<span class="ident">Page</span>, <span class="ident">PageReader</span>};
-<span class="kw">use</span> <span class="ident">column</span>::<span class="ident">reader</span>::{<span class="ident">ColumnReader</span>, <span class="ident">ColumnReaderImpl</span>};
+<span class="kw">use</span> <span class="ident">byteorder</span>::{<span class="ident">ByteOrder</span>, <span class="ident">LittleEndian</span>};
+<span class="kw">use</span> <span class="ident">column</span>::{
+  <span class="ident">page</span>::{<span class="ident">Page</span>, <span class="ident">PageReader</span>},
+  <span class="ident">reader</span>::{<span class="ident">ColumnReader</span>, <span class="ident">ColumnReaderImpl</span>},
+};
 <span class="kw">use</span> <span class="ident">compression</span>::{<span class="ident">create_codec</span>, <span class="ident">Codec</span>};
 <span class="kw">use</span> <span class="ident">errors</span>::{<span class="ident">ParquetError</span>, <span class="prelude-ty">Result</span>};
-<span class="kw">use</span> <span class="ident">file</span>::{<span class="ident">FOOTER_SIZE</span>, <span class="ident">PARQUET_MAGIC</span>};
-<span class="kw">use</span> <span class="ident">file</span>::<span class="ident">metadata</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">file</span>::<span class="ident">statistics</span>;
-<span class="kw">use</span> <span class="ident">parquet_format</span>::{<span class="ident">ColumnOrder</span> <span class="kw">as</span> <span class="ident">TColumnOrder</span>, <span class="ident">FileMetaData</span> <span class="kw">as</span> <span class="ident">TFileMetaData</span>};
-<span class="kw">use</span> <span class="ident">parquet_format</span>::{<span class="ident">PageType</span>, <span class="ident">PageHeader</span>};
+<span class="kw">use</span> <span class="ident">file</span>::{<span class="ident">metadata</span>::<span class="kw-2">*</span>, <span class="ident">statistics</span>, <span class="ident">FOOTER_SIZE</span>, <span class="ident">PARQUET_MAGIC</span>};
+<span class="kw">use</span> <span class="ident">parquet_format</span>::{
+  <span class="ident">ColumnOrder</span> <span class="kw">as</span> <span class="ident">TColumnOrder</span>, <span class="ident">FileMetaData</span> <span class="kw">as</span> <span class="ident">TFileMetaData</span>, <span class="ident">PageHeader</span>, <span class="ident">PageType</span>,
+};
 <span class="kw">use</span> <span class="ident">record</span>::<span class="ident">reader</span>::<span class="ident">RowIter</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">types</span>::{<span class="self">self</span>, <span class="ident">SchemaDescriptor</span>, <span class="ident">Type</span> <span class="kw">as</span> <span class="ident">SchemaType</span>};
 <span class="kw">use</span> <span class="ident">thrift</span>::<span class="ident">protocol</span>::<span class="ident">TCompactInputProtocol</span>;
-<span class="kw">use</span> <span class="ident">util</span>::<span class="ident">io</span>::<span class="ident">FileSource</span>;
-<span class="kw">use</span> <span class="ident">util</span>::<span class="ident">memory</span>::<span class="ident">ByteBufferPtr</span>;
+<span class="kw">use</span> <span class="ident">util</span>::{<span class="ident">io</span>::<span class="ident">FileSource</span>, <span class="ident">memory</span>::<span class="ident">ByteBufferPtr</span>};
 
 <span class="comment">// ----------------------------------------------------------------------</span>
 <span class="comment">// APIs for file &amp; row group readers</span>
@@ -959,7 +976,7 @@
 
 <span class="doccomment">/// Length should return the amount of bytes that implementor contains.</span>
 <span class="doccomment">/// It&#39;s mainly used to read the metadata, which is at the end of the source.</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Length</span>  {
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Length</span> {
   <span class="doccomment">/// Returns the amount of bytes of the inner source.</span>
   <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span>;
 }
@@ -973,29 +990,19 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Length</span> <span class="kw">for</span> <span class="ident">File</span> {
-  <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
-    <span class="self">self</span>.<span class="ident">metadata</span>()
-        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">len</span>())
-        .<span class="ident">unwrap_or</span>(<span class="number">0u64</span>)
-  }
+  <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> { <span class="self">self</span>.<span class="ident">metadata</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="ident">m</span>.<span class="ident">len</span>()).<span class="ident">unwrap_or</span>(<span class="number">0u64</span>) }
 }
 
 <span class="kw">impl</span> <span class="ident">TryClone</span> <span class="kw">for</span> <span class="ident">File</span> {
-  <span class="kw">fn</span> <span class="ident">try_clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-    <span class="self">self</span>.<span class="ident">try_clone</span>().<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">into</span>())
-  }
+  <span class="kw">fn</span> <span class="ident">try_clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> { <span class="self">self</span>.<span class="ident">try_clone</span>().<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>.<span class="ident">into</span>()) }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Length</span> <span class="kw">for</span> <span class="ident">Cursor</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
-  <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
-    <span class="self">self</span>.<span class="ident">get_ref</span>().<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>
-  }
+  <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> { <span class="self">self</span>.<span class="ident">get_ref</span>().<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span> }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">TryClone</span> <span class="kw">for</span> <span class="ident">Cursor</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]<span class="op">&gt;</span> {
-  <span class="kw">fn</span> <span class="ident">try_clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">clone</span>())
-  }
+  <span class="kw">fn</span> <span class="ident">try_clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> { <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="ident">clone</span>()) }
 }
 
 <span class="doccomment">/// ParquetReader is the interface which needs to be fulfilled to be able to parse a</span>
@@ -1006,7 +1013,7 @@
 <span class="doccomment">/// A serialized implementation for Parquet [`FileReader`].</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializedFileReader</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">ParquetReader</span><span class="op">&gt;</span> {
   <span class="ident">buf</span>: <span class="ident">BufReader</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>,
-  <span class="ident">metadata</span>: <span class="ident">ParquetMetaDataPtr</span>
+  <span class="ident">metadata</span>: <span class="ident">ParquetMetaDataPtr</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">ParquetReader</span><span class="op">&gt;</span> <span class="ident">SerializedFileReader</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span> {
@@ -1015,7 +1022,10 @@
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">reader</span>: <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">BufReader</span>::<span class="ident">new</span>(<span class="ident">reader</span>);
     <span class="kw">let</span> <span class="ident">metadata</span> <span class="op">=</span> <span class="self">Self</span>::<span class="ident">parse_metadata</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(<span class="self">Self</span> { <span class="ident">buf</span>: <span class="ident">buf</span>, <span class="ident">metadata</span>: <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">metadata</span>) })
+    <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
+      <span class="ident">buf</span>,
+      <span class="ident">metadata</span>: <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">metadata</span>),
+    })
   }
 
   <span class="comment">// Layout of Parquet file</span>
@@ -1027,7 +1037,9 @@
   <span class="kw">fn</span> <span class="ident">parse_metadata</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BufReader</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ParquetMetaData</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">file_size</span> <span class="op">=</span> <span class="ident">buf</span>.<span class="ident">get_ref</span>().<span class="ident">len</span>();
     <span class="kw">if</span> <span class="ident">file_size</span> <span class="op">&lt;</span> (<span class="ident">FOOTER_SIZE</span> <span class="kw">as</span> <span class="ident">u64</span>) {
-      <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;Invalid Parquet file. Size is smaller than footer&quot;</span>));
+      <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(
+        <span class="string">&quot;Invalid Parquet file. Size is smaller than footer&quot;</span>
+      ));
     }
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">footer_buffer</span>: [<span class="ident">u8</span>; <span class="ident">FOOTER_SIZE</span>] <span class="op">=</span> [<span class="number">0</span>; <span class="ident">FOOTER_SIZE</span>];
     <span class="ident">buf</span>.<span class="ident">seek</span>(<span class="ident">SeekFrom</span>::<span class="ident">End</span>(<span class="op">-</span>(<span class="ident">FOOTER_SIZE</span> <span class="kw">as</span> <span class="ident">i64</span>)))<span class="question-mark">?</span>;
@@ -1061,7 +1073,10 @@
     <span class="kw">let</span> <span class="ident">schema_descr</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">SchemaDescriptor</span>::<span class="ident">new</span>(<span class="ident">schema</span>.<span class="ident">clone</span>()));
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">row_groups</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
     <span class="kw">for</span> <span class="ident">rg</span> <span class="kw">in</span> <span class="ident">t_file_metadata</span>.<span class="ident">row_groups</span> {
-      <span class="ident">row_groups</span>.<span class="ident">push</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RowGroupMetaData</span>::<span class="ident">from_thrift</span>(<span class="ident">schema_descr</span>.<span class="ident">clone</span>(), <span class="ident">rg</span>)<span class="question-mark">?</span>));
+      <span class="ident">row_groups</span>.<span class="ident">push</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">RowGroupMetaData</span>::<span class="ident">from_thrift</span>(
+        <span class="ident">schema_descr</span>.<span class="ident">clone</span>(),
+        <span class="ident">rg</span>,
+      )<span class="question-mark">?</span>));
     }
     <span class="kw">let</span> <span class="ident">column_orders</span> <span class="op">=</span>
       <span class="self">Self</span>::<span class="ident">parse_column_orders</span>(<span class="ident">t_file_metadata</span>.<span class="ident">column_orders</span>, <span class="kw-2">&amp;</span><span class="ident">schema_descr</span>);
@@ -1072,7 +1087,7 @@
       <span class="ident">t_file_metadata</span>.<span class="ident">created_by</span>,
       <span class="ident">schema</span>,
       <span class="ident">schema_descr</span>,
-      <span class="ident">column_orders</span>
+      <span class="ident">column_orders</span>,
     );
     <span class="prelude-val">Ok</span>(<span class="ident">ParquetMetaData</span>::<span class="ident">new</span>(<span class="ident">file_metadata</span>, <span class="ident">row_groups</span>))
   }
@@ -1081,46 +1096,49 @@
   <span class="doccomment">/// If no column orders are defined, returns `None`.</span>
   <span class="kw">fn</span> <span class="ident">parse_column_orders</span>(
     <span class="ident">t_column_orders</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TColumnOrder</span><span class="op">&gt;&gt;</span>,
-    <span class="ident">schema_descr</span>: <span class="kw-2">&amp;</span><span class="ident">SchemaDescriptor</span>
-  ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ColumnOrder</span><span class="op">&gt;&gt;</span> {
+    <span class="ident">schema_descr</span>: <span class="kw-2">&amp;</span><span class="ident">SchemaDescriptor</span>,
+  ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ColumnOrder</span><span class="op">&gt;&gt;</span>
+  {
     <span class="kw">match</span> <span class="ident">t_column_orders</span> {
       <span class="prelude-val">Some</span>(<span class="ident">orders</span>) <span class="op">=&gt;</span> {
         <span class="comment">// Should always be the case</span>
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">orders</span>.<span class="ident">len</span>(), <span class="ident">schema_descr</span>.<span class="ident">num_columns</span>(),
-          <span class="string">&quot;Column order length mismatch&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+          <span class="ident">orders</span>.<span class="ident">len</span>(),
+          <span class="ident">schema_descr</span>.<span class="ident">num_columns</span>(),
+          <span class="string">&quot;Column order length mismatch&quot;</span>
+        );
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">column</span>) <span class="kw">in</span> <span class="ident">schema_descr</span>.<span class="ident">columns</span>().<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
           <span class="kw">match</span> <span class="ident">orders</span>[<span class="ident">i</span>] {
             <span class="ident">TColumnOrder</span>::<span class="ident">TYPEORDER</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
               <span class="kw">let</span> <span class="ident">sort_order</span> <span class="op">=</span> <span class="ident">ColumnOrder</span>::<span class="ident">get_sort_order</span>(
                 <span class="ident">column</span>.<span class="ident">logical_type</span>(),
-                <span class="ident">column</span>.<span class="ident">physical_type</span>()
+                <span class="ident">column</span>.<span class="ident">physical_type</span>(),
               );
               <span class="ident">res</span>.<span class="ident">push</span>(<span class="ident">ColumnOrder</span>::<span class="ident">TYPE_DEFINED_ORDER</span>(<span class="ident">sort_order</span>));
-            }
+            },
           }
         }
         <span class="prelude-val">Some</span>(<span class="ident">res</span>)
       },
-      <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>
+      <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
     }
   }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">ParquetReader</span><span class="op">&gt;</span> <span class="ident">FileReader</span> <span class="kw">for</span> <span class="ident">SerializedFileReader</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span> {
-  <span class="kw">fn</span> <span class="ident">metadata</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ParquetMetaDataPtr</span> {
-    <span class="self">self</span>.<span class="ident">metadata</span>.<span class="ident">clone</span>()
-  }
+  <span class="kw">fn</span> <span class="ident">metadata</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">ParquetMetaDataPtr</span> { <span class="self">self</span>.<span class="ident">metadata</span>.<span class="ident">clone</span>() }
 
-  <span class="kw">fn</span> <span class="ident">num_row_groups</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="self">self</span>.<span class="ident">metadata</span>.<span class="ident">num_row_groups</span>()
-  }
+  <span class="kw">fn</span> <span class="ident">num_row_groups</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">metadata</span>.<span class="ident">num_row_groups</span>() }
 
   <span class="kw">fn</span> <span class="ident">get_row_group</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">RowGroupReader</span><span class="op">&gt;&gt;</span> {
     <span class="kw">let</span> <span class="ident">row_group_metadata</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">metadata</span>.<span class="ident">row_group</span>(<span class="ident">i</span>);
     <span class="comment">// Row groups should be processed sequentially.</span>
     <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">buf</span>.<span class="ident">get_ref</span>().<span class="ident">try_clone</span>()<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">SerializedRowGroupReader</span>::<span class="ident">new</span>(<span class="ident">f</span>, <span class="ident">row_group_metadata</span>)))
+    <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">SerializedRowGroupReader</span>::<span class="ident">new</span>(
+      <span class="ident">f</span>,
+      <span class="ident">row_group_metadata</span>,
+    )))
   }
 
   <span class="kw">fn</span> <span class="ident">get_row_iter</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">projection</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SchemaType</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">RowIter</span><span class="op">&gt;</span> {
@@ -1131,9 +1149,7 @@
 <span class="kw">impl</span> <span class="ident">TryFrom</span><span class="op">&lt;</span><span class="ident">File</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SerializedFileReader</span><span class="op">&lt;</span><span class="ident">File</span><span class="op">&gt;</span> {
   <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">ParquetError</span>;
 
-  <span class="kw">fn</span> <span class="ident">try_from</span>(<span class="ident">file</span>: <span class="ident">File</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-    <span class="self">Self</span>::<span class="ident">new</span>(<span class="ident">file</span>)
-  }
+  <span class="kw">fn</span> <span class="ident">try_from</span>(<span class="ident">file</span>: <span class="ident">File</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> { <span class="self">Self</span>::<span class="ident">new</span>(<span class="ident">file</span>) }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">TryFrom</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Path</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SerializedFileReader</span><span class="op">&lt;</span><span class="ident">File</span><span class="op">&gt;</span> {
@@ -1148,23 +1164,19 @@
 <span class="kw">impl</span> <span class="ident">TryFrom</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SerializedFileReader</span><span class="op">&lt;</span><span class="ident">File</span><span class="op">&gt;</span> {
   <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">ParquetError</span>;
 
-  <span class="kw">fn</span> <span class="ident">try_from</span>(<span class="ident">path</span>: <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-    <span class="self">Self</span>::<span class="ident">try_from</span>(<span class="ident">Path</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>))
-  }
+  <span class="kw">fn</span> <span class="ident">try_from</span>(<span class="ident">path</span>: <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> { <span class="self">Self</span>::<span class="ident">try_from</span>(<span class="ident">Path</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>)) }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">TryFrom</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">SerializedFileReader</span><span class="op">&lt;</span><span class="ident">File</span><span class="op">&gt;</span> {
   <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">ParquetError</span>;
 
-  <span class="kw">fn</span> <span class="ident">try_from</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-    <span class="self">Self</span>::<span class="ident">try_from</span>(<span class="ident">Path</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>))
-  }
+  <span class="kw">fn</span> <span class="ident">try_from</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> { <span class="self">Self</span>::<span class="ident">try_from</span>(<span class="ident">Path</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>)) }
 }
 
 <span class="doccomment">/// A serialized implementation for Parquet [`RowGroupReader`].</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializedRowGroupReader</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">ParquetReader</span><span class="op">&gt;</span> {
   <span class="ident">buf</span>: <span class="ident">BufReader</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span>,
-  <span class="ident">metadata</span>: <span class="ident">RowGroupMetaDataPtr</span>
+  <span class="ident">metadata</span>: <span class="ident">RowGroupMetaDataPtr</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">ParquetReader</span><span class="op">&gt;</span> <span class="ident">SerializedRowGroupReader</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span> {
@@ -1176,13 +1188,9 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">ParquetReader</span><span class="op">&gt;</span> <span class="ident">RowGroupReader</span> <span class="kw">for</span> <span class="ident">SerializedRowGroupReader</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span> {
-  <span class="kw">fn</span> <span class="ident">metadata</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">RowGroupMetaDataPtr</span> {
-    <span class="self">self</span>.<span class="ident">metadata</span>.<span class="ident">clone</span>()
-  }
+  <span class="kw">fn</span> <span class="ident">metadata</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">RowGroupMetaDataPtr</span> { <span class="self">self</span>.<span class="ident">metadata</span>.<span class="ident">clone</span>() }
 
-  <span class="kw">fn</span> <span class="ident">num_columns</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="self">self</span>.<span class="ident">metadata</span>.<span class="ident">num_columns</span>()
-  }
+  <span class="kw">fn</span> <span class="ident">num_columns</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">metadata</span>.<span class="ident">num_columns</span>() }
 
   <span class="comment">// TODO: fix PARQUET-816</span>
   <span class="kw">fn</span> <span class="ident">get_column_page_reader</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">PageReader</span><span class="op">&gt;&gt;</span> {
@@ -1192,13 +1200,13 @@
       <span class="ident">col_start</span> <span class="op">=</span> <span class="ident">col</span>.<span class="ident">dictionary_page_offset</span>().<span class="ident">unwrap</span>();
     }
     <span class="kw">let</span> <span class="ident">col_length</span> <span class="op">=</span> <span class="ident">col</span>.<span class="ident">compressed_size</span>();
-    <span class="kw">let</span> <span class="ident">file_chunk</span> <span class="op">=</span> <span class="ident">FileSource</span>::<span class="ident">new</span>(
-      <span class="self">self</span>.<span class="ident">buf</span>.<span class="ident">get_ref</span>(), <span class="ident">col_start</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">col_length</span> <span class="kw">as</span> <span class="ident">usize</span>);
+    <span class="kw">let</span> <span class="ident">file_chunk</span> <span class="op">=</span>
+      <span class="ident">FileSource</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">buf</span>.<span class="ident">get_ref</span>(), <span class="ident">col_start</span> <span class="kw">as</span> <span class="ident">u64</span>, <span class="ident">col_length</span> <span class="kw">as</span> <span class="ident">usize</span>);
     <span class="kw">let</span> <span class="ident">page_reader</span> <span class="op">=</span> <span class="ident">SerializedPageReader</span>::<span class="ident">new</span>(
       <span class="ident">file_chunk</span>,
       <span class="ident">col</span>.<span class="ident">num_values</span>(),
       <span class="ident">col</span>.<span class="ident">compression</span>(),
-      <span class="ident">col</span>.<span class="ident">column_descr</span>().<span class="ident">physical_type</span>()
+      <span class="ident">col</span>.<span class="ident">column_descr</span>().<span class="ident">physical_type</span>(),
     )<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">page_reader</span>))
   }
@@ -1208,22 +1216,32 @@
     <span class="kw">let</span> <span class="ident">col_descr</span> <span class="op">=</span> <span class="ident">schema_descr</span>.<span class="ident">column</span>(<span class="ident">i</span>);
     <span class="kw">let</span> <span class="ident">col_page_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_column_page_reader</span>(<span class="ident">i</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">col_reader</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">col_descr</span>.<span class="ident">physical_type</span>() {
-      <span class="ident">Type</span>::<span class="ident">BOOLEAN</span> <span class="op">=&gt;</span> <span class="ident">ColumnReader</span>::<span class="ident">BoolColumnReader</span>(
-        <span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>)),
-      <span class="ident">Type</span>::<span class="ident">INT32</span> <span class="op">=&gt;</span> <span class="ident">ColumnReader</span>::<span class="ident">Int32ColumnReader</span>(
-        <span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>)),
-      <span class="ident">Type</span>::<span class="ident">INT64</span> <span class="op">=&gt;</span> <span class="ident">ColumnReader</span>::<span class="ident">Int64ColumnReader</span>(
-        <span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>)),
-      <span class="ident">Type</span>::<span class="ident">INT96</span> <span class="op">=&gt;</span> <span class="ident">ColumnReader</span>::<span class="ident">Int96ColumnReader</span>(
-        <span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>)),
-      <span class="ident">Type</span>::<span class="ident">FLOAT</span> <span class="op">=&gt;</span> <span class="ident">ColumnReader</span>::<span class="ident">FloatColumnReader</span>(
-        <span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>)),
-      <span class="ident">Type</span>::<span class="ident">DOUBLE</span> <span class="op">=&gt;</span> <span class="ident">ColumnReader</span>::<span class="ident">DoubleColumnReader</span>(
-        <span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>)),
-      <span class="ident">Type</span>::<span class="ident">BYTE_ARRAY</span> <span class="op">=&gt;</span> <span class="ident">ColumnReader</span>::<span class="ident">ByteArrayColumnReader</span>(
-        <span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>)),
+      <span class="ident">Type</span>::<span class="ident">BOOLEAN</span> <span class="op">=&gt;</span> {
+        <span class="ident">ColumnReader</span>::<span class="ident">BoolColumnReader</span>(<span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>))
+      },
+      <span class="ident">Type</span>::<span class="ident">INT32</span> <span class="op">=&gt;</span> {
+        <span class="ident">ColumnReader</span>::<span class="ident">Int32ColumnReader</span>(<span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>))
+      },
+      <span class="ident">Type</span>::<span class="ident">INT64</span> <span class="op">=&gt;</span> {
+        <span class="ident">ColumnReader</span>::<span class="ident">Int64ColumnReader</span>(<span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>))
+      },
+      <span class="ident">Type</span>::<span class="ident">INT96</span> <span class="op">=&gt;</span> {
+        <span class="ident">ColumnReader</span>::<span class="ident">Int96ColumnReader</span>(<span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>))
+      },
+      <span class="ident">Type</span>::<span class="ident">FLOAT</span> <span class="op">=&gt;</span> {
+        <span class="ident">ColumnReader</span>::<span class="ident">FloatColumnReader</span>(<span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>))
+      },
+      <span class="ident">Type</span>::<span class="ident">DOUBLE</span> <span class="op">=&gt;</span> <span class="ident">ColumnReader</span>::<span class="ident">DoubleColumnReader</span>(<span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(
+        <span class="ident">col_descr</span>,
+        <span class="ident">col_page_reader</span>,
+      )),
+      <span class="ident">Type</span>::<span class="ident">BYTE_ARRAY</span> <span class="op">=&gt;</span> <span class="ident">ColumnReader</span>::<span class="ident">ByteArrayColumnReader</span>(<span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(
+        <span class="ident">col_descr</span>,
+        <span class="ident">col_page_reader</span>,
+      )),
       <span class="ident">Type</span>::<span class="ident">FIXED_LEN_BYTE_ARRAY</span> <span class="op">=&gt;</span> <span class="ident">ColumnReader</span>::<span class="ident">FixedLenByteArrayColumnReader</span>(
-        <span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>)),
+        <span class="ident">ColumnReaderImpl</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_page_reader</span>),
+      ),
     };
     <span class="prelude-val">Ok</span>(<span class="ident">col_reader</span>)
   }
@@ -1249,7 +1267,7 @@
   <span class="ident">total_num_values</span>: <span class="ident">i64</span>,
 
   <span class="comment">// Column chunk type.</span>
-  <span class="ident">physical_type</span>: <span class="ident">Type</span>
+  <span class="ident">physical_type</span>: <span class="ident">Type</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Read</span><span class="op">&gt;</span> <span class="ident">SerializedPageReader</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
@@ -1258,15 +1276,16 @@
     <span class="ident">buf</span>: <span class="ident">T</span>,
     <span class="ident">total_num_values</span>: <span class="ident">i64</span>,
     <span class="ident">compression</span>: <span class="ident">Compression</span>,
-    <span class="ident">physical_type</span>: <span class="ident">Type</span>
-  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="ident">physical_type</span>: <span class="ident">Type</span>,
+  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>
+  {
     <span class="kw">let</span> <span class="ident">decompressor</span> <span class="op">=</span> <span class="ident">create_codec</span>(<span class="ident">compression</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">Self</span> {
-      <span class="ident">buf</span>: <span class="ident">buf</span>,
-      <span class="ident">total_num_values</span>: <span class="ident">total_num_values</span>,
+      <span class="ident">buf</span>,
+      <span class="ident">total_num_values</span>,
       <span class="ident">seen_num_values</span>: <span class="number">0</span>,
-      <span class="ident">decompressor</span>: <span class="ident">decompressor</span>,
-      <span class="ident">physical_type</span>: <span class="ident">physical_type</span>
+      <span class="ident">decompressor</span>,
+      <span class="ident">physical_type</span>,
     };
     <span class="prelude-val">Ok</span>(<span class="ident">result</span>)
   }
@@ -1294,8 +1313,8 @@
       <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">can_decompress</span> <span class="op">=</span> <span class="bool-val">true</span>;
 
       <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">header_v2</span>) <span class="op">=</span> <span class="ident">page_header</span>.<span class="ident">data_page_header_v2</span> {
-        <span class="ident">offset</span> <span class="op">=</span> (<span class="ident">header_v2</span>.<span class="ident">definition_levels_byte_length</span> <span class="op">+</span>
-          <span class="ident">header_v2</span>.<span class="ident">repetition_levels_byte_length</span>) <span class="kw">as</span> <span class="ident">usize</span>;
+        <span class="ident">offset</span> <span class="op">=</span> (<span class="ident">header_v2</span>.<span class="ident">definition_levels_byte_length</span>
+          <span class="op">+</span> <span class="ident">header_v2</span>.<span class="ident">repetition_levels_byte_length</span>) <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="comment">// When is_compressed flag is missing the page is considered compressed</span>
         <span class="ident">can_decompress</span> <span class="op">=</span> <span class="ident">header_v2</span>.<span class="ident">is_compressed</span>.<span class="ident">unwrap_or</span>(<span class="bool-val">true</span>);
       }
@@ -1315,8 +1334,7 @@
             <span class="ident">decompressor</span>.<span class="ident">decompress</span>(<span class="kw-2">&amp;</span><span class="ident">buffer</span>[<span class="ident">offset</span>..], <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">decompressed_buffer</span>)<span class="question-mark">?</span>;
           <span class="kw">if</span> <span class="ident">decompressed_size</span> <span class="op">!=</span> <span class="ident">uncompressed_len</span> {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(
-              <span class="string">&quot;Actual decompressed size doesn&#39;t \
-               match the expected one ({} vs {})&quot;</span>,
+              <span class="string">&quot;Actual decompressed size doesn&#39;t match the expected one ({} vs {})&quot;</span>,
               <span class="ident">decompressed_size</span>,
               <span class="ident">uncompressed_len</span>
             ));
@@ -1340,7 +1358,7 @@
             <span class="ident">buf</span>: <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">buffer</span>),
             <span class="ident">num_values</span>: <span class="ident">dict_header</span>.<span class="ident">num_values</span> <span class="kw">as</span> <span class="ident">u32</span>,
             <span class="ident">encoding</span>: <span class="ident">Encoding</span>::<span class="ident">from</span>(<span class="ident">dict_header</span>.<span class="ident">encoding</span>),
-            <span class="ident">is_sorted</span>: <span class="ident">is_sorted</span>
+            <span class="ident">is_sorted</span>,
           }
         },
         <span class="ident">PageType</span>::<span class="ident">DATA_PAGE</span> <span class="op">=&gt;</span> {
@@ -1353,7 +1371,7 @@
             <span class="ident">encoding</span>: <span class="ident">Encoding</span>::<span class="ident">from</span>(<span class="ident">header</span>.<span class="ident">encoding</span>),
             <span class="ident">def_level_encoding</span>: <span class="ident">Encoding</span>::<span class="ident">from</span>(<span class="ident">header</span>.<span class="ident">definition_level_encoding</span>),
             <span class="ident">rep_level_encoding</span>: <span class="ident">Encoding</span>::<span class="ident">from</span>(<span class="ident">header</span>.<span class="ident">repetition_level_encoding</span>),
-            <span class="ident">statistics</span>: <span class="ident">statistics</span>::<span class="ident">from_thrift</span>(<span class="self">self</span>.<span class="ident">physical_type</span>, <span class="ident">header</span>.<span class="ident">statistics</span>)
+            <span class="ident">statistics</span>: <span class="ident">statistics</span>::<span class="ident">from_thrift</span>(<span class="self">self</span>.<span class="ident">physical_type</span>, <span class="ident">header</span>.<span class="ident">statistics</span>),
           }
         },
         <span class="ident">PageType</span>::<span class="ident">DATA_PAGE_V2</span> <span class="op">=&gt;</span> {
@@ -1369,14 +1387,14 @@
             <span class="ident">num_rows</span>: <span class="ident">header</span>.<span class="ident">num_rows</span> <span class="kw">as</span> <span class="ident">u32</span>,
             <span class="ident">def_levels_byte_len</span>: <span class="ident">header</span>.<span class="ident">definition_levels_byte_length</span> <span class="kw">as</span> <span class="ident">u32</span>,
             <span class="ident">rep_levels_byte_len</span>: <span class="ident">header</span>.<span class="ident">repetition_levels_byte_length</span> <span class="kw">as</span> <span class="ident">u32</span>,
-            <span class="ident">is_compressed</span>: <span class="ident">is_compressed</span>,
-            <span class="ident">statistics</span>: <span class="ident">statistics</span>::<span class="ident">from_thrift</span>(<span class="self">self</span>.<span class="ident">physical_type</span>, <span class="ident">header</span>.<span class="ident">statistics</span>)
+            <span class="ident">is_compressed</span>,
+            <span class="ident">statistics</span>: <span class="ident">statistics</span>::<span class="ident">from_thrift</span>(<span class="self">self</span>.<span class="ident">physical_type</span>, <span class="ident">header</span>.<span class="ident">statistics</span>),
           }
         },
         <span class="kw">_</span> <span class="op">=&gt;</span> {
           <span class="comment">// For unknown page type (e.g., INDEX_PAGE), skip and read next.</span>
           <span class="kw">continue</span>;
-        }
+        },
       };
       <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">result</span>));
     }
@@ -1386,12 +1404,11 @@
   }
 }
 
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
+  <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
   <span class="kw">use</span> <span class="ident">basic</span>::<span class="ident">SortOrder</span>;
   <span class="kw">use</span> <span class="ident">parquet_format</span>::<span class="ident">TypeDefinedOrder</span>;
-  <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
   <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">test_common</span>::{<span class="ident">get_temp_file</span>, <span class="ident">get_test_file</span>, <span class="ident">get_test_path</span>};
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1410,8 +1427,9 @@
     <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">include_bytes</span><span class="macro">!</span>(<span class="string">&quot;../../data/alltypes_plain.parquet&quot;</span>);
     <span class="kw">let</span> <span class="ident">cursor</span> <span class="op">=</span> <span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="ident">buffer</span>.<span class="ident">as_ref</span>());
 
-    <span class="kw">let</span> <span class="ident">read_from_file</span> <span class="op">=</span> <span class="ident">SerializedFileReader</span>::<span class="ident">new</span>(
-      <span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;data/alltypes_plain.parquet&quot;</span>).<span class="ident">unwrap</span>()).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="ident">read_from_file</span> <span class="op">=</span>
+      <span class="ident">SerializedFileReader</span>::<span class="ident">new</span>(<span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;data/alltypes_plain.parquet&quot;</span>).<span class="ident">unwrap</span>())
+        .<span class="ident">unwrap</span>();
     <span class="kw">let</span> <span class="ident">read_from_cursor</span> <span class="op">=</span> <span class="ident">SerializedFileReader</span>::<span class="ident">new</span>(<span class="ident">cursor</span>).<span class="ident">unwrap</span>();
 
     <span class="kw">let</span> <span class="ident">file_iter</span> <span class="op">=</span> <span class="ident">read_from_file</span>.<span class="ident">get_row_iter</span>(<span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
@@ -1459,8 +1477,16 @@
   <span class="kw">fn</span> <span class="ident">test_file_reader_column_orders_parse</span>() {
     <span class="comment">// Define simple schema, we do not need to provide logical types.</span>
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">SchemaType</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col1&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>).<span class="ident">build</span>().<span class="ident">unwrap</span>()),
-      <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">SchemaType</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col2&quot;</span>, <span class="ident">Type</span>::<span class="ident">FLOAT</span>).<span class="ident">build</span>().<span class="ident">unwrap</span>())
+      <span class="ident">Rc</span>::<span class="ident">new</span>(
+        <span class="ident">SchemaType</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col1&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>)
+          .<span class="ident">build</span>()
+          .<span class="ident">unwrap</span>(),
+      ),
+      <span class="ident">Rc</span>::<span class="ident">new</span>(
+        <span class="ident">SchemaType</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col2&quot;</span>, <span class="ident">Type</span>::<span class="ident">FLOAT</span>)
+          .<span class="ident">build</span>()
+          .<span class="ident">unwrap</span>(),
+      ),
     ];
     <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">SchemaType</span>::<span class="ident">group_type_builder</span>(<span class="string">&quot;schema&quot;</span>)
       .<span class="ident">with_fields</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fields</span>)
@@ -1470,7 +1496,7 @@
 
     <span class="kw">let</span> <span class="ident">t_column_orders</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="macro">vec</span><span class="macro">!</span>[
       <span class="ident">TColumnOrder</span>::<span class="ident">TYPEORDER</span>(<span class="ident">TypeDefinedOrder</span>::<span class="ident">new</span>()),
-      <span class="ident">TColumnOrder</span>::<span class="ident">TYPEORDER</span>(<span class="ident">TypeDefinedOrder</span>::<span class="ident">new</span>())
+      <span class="ident">TColumnOrder</span>::<span class="ident">TYPEORDER</span>(<span class="ident">TypeDefinedOrder</span>::<span class="ident">new</span>()),
     ]);
 
     <span class="macro">assert_eq</span><span class="macro">!</span>(
@@ -1494,9 +1520,7 @@
     <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">SchemaType</span>::<span class="ident">group_type_builder</span>(<span class="string">&quot;schema&quot;</span>).<span class="ident">build</span>().<span class="ident">unwrap</span>();
     <span class="kw">let</span> <span class="ident">schema_descr</span> <span class="op">=</span> <span class="ident">SchemaDescriptor</span>::<span class="ident">new</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">schema</span>));
 
-    <span class="kw">let</span> <span class="ident">t_column_orders</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="macro">vec</span><span class="macro">!</span>[
-      <span class="ident">TColumnOrder</span>::<span class="ident">TYPEORDER</span>(<span class="ident">TypeDefinedOrder</span>::<span class="ident">new</span>())
-    ]);
+    <span class="kw">let</span> <span class="ident">t_column_orders</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">TColumnOrder</span>::<span class="ident">TYPEORDER</span>(<span class="ident">TypeDefinedOrder</span>::<span class="ident">new</span>())]);
 
     <span class="ident">SerializedFileReader</span>::<span class="op">&lt;</span><span class="ident">File</span><span class="op">&gt;</span>::<span class="ident">parse_column_orders</span>(<span class="ident">t_column_orders</span>, <span class="kw-2">&amp;</span><span class="ident">schema_descr</span>);
   }
@@ -1592,7 +1616,10 @@
     <span class="kw">let</span> <span class="ident">row_group_reader_result</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_row_group</span>(<span class="number">0</span>);
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">row_group_reader_result</span>.<span class="ident">is_ok</span>());
     <span class="kw">let</span> <span class="ident">row_group_reader</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">RowGroupReader</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">row_group_reader_result</span>.<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">row_group_reader</span>.<span class="ident">num_columns</span>(), <span class="ident">row_group_metadata</span>.<span class="ident">num_columns</span>());
+    <span class="macro">assert_eq</span><span class="macro">!</span>(
+      <span class="ident">row_group_reader</span>.<span class="ident">num_columns</span>(),
+      <span class="ident">row_group_metadata</span>.<span class="ident">num_columns</span>()
+    );
     <span class="macro">assert_eq</span><span class="macro">!</span>(
       <span class="ident">row_group_reader</span>.<span class="ident">metadata</span>().<span class="ident">total_byte_size</span>(),
       <span class="ident">row_group_metadata</span>.<span class="ident">total_byte_size</span>()
@@ -1610,7 +1637,7 @@
           <span class="ident">buf</span>,
           <span class="ident">num_values</span>,
           <span class="ident">encoding</span>,
-          <span class="ident">is_sorted</span>
+          <span class="ident">is_sorted</span>,
         } <span class="op">=&gt;</span> {
           <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">buf</span>.<span class="ident">len</span>(), <span class="number">32</span>);
           <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">num_values</span>, <span class="number">8</span>);
@@ -1624,7 +1651,7 @@
           <span class="ident">encoding</span>,
           <span class="ident">def_level_encoding</span>,
           <span class="ident">rep_level_encoding</span>,
-          <span class="ident">statistics</span>
+          <span class="ident">statistics</span>,
         } <span class="op">=&gt;</span> {
           <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">buf</span>.<span class="ident">len</span>(), <span class="number">11</span>);
           <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">num_values</span>, <span class="number">8</span>);
@@ -1634,7 +1661,7 @@
           <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">statistics</span>.<span class="ident">is_none</span>());
           <span class="bool-val">true</span>
         },
-        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
       };
       <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">is_expected_page</span>);
       <span class="ident">page_count</span> <span class="op">+=</span> <span class="number">1</span>;
@@ -1675,7 +1702,10 @@
     <span class="kw">let</span> <span class="ident">row_group_reader_result</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_row_group</span>(<span class="number">0</span>);
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">row_group_reader_result</span>.<span class="ident">is_ok</span>());
     <span class="kw">let</span> <span class="ident">row_group_reader</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">RowGroupReader</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">row_group_reader_result</span>.<span class="ident">unwrap</span>();
-    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">row_group_reader</span>.<span class="ident">num_columns</span>(), <span class="ident">row_group_metadata</span>.<span class="ident">num_columns</span>());
+    <span class="macro">assert_eq</span><span class="macro">!</span>(
+      <span class="ident">row_group_reader</span>.<span class="ident">num_columns</span>(),
+      <span class="ident">row_group_metadata</span>.<span class="ident">num_columns</span>()
+    );
     <span class="macro">assert_eq</span><span class="macro">!</span>(
       <span class="ident">row_group_reader</span>.<span class="ident">metadata</span>().<span class="ident">total_byte_size</span>(),
       <span class="ident">row_group_metadata</span>.<span class="ident">total_byte_size</span>()
@@ -1693,7 +1723,7 @@
           <span class="ident">buf</span>,
           <span class="ident">num_values</span>,
           <span class="ident">encoding</span>,
-          <span class="ident">is_sorted</span>
+          <span class="ident">is_sorted</span>,
         } <span class="op">=&gt;</span> {
           <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">buf</span>.<span class="ident">len</span>(), <span class="number">7</span>);
           <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">num_values</span>, <span class="number">1</span>);
@@ -1710,7 +1740,7 @@
           <span class="ident">def_levels_byte_len</span>,
           <span class="ident">rep_levels_byte_len</span>,
           <span class="ident">is_compressed</span>,
-          <span class="ident">statistics</span>
+          <span class="ident">statistics</span>,
         } <span class="op">=&gt;</span> {
           <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">buf</span>.<span class="ident">len</span>(), <span class="number">4</span>);
           <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">num_values</span>, <span class="number">5</span>);
@@ -1723,7 +1753,7 @@
           <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">statistics</span>.<span class="ident">is_some</span>());
           <span class="bool-val">true</span>
         },
-        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
       };
       <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">is_expected_page</span>);
       <span class="ident">page_count</span> <span class="op">+=</span> <span class="number">1</span>;

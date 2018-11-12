@@ -799,6 +799,41 @@
 <span id="799">799</span>
 <span id="800">800</span>
 <span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -817,12 +852,16 @@
 <span class="comment">// specific language governing permissions and limitations</span>
 <span class="comment">// under the License.</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>::{<span class="ident">size_of</span>, <span class="ident">transmute_copy</span>};
+<span class="kw">use</span> <span class="ident">std</span>::{
+  <span class="ident">cmp</span>,
+  <span class="ident">mem</span>::{<span class="ident">size_of</span>, <span class="ident">transmute_copy</span>},
+};
 
 <span class="kw">use</span> <span class="ident">errors</span>::{<span class="ident">ParquetError</span>, <span class="prelude-ty">Result</span>};
-<span class="kw">use</span> <span class="ident">util</span>::<span class="ident">bit_util</span>::{<span class="self">self</span>, <span class="ident">BitReader</span>, <span class="ident">BitWriter</span>};
-<span class="kw">use</span> <span class="ident">util</span>::<span class="ident">memory</span>::<span class="ident">ByteBufferPtr</span>;
+<span class="kw">use</span> <span class="ident">util</span>::{
+  <span class="ident">bit_util</span>::{<span class="self">self</span>, <span class="ident">BitReader</span>, <span class="ident">BitWriter</span>},
+  <span class="ident">memory</span>::<span class="ident">ByteBufferPtr</span>,
+};
 
 <span class="doccomment">/// Rle/Bit-Packing Hybrid Encoding</span>
 <span class="doccomment">/// The grammar for this encoding looks like the following (copied verbatim</span>
@@ -882,7 +921,7 @@
   <span class="ident">bit_packed_count</span>: <span class="ident">usize</span>,
 
   <span class="comment">// The position of the indicator byte in the `bit_writer`.</span>
-  <span class="ident">indicator_byte_pos</span>: <span class="ident">i64</span>
+  <span class="ident">indicator_byte_pos</span>: <span class="ident">i64</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">RleEncoder</span> {
@@ -903,26 +942,29 @@
     );
     <span class="kw">let</span> <span class="ident">bit_writer</span> <span class="op">=</span> <span class="ident">BitWriter</span>::<span class="ident">new_from_buf</span>(<span class="ident">buffer</span>, <span class="ident">start</span>);
     <span class="ident">RleEncoder</span> {
-      <span class="ident">bit_width</span>: <span class="ident">bit_width</span>,
-      <span class="ident">bit_writer</span>: <span class="ident">bit_writer</span>,
+      <span class="ident">bit_width</span>,
+      <span class="ident">bit_writer</span>,
       <span class="ident">buffer_full</span>: <span class="bool-val">false</span>,
-      <span class="ident">max_run_byte_size</span>: <span class="ident">max_run_byte_size</span>,
+      <span class="ident">max_run_byte_size</span>,
       <span class="ident">buffered_values</span>: [<span class="number">0</span>; <span class="number">8</span>],
       <span class="ident">num_buffered_values</span>: <span class="number">0</span>,
       <span class="ident">current_value</span>: <span class="number">0</span>,
       <span class="ident">repeat_count</span>: <span class="number">0</span>,
       <span class="ident">bit_packed_count</span>: <span class="number">0</span>,
-      <span class="ident">indicator_byte_pos</span>: <span class="op">-</span><span class="number">1</span>
+      <span class="ident">indicator_byte_pos</span>: <span class="op">-</span><span class="number">1</span>,
     }
   }
 
   <span class="doccomment">/// Returns the minimum buffer size needed to use the encoder for `bit_width`.</span>
   <span class="doccomment">/// This is the maximum length of a single run for `bit_width`.</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">min_buffer_size</span>(<span class="ident">bit_width</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="kw">let</span> <span class="ident">max_bit_packed_run_size</span> <span class="op">=</span> <span class="number">1</span> <span class="op">+</span>
-      <span class="ident">bit_util</span>::<span class="ident">ceil</span>((<span class="ident">MAX_VALUES_PER_BIT_PACKED_RUN</span> <span class="op">*</span> <span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>) <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">8</span>);
-    <span class="kw">let</span> <span class="ident">max_rle_run_size</span> <span class="op">=</span> <span class="ident">bit_util</span>::<span class="ident">MAX_VLQ_BYTE_LEN</span> <span class="op">+</span>
-      <span class="ident">bit_util</span>::<span class="ident">ceil</span>(<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">8</span>) <span class="kw">as</span> <span class="ident">usize</span>;
+    <span class="kw">let</span> <span class="ident">max_bit_packed_run_size</span> <span class="op">=</span> <span class="number">1</span>
+      <span class="op">+</span> <span class="ident">bit_util</span>::<span class="ident">ceil</span>(
+        (<span class="ident">MAX_VALUES_PER_BIT_PACKED_RUN</span> <span class="op">*</span> <span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>) <span class="kw">as</span> <span class="ident">i64</span>,
+        <span class="number">8</span>,
+      );
+    <span class="kw">let</span> <span class="ident">max_rle_run_size</span> <span class="op">=</span>
+      <span class="ident">bit_util</span>::<span class="ident">MAX_VLQ_BYTE_LEN</span> <span class="op">+</span> <span class="ident">bit_util</span>::<span class="ident">ceil</span>(<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">8</span>) <span class="kw">as</span> <span class="ident">usize</span>;
     ::<span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">max</span>(<span class="ident">max_bit_packed_run_size</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">max_rle_run_size</span>)
   }
 
@@ -979,14 +1021,10 @@
   }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">buffer</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
-    <span class="self">self</span>.<span class="ident">bit_writer</span>.<span class="ident">buffer</span>()
-  }
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">buffer</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] { <span class="self">self</span>.<span class="ident">bit_writer</span>.<span class="ident">buffer</span>() }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="self">self</span>.<span class="ident">bit_writer</span>.<span class="ident">bytes_written</span>()
-  }
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">bit_writer</span>.<span class="ident">bytes_written</span>() }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">consume</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span> {
@@ -1018,10 +1056,11 @@
   <span class="doccomment">/// internal writer.</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-    <span class="kw">if</span> <span class="self">self</span>.<span class="ident">bit_packed_count</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">||</span> <span class="self">self</span>.<span class="ident">repeat_count</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">||</span>
-        <span class="self">self</span>.<span class="ident">num_buffered_values</span> <span class="op">&gt;</span> <span class="number">0</span> {
-      <span class="kw">let</span> <span class="ident">all_repeat</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_packed_count</span> <span class="op">==</span> <span class="number">0</span> <span class="op">&amp;&amp;</span>
-        (<span class="self">self</span>.<span class="ident">repeat_count</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">num_buffered_values</span> <span class="op">||</span> <span class="self">self</span>.<span class="ident">num_buffered_values</span> <span class="op">==</span> <span class="number">0</span>);
+    <span class="kw">if</span> <span class="self">self</span>.<span class="ident">bit_packed_count</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">||</span> <span class="self">self</span>.<span class="ident">repeat_count</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">||</span> <span class="self">self</span>.<span class="ident">num_buffered_values</span> <span class="op">&gt;</span> <span class="number">0</span>
+    {
+      <span class="kw">let</span> <span class="ident">all_repeat</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_packed_count</span> <span class="op">==</span> <span class="number">0</span>
+        <span class="op">&amp;&amp;</span> (<span class="self">self</span>.<span class="ident">repeat_count</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">num_buffered_values</span>
+          <span class="op">||</span> <span class="self">self</span>.<span class="ident">num_buffered_values</span> <span class="op">==</span> <span class="number">0</span>);
       <span class="kw">if</span> <span class="self">self</span>.<span class="ident">repeat_count</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">&amp;&amp;</span> <span class="ident">all_repeat</span> {
         <span class="self">self</span>.<span class="ident">flush_rle_run</span>()<span class="question-mark">?</span>;
       } <span class="kw">else</span> {
@@ -1046,9 +1085,11 @@
     <span class="kw">let</span> <span class="ident">indicator_value</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">repeat_count</span> <span class="op">&lt;&lt;</span> <span class="number">1</span> <span class="op">|</span> <span class="number">0</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_writer</span>.<span class="ident">put_vlq_int</span>(<span class="ident">indicator_value</span> <span class="kw">as</span> <span class="ident">u64</span>);
     <span class="ident">result</span> <span class="op">&amp;=</span> <span class="self">self</span>.<span class="ident">bit_writer</span>.<span class="ident">put_aligned</span>(
-      <span class="self">self</span>.<span class="ident">current_value</span>, <span class="ident">bit_util</span>::<span class="ident">ceil</span>(<span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">8</span>) <span class="kw">as</span> <span class="ident">usize</span>);
+      <span class="self">self</span>.<span class="ident">current_value</span>,
+      <span class="ident">bit_util</span>::<span class="ident">ceil</span>(<span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">8</span>) <span class="kw">as</span> <span class="ident">usize</span>,
+    );
     <span class="kw">if</span> <span class="op">!</span><span class="ident">result</span> {
-      <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;Failed to write RLE run&quot;</span>))
+      <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;Failed to write RLE run&quot;</span>));
     }
     <span class="self">self</span>.<span class="ident">num_buffered_values</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="self">self</span>.<span class="ident">repeat_count</span> <span class="op">=</span> <span class="number">0</span>;
@@ -1063,7 +1104,9 @@
 
     <span class="comment">// Write all buffered values as bit-packed literals</span>
     <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">num_buffered_values</span> {
-      <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_writer</span>.<span class="ident">put_value</span>(<span class="self">self</span>.<span class="ident">buffered_values</span>[<span class="ident">i</span>], <span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>);
+      <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="self">self</span>
+        .<span class="ident">bit_writer</span>
+        .<span class="ident">put_value</span>(<span class="self">self</span>.<span class="ident">buffered_values</span>[<span class="ident">i</span>], <span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>);
     }
     <span class="self">self</span>.<span class="ident">num_buffered_values</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="kw">if</span> <span class="ident">update_indicator_byte</span> {
@@ -1071,7 +1114,10 @@
       <span class="kw">let</span> <span class="ident">num_groups</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_packed_count</span> <span class="op">/</span> <span class="number">8</span>;
       <span class="kw">let</span> <span class="ident">indicator_byte</span> <span class="op">=</span> ((<span class="ident">num_groups</span> <span class="op">&lt;&lt;</span> <span class="number">1</span>) <span class="op">|</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">u8</span>;
       <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">bit_writer</span>.<span class="ident">put_aligned_offset</span>(
-        <span class="ident">indicator_byte</span>, <span class="number">1</span>, <span class="self">self</span>.<span class="ident">indicator_byte_pos</span> <span class="kw">as</span> <span class="ident">usize</span>) {
+        <span class="ident">indicator_byte</span>,
+        <span class="number">1</span>,
+        <span class="self">self</span>.<span class="ident">indicator_byte_pos</span> <span class="kw">as</span> <span class="ident">usize</span>,
+      ) {
         <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough space to write indicator byte&quot;</span>));
       }
       <span class="self">self</span>.<span class="ident">indicator_byte_pos</span> <span class="op">=</span> <span class="op">-</span><span class="number">1</span>;
@@ -1125,18 +1171,18 @@
   <span class="ident">bit_packed_left</span>: <span class="ident">u32</span>,
 
   <span class="comment">// The current value for the case of RLE mode</span>
-  <span class="ident">current_value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>
+  <span class="ident">current_value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">RleDecoder</span> {
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">bit_width</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
     <span class="ident">RleDecoder</span> {
-      <span class="ident">bit_width</span>: <span class="ident">bit_width</span>,
+      <span class="ident">bit_width</span>,
       <span class="ident">rle_left</span>: <span class="number">0</span>,
       <span class="ident">bit_packed_left</span>: <span class="number">0</span>,
       <span class="ident">bit_reader</span>: <span class="prelude-val">None</span>,
       <span class="ident">index_buf</span>: <span class="prelude-val">None</span>,
-      <span class="ident">current_value</span>: <span class="prelude-val">None</span>
+      <span class="ident">current_value</span>: <span class="prelude-val">None</span>,
     }
   }
 
@@ -1161,22 +1207,26 @@
       }
     }
 
-    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span>
-      <span class="kw">if</span> <span class="self">self</span>.<span class="ident">rle_left</span> <span class="op">&gt;</span> <span class="number">0</span> {
-        <span class="kw">let</span> <span class="ident">rle_value</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-          <span class="ident">transmute_copy</span>::<span class="op">&lt;</span><span class="ident">u64</span>, <span class="ident">T</span><span class="op">&gt;</span>(
-            <span class="self">self</span>.<span class="ident">current_value</span>.<span class="ident">as_mut</span>().<span class="ident">expect</span>(<span class="string">&quot;current_value should be Some&quot;</span>))
-        };
-        <span class="self">self</span>.<span class="ident">rle_left</span> <span class="op">-=</span> <span class="number">1</span>;
-        <span class="ident">rle_value</span>
-      } <span class="kw">else</span> { <span class="comment">// self.bit_packed_left &gt; 0</span>
-        <span class="kw">let</span> <span class="ident">bit_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span>.<span class="ident">as_mut</span>().<span class="ident">expect</span>(<span class="string">&quot;bit_reader should be Some&quot;</span>);
-        <span class="kw">let</span> <span class="ident">bit_packed_value</span> <span class="op">=</span> <span class="ident">bit_reader</span>
-          .<span class="ident">get_value</span>(<span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>)
-          .<span class="ident">ok_or</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough data for &#39;bit_packed_value&#39;&quot;</span>))<span class="question-mark">?</span>;
-        <span class="self">self</span>.<span class="ident">bit_packed_left</span> <span class="op">-=</span> <span class="number">1</span>;
-        <span class="ident">bit_packed_value</span>
+    <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">rle_left</span> <span class="op">&gt;</span> <span class="number">0</span> {
+      <span class="kw">let</span> <span class="ident">rle_value</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+        <span class="ident">transmute_copy</span>::<span class="op">&lt;</span><span class="ident">u64</span>, <span class="ident">T</span><span class="op">&gt;</span>(
+          <span class="self">self</span>
+            .<span class="ident">current_value</span>
+            .<span class="ident">as_mut</span>()
+            .<span class="ident">expect</span>(<span class="string">&quot;current_value should be Some&quot;</span>),
+        )
       };
+      <span class="self">self</span>.<span class="ident">rle_left</span> <span class="op">-=</span> <span class="number">1</span>;
+      <span class="ident">rle_value</span>
+    } <span class="kw">else</span> {
+      <span class="comment">// self.bit_packed_left &gt; 0</span>
+      <span class="kw">let</span> <span class="ident">bit_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span>.<span class="ident">as_mut</span>().<span class="ident">expect</span>(<span class="string">&quot;bit_reader should be Some&quot;</span>);
+      <span class="kw">let</span> <span class="ident">bit_packed_value</span> <span class="op">=</span> <span class="ident">bit_reader</span>
+        .<span class="ident">get_value</span>(<span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>)
+        .<span class="ident">ok_or</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough data for &#39;bit_packed_value&#39;&quot;</span>))<span class="question-mark">?</span>;
+      <span class="self">self</span>.<span class="ident">bit_packed_left</span> <span class="op">-=</span> <span class="number">1</span>;
+      <span class="ident">bit_packed_value</span>
+    };
 
     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">value</span>))
   }
@@ -1192,21 +1242,20 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">current_value</span>.<span class="ident">is_some</span>());
         <span class="kw">let</span> <span class="ident">num_values</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">buffer</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">values_read</span>, <span class="self">self</span>.<span class="ident">rle_left</span> <span class="kw">as</span> <span class="ident">usize</span>);
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_values</span> {
-          <span class="kw">let</span> <span class="ident">repeated_value</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-            <span class="ident">transmute_copy</span>::<span class="op">&lt;</span><span class="ident">u64</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="self">self</span>.<span class="ident">current_value</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>())
-          };
+          <span class="kw">let</span> <span class="ident">repeated_value</span> <span class="op">=</span>
+            <span class="kw">unsafe</span> { <span class="ident">transmute_copy</span>::<span class="op">&lt;</span><span class="ident">u64</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="self">self</span>.<span class="ident">current_value</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>()) };
           <span class="ident">buffer</span>[<span class="ident">values_read</span> <span class="op">+</span> <span class="ident">i</span>] <span class="op">=</span> <span class="ident">repeated_value</span>;
         }
         <span class="self">self</span>.<span class="ident">rle_left</span> <span class="op">-=</span> <span class="ident">num_values</span> <span class="kw">as</span> <span class="ident">u32</span>;
         <span class="ident">values_read</span> <span class="op">+=</span> <span class="ident">num_values</span>;
       } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">bit_packed_left</span> <span class="op">&gt;</span> <span class="number">0</span> {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">bit_reader</span>.<span class="ident">is_some</span>());
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">num_values</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(
-          <span class="ident">buffer</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">values_read</span>, <span class="self">self</span>.<span class="ident">bit_packed_left</span> <span class="kw">as</span> <span class="ident">usize</span>
-        );
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">num_values</span> <span class="op">=</span>
+          <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">buffer</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">values_read</span>, <span class="self">self</span>.<span class="ident">bit_packed_left</span> <span class="kw">as</span> <span class="ident">usize</span>);
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">bit_reader</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span> {
           <span class="ident">num_values</span> <span class="op">=</span> <span class="ident">bit_reader</span>.<span class="ident">get_batch</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(
-            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[<span class="ident">values_read</span>..<span class="ident">values_read</span> <span class="op">+</span> <span class="ident">num_values</span>], <span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[<span class="ident">values_read</span>..<span class="ident">values_read</span> <span class="op">+</span> <span class="ident">num_values</span>],
+            <span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>,
           );
           <span class="self">self</span>.<span class="ident">bit_packed_left</span> <span class="op">-=</span> <span class="ident">num_values</span> <span class="kw">as</span> <span class="ident">u32</span>;
           <span class="ident">values_read</span> <span class="op">+=</span> <span class="ident">num_values</span>;
@@ -1226,8 +1275,11 @@
     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
     <span class="ident">dict</span>: <span class="kw-2">&amp;</span>[<span class="ident">T</span>],
     <span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">T</span>],
-    <span class="ident">max_values</span>: <span class="ident">usize</span>
-  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Default</span> <span class="op">+</span> <span class="ident">Clone</span> {
+    <span class="ident">max_values</span>: <span class="ident">usize</span>,
+  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>
+  <span class="kw">where</span>
+    <span class="ident">T</span>: <span class="ident">Default</span> <span class="op">+</span> <span class="ident">Clone</span>,
+  {
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">buffer</span>.<span class="ident">len</span>() <span class="op">&gt;=</span> <span class="ident">max_values</span>);
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values_read</span> <span class="op">=</span> <span class="number">0</span>;
@@ -1243,16 +1295,14 @@
         <span class="ident">values_read</span> <span class="op">+=</span> <span class="ident">num_values</span>;
       } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">bit_packed_left</span> <span class="op">&gt;</span> <span class="number">0</span> {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">bit_reader</span>.<span class="ident">is_some</span>());
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">num_values</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(
-          <span class="ident">max_values</span> <span class="op">-</span> <span class="ident">values_read</span>, <span class="self">self</span>.<span class="ident">bit_packed_left</span> <span class="kw">as</span> <span class="ident">usize</span>
-        );
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">num_values</span> <span class="op">=</span>
+          <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">max_values</span> <span class="op">-</span> <span class="ident">values_read</span>, <span class="self">self</span>.<span class="ident">bit_packed_left</span> <span class="kw">as</span> <span class="ident">usize</span>);
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">bit_reader</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span> {
           <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_buf</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">index_buf</span>.<span class="ident">unwrap</span>();
           <span class="ident">num_values</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">num_values</span>, <span class="ident">index_buf</span>.<span class="ident">len</span>());
           <span class="kw">loop</span> {
-            <span class="ident">num_values</span> <span class="op">=</span> <span class="ident">bit_reader</span>.<span class="ident">get_batch</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>(
-              <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">index_buf</span>[..<span class="ident">num_values</span>], <span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>
-            );
+            <span class="ident">num_values</span> <span class="op">=</span> <span class="ident">bit_reader</span>
+              .<span class="ident">get_batch</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">index_buf</span>[..<span class="ident">num_values</span>], <span class="self">self</span>.<span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>);
             <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_values</span> {
               <span class="ident">buffer</span>[<span class="ident">values_read</span> <span class="op">+</span> <span class="ident">i</span>] <span class="op">=</span> <span class="ident">dict</span>[<span class="ident">index_buf</span>[<span class="ident">i</span>] <span class="kw">as</span> <span class="ident">usize</span>].<span class="ident">clone</span>();
             }
@@ -1295,12 +1345,14 @@
   }
 }
 
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
   <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-  <span class="kw">use</span> <span class="ident">rand</span>::{<span class="self">self</span>, <span class="ident">thread_rng</span>, <span class="ident">Rng</span>, <span class="ident">SeedableRng</span>};
-  <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::{<span class="ident">Distribution</span>, <span class="ident">Standard</span>};
+  <span class="kw">use</span> <span class="ident">rand</span>::{
+    <span class="self">self</span>,
+    <span class="ident">distributions</span>::{<span class="ident">Distribution</span>, <span class="ident">Standard</span>},
+    <span class="ident">thread_rng</span>, <span class="ident">Rng</span>, <span class="ident">SeedableRng</span>,
+  };
   <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">memory</span>::<span class="ident">ByteBufferPtr</span>;
 
   <span class="kw">const</span> <span class="ident">MAX_WIDTH</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">32</span>;
@@ -1342,12 +1394,9 @@
     <span class="comment">// Bit-packing test data: alternating 1s and 0s, 100 total</span>
     <span class="comment">// 100 / 8 = 13 groups</span>
     <span class="comment">// 00011011 10101010 ... 00001010</span>
-    <span class="kw">let</span> <span class="ident">data2</span> <span class="op">=</span> <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(
-      <span class="macro">vec</span><span class="macro">!</span>[
-        <span class="number">0x1B</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>,
-        <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0x0A</span>
-      ]
-    );
+    <span class="kw">let</span> <span class="ident">data2</span> <span class="op">=</span> <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[
+      <span class="number">0x1B</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0xAA</span>, <span class="number">0x0A</span>,
+    ]);
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>: <span class="ident">RleDecoder</span> <span class="op">=</span> <span class="ident">RleDecoder</span>::<span class="ident">new</span>(<span class="number">1</span>);
     <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">data1</span>);
@@ -1402,11 +1451,10 @@
     <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">data</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;&quot;</span>; <span class="number">12</span>];
     <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="string">&quot;ddd&quot;</span>, <span class="string">&quot;eee&quot;</span>, <span class="string">&quot;fff&quot;</span>, <span class="string">&quot;ddd&quot;</span>, <span class="string">&quot;eee&quot;</span>, <span class="string">&quot;fff&quot;</span>,
-      <span class="string">&quot;ddd&quot;</span>, <span class="string">&quot;eee&quot;</span>, <span class="string">&quot;fff&quot;</span>, <span class="string">&quot;eee&quot;</span>, <span class="string">&quot;fff&quot;</span>, <span class="string">&quot;fff&quot;</span>
+      <span class="string">&quot;ddd&quot;</span>, <span class="string">&quot;eee&quot;</span>, <span class="string">&quot;fff&quot;</span>, <span class="string">&quot;ddd&quot;</span>, <span class="string">&quot;eee&quot;</span>, <span class="string">&quot;fff&quot;</span>, <span class="string">&quot;ddd&quot;</span>, <span class="string">&quot;eee&quot;</span>, <span class="string">&quot;fff&quot;</span>, <span class="string">&quot;eee&quot;</span>, <span class="string">&quot;fff&quot;</span>, <span class="string">&quot;fff&quot;</span>,
     ];
-    <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">get_batch_with_dict</span>::<span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>(
-      <span class="ident">dict</span>.<span class="ident">as_slice</span>(), <span class="ident">buffer</span>.<span class="ident">as_mut_slice</span>(), <span class="number">12</span>);
+    <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span>
+      <span class="ident">decoder</span>.<span class="ident">get_batch_with_dict</span>::<span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>(<span class="ident">dict</span>.<span class="ident">as_slice</span>(), <span class="ident">buffer</span>.<span class="ident">as_mut_slice</span>(), <span class="number">12</span>);
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">result</span>.<span class="ident">is_ok</span>());
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">buffer</span>, <span class="ident">expected</span>);
   }
@@ -1415,8 +1463,9 @@
     <span class="ident">values</span>: <span class="kw-2">&amp;</span>[<span class="ident">i64</span>],
     <span class="ident">bit_width</span>: <span class="ident">u8</span>,
     <span class="ident">expected_encoding</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>,
-    <span class="ident">expected_len</span>: <span class="ident">i32</span>
-  ) {
+    <span class="ident">expected_len</span>: <span class="ident">i32</span>,
+  )
+  {
     <span class="kw">let</span> <span class="ident">buffer_len</span> <span class="op">=</span> <span class="number">64</span> <span class="op">*</span> <span class="number">1024</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">RleEncoder</span>::<span class="ident">new</span>(<span class="ident">bit_width</span>, <span class="ident">buffer_len</span>);
     <span class="kw">for</span> <span class="ident">v</span> <span class="kw">in</span> <span class="ident">values</span> {
@@ -1429,14 +1478,15 @@
     }
     <span class="kw">match</span> <span class="ident">expected_encoding</span> {
       <span class="prelude-val">Some</span>(<span class="ident">b</span>) <span class="op">=&gt;</span> <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">buffer</span>.<span class="ident">as_ref</span>(), <span class="ident">b</span>),
-      <span class="kw">_</span> <span class="op">=&gt;</span> ()
+      <span class="kw">_</span> <span class="op">=&gt;</span> (),
     }
 
     <span class="comment">// Verify read</span>
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">RleDecoder</span>::<span class="ident">new</span>(<span class="ident">bit_width</span>);
     <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">buffer</span>.<span class="ident">all</span>());
     <span class="kw">for</span> <span class="ident">v</span> <span class="kw">in</span> <span class="ident">values</span> {
-      <span class="kw">let</span> <span class="ident">val</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">get</span>()
+      <span class="kw">let</span> <span class="ident">val</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="ident">decoder</span>
+        .<span class="ident">get</span>()
         .<span class="ident">expect</span>(<span class="string">&quot;get() should be OK&quot;</span>)
         .<span class="ident">expect</span>(<span class="string">&quot;get() should return more value&quot;</span>);
       <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">val</span>, <span class="kw-2">*</span><span class="ident">v</span>);
@@ -1445,7 +1495,9 @@
     <span class="comment">// Verify batch read</span>
     <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">buffer</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values_read</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">values</span>.<span class="ident">len</span>()];
-    <span class="ident">decoder</span>.<span class="ident">get_batch</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">values_read</span>[..]).<span class="ident">expect</span>(<span class="string">&quot;get_batch() should be OK&quot;</span>);
+    <span class="ident">decoder</span>
+      .<span class="ident">get_batch</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">values_read</span>[..])
+      .<span class="ident">expect</span>(<span class="string">&quot;get_batch() should be OK&quot;</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">values_read</span>[..], <span class="ident">values</span>);
   }
 
@@ -1469,8 +1521,11 @@
     }
     <span class="kw">for</span> <span class="ident">width</span> <span class="kw">in</span> <span class="number">9</span>..<span class="ident">MAX_WIDTH</span> <span class="op">+</span> <span class="number">1</span> {
       <span class="ident">validate_rle</span>(
-        <span class="kw-2">&amp;</span><span class="ident">values</span>[..], <span class="ident">width</span> <span class="kw">as</span> <span class="ident">u8</span>, <span class="prelude-val">None</span>,
-        <span class="number">2</span> <span class="op">*</span> (<span class="number">1</span> <span class="op">+</span> <span class="ident">bit_util</span>::<span class="ident">ceil</span>(<span class="ident">width</span> <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">8</span>) <span class="kw">as</span> <span class="ident">i32</span>));
+        <span class="kw-2">&amp;</span><span class="ident">values</span>[..],
+        <span class="ident">width</span> <span class="kw">as</span> <span class="ident">u8</span>,
+        <span class="prelude-val">None</span>,
+        <span class="number">2</span> <span class="op">*</span> (<span class="number">1</span> <span class="op">+</span> <span class="ident">bit_util</span>::<span class="ident">ceil</span>(<span class="ident">width</span> <span class="kw">as</span> <span class="ident">i64</span>, <span class="number">8</span>) <span class="kw">as</span> <span class="ident">i32</span>),
+      );
     }
 
     <span class="comment">// Test 100 0&#39;s and 1&#39;s alternating</span>
@@ -1486,12 +1541,19 @@
     }
     <span class="comment">// For the last 4 0 and 1&#39;s, padded with 0.</span>
     <span class="ident">expected_buffer</span>.<span class="ident">push</span>(<span class="number">0b00001010</span>);
-    <span class="ident">validate_rle</span>(<span class="kw-2">&amp;</span><span class="ident">values</span>, <span class="number">1</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">expected_buffer</span>[..]), <span class="number">1</span> <span class="op">+</span> <span class="ident">num_groups</span> <span class="kw">as</span> <span class="ident">i32</span>);
+    <span class="ident">validate_rle</span>(
+      <span class="kw-2">&amp;</span><span class="ident">values</span>,
+      <span class="number">1</span>,
+      <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">expected_buffer</span>[..]),
+      <span class="number">1</span> <span class="op">+</span> <span class="ident">num_groups</span> <span class="kw">as</span> <span class="ident">i32</span>,
+    );
     <span class="kw">for</span> <span class="ident">width</span> <span class="kw">in</span> <span class="number">2</span>..<span class="ident">MAX_WIDTH</span> <span class="op">+</span> <span class="number">1</span> {
       <span class="kw">let</span> <span class="ident">num_values</span> <span class="op">=</span> <span class="ident">bit_util</span>::<span class="ident">ceil</span>(<span class="number">100</span>, <span class="number">8</span>) <span class="op">*</span> <span class="number">8</span>;
       <span class="ident">validate_rle</span>(
-        <span class="kw-2">&amp;</span><span class="ident">values</span>, <span class="ident">width</span> <span class="kw">as</span> <span class="ident">u8</span>, <span class="prelude-val">None</span>,
-        <span class="number">1</span> <span class="op">+</span> <span class="ident">bit_util</span>::<span class="ident">ceil</span>(<span class="ident">width</span> <span class="kw">as</span> <span class="ident">i64</span> <span class="op">*</span> <span class="ident">num_values</span>, <span class="number">8</span>) <span class="kw">as</span> <span class="ident">i32</span>
+        <span class="kw-2">&amp;</span><span class="ident">values</span>,
+        <span class="ident">width</span> <span class="kw">as</span> <span class="ident">u8</span>,
+        <span class="prelude-val">None</span>,
+        <span class="number">1</span> <span class="op">+</span> <span class="ident">bit_util</span>::<span class="ident">ceil</span>(<span class="ident">width</span> <span class="kw">as</span> <span class="ident">i64</span> <span class="op">*</span> <span class="ident">num_values</span>, <span class="number">8</span>) <span class="kw">as</span> <span class="ident">i32</span>,
       );
     }
   }
@@ -1499,15 +1561,18 @@
   <span class="comment">// `validate_rle` on `num_vals` with width `bit_width`. If `value` is -1, that value</span>
   <span class="comment">// is used, otherwise alternating values are used.</span>
   <span class="kw">fn</span> <span class="ident">test_rle_values</span>(<span class="ident">bit_width</span>: <span class="ident">usize</span>, <span class="ident">num_vals</span>: <span class="ident">usize</span>, <span class="ident">value</span>: <span class="ident">i32</span>) {
-    <span class="kw">let</span> <span class="ident">mod_val</span> <span class="op">=</span>
-      <span class="kw">if</span> <span class="ident">bit_width</span> <span class="op">==</span> <span class="number">64</span> {
-        <span class="number">1</span>
-      } <span class="kw">else</span> {
-        <span class="number">1u64</span> <span class="op">&lt;&lt;</span> <span class="ident">bit_width</span>
-      };
+    <span class="kw">let</span> <span class="ident">mod_val</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">bit_width</span> <span class="op">==</span> <span class="number">64</span> {
+      <span class="number">1</span>
+    } <span class="kw">else</span> {
+      <span class="number">1u64</span> <span class="op">&lt;&lt;</span> <span class="ident">bit_width</span>
+    };
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
     <span class="kw">for</span> <span class="ident">v</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_vals</span> {
-      <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">value</span> <span class="op">==</span> <span class="op">-</span><span class="number">1</span> { <span class="ident">v</span> <span class="kw">as</span> <span class="ident">i64</span> <span class="op">%</span> <span class="ident">mod_val</span> <span class="kw">as</span> <span class="ident">i64</span> } <span class="kw">else</span> { <span class="ident">value</span> <span class="kw">as</span> <span class="ident">i64</span> };
+      <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">value</span> <span class="op">==</span> <span class="op">-</span><span class="number">1</span> {
+        <span class="ident">v</span> <span class="kw">as</span> <span class="ident">i64</span> <span class="op">%</span> <span class="ident">mod_val</span> <span class="kw">as</span> <span class="ident">i64</span>
+      } <span class="kw">else</span> {
+        <span class="ident">value</span> <span class="kw">as</span> <span class="ident">i64</span>
+      };
       <span class="ident">values</span>.<span class="ident">push</span>(<span class="ident">val</span>);
     }
     <span class="ident">validate_rle</span>(<span class="kw-2">&amp;</span><span class="ident">values</span>, <span class="ident">bit_width</span> <span class="kw">as</span> <span class="ident">u8</span>, <span class="prelude-val">None</span>, <span class="op">-</span><span class="number">1</span>);
@@ -1536,7 +1601,9 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">RleDecoder</span>::<span class="ident">new</span>(<span class="ident">bit_width</span>);
     <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">buffer</span>));
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">actual_values</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">i16</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">values</span>.<span class="ident">len</span>()];
-    <span class="ident">decoder</span>.<span class="ident">get_batch</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">actual_values</span>).<span class="ident">expect</span>(<span class="string">&quot;get_batch() should be OK&quot;</span>);
+    <span class="ident">decoder</span>
+      .<span class="ident">get_batch</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">actual_values</span>)
+      .<span class="ident">expect</span>(<span class="string">&quot;get_batch() should be OK&quot;</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">actual_values</span>, <span class="ident">values</span>);
   }
 
@@ -1554,7 +1621,8 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">RleDecoder</span>::<span class="ident">new</span>(<span class="ident">bit_width</span>);
     <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">buffer</span>.<span class="ident">all</span>());
     <span class="kw">for</span> <span class="ident">v</span> <span class="kw">in</span> <span class="ident">values</span> {
-      <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">get</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>()
+      <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">decoder</span>
+        .<span class="ident">get</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>()
         .<span class="ident">expect</span>(<span class="string">&quot;get() should be OK&quot;</span>)
         .<span class="ident">expect</span>(<span class="string">&quot;get() should return value&quot;</span>);
       <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">val</span>, <span class="kw-2">*</span><span class="ident">v</span>);
@@ -1564,7 +1632,9 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">RleDecoder</span>::<span class="ident">new</span>(<span class="ident">bit_width</span>);
     <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">buffer</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values_read</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">values</span>.<span class="ident">len</span>()];
-    <span class="ident">decoder</span>.<span class="ident">get_batch</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">values_read</span>[..]).<span class="ident">expect</span>(<span class="string">&quot;get_batch() should be OK&quot;</span>);
+    <span class="ident">decoder</span>
+      .<span class="ident">get_batch</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">values_read</span>[..])
+      .<span class="ident">expect</span>(<span class="string">&quot;get_batch() should be OK&quot;</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">values_read</span>[..], <span class="ident">values</span>);
   }
 
@@ -1579,7 +1649,7 @@
     <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">niters</span> {
       <span class="ident">values</span>.<span class="ident">clear</span>();
       <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">thread_rng</span>();
-      <span class="kw">let</span> <span class="ident">seed_vec</span> : <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Standard</span>.<span class="ident">sample_iter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>).<span class="ident">take</span>(<span class="ident">seed_len</span>).<span class="ident">collect</span>();
+      <span class="kw">let</span> <span class="ident">seed_vec</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Standard</span>.<span class="ident">sample_iter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>).<span class="ident">take</span>(<span class="ident">seed_len</span>).<span class="ident">collect</span>();
       <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seed</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">32</span>];
       <span class="ident">seed</span>.<span class="ident">copy_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">seed_vec</span>[<span class="number">0</span>..<span class="ident">seed_len</span>]);
       <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">gen</span> <span class="op">=</span> <span class="ident">rand</span>::<span class="ident">StdRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);

@@ -928,6 +928,19 @@
 <span id="928">928</span>
 <span id="929">929</span>
 <span id="930">930</span>
+<span id="931">931</span>
+<span id="932">932</span>
+<span id="933">933</span>
+<span id="934">934</span>
+<span id="935">935</span>
+<span id="936">936</span>
+<span id="937">937</span>
+<span id="938">938</span>
+<span id="939">939</span>
+<span id="940">940</span>
+<span id="941">941</span>
+<span id="942">942</span>
+<span id="943">943</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -949,21 +962,25 @@
 <span class="doccomment">//! Contains file writer API, and provides methods to write row groups and columns by</span>
 <span class="doccomment">//! using row group writers and column writers respectively.</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">File</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Seek</span>, <span class="ident">SeekFrom</span>, <span class="ident">Write</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
+<span class="kw">use</span> <span class="ident">std</span>::{
+  <span class="ident">fs</span>::<span class="ident">File</span>,
+  <span class="ident">io</span>::{<span class="ident">Seek</span>, <span class="ident">SeekFrom</span>, <span class="ident">Write</span>},
+  <span class="ident">rc</span>::<span class="ident">Rc</span>,
+};
 
 <span class="kw">use</span> <span class="ident">basic</span>::<span class="ident">PageType</span>;
-<span class="kw">use</span> <span class="ident">byteorder</span>::{<span class="ident">LittleEndian</span>, <span class="ident">ByteOrder</span>};
-<span class="kw">use</span> <span class="ident">column</span>::<span class="ident">page</span>::{<span class="ident">CompressedPage</span>, <span class="ident">Page</span>, <span class="ident">PageWriteSpec</span>, <span class="ident">PageWriter</span>};
-<span class="kw">use</span> <span class="ident">column</span>::<span class="ident">writer</span>::{<span class="ident">ColumnWriter</span>, <span class="ident">get_column_writer</span>};
+<span class="kw">use</span> <span class="ident">byteorder</span>::{<span class="ident">ByteOrder</span>, <span class="ident">LittleEndian</span>};
+<span class="kw">use</span> <span class="ident">column</span>::{
+  <span class="ident">page</span>::{<span class="ident">CompressedPage</span>, <span class="ident">Page</span>, <span class="ident">PageWriteSpec</span>, <span class="ident">PageWriter</span>},
+  <span class="ident">writer</span>::{<span class="ident">get_column_writer</span>, <span class="ident">ColumnWriter</span>},
+};
 <span class="kw">use</span> <span class="ident">errors</span>::{<span class="ident">ParquetError</span>, <span class="prelude-ty">Result</span>};
-<span class="kw">use</span> <span class="ident">file</span>::{<span class="ident">FOOTER_SIZE</span>, <span class="ident">PARQUET_MAGIC</span>};
-<span class="kw">use</span> <span class="ident">file</span>::<span class="ident">metadata</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">file</span>::<span class="ident">properties</span>::<span class="ident">WriterPropertiesPtr</span>;
-<span class="kw">use</span> <span class="ident">file</span>::<span class="ident">statistics</span>::{<span class="ident">to_thrift</span> <span class="kw">as</span> <span class="ident">statistics_to_thrift</span>};
+<span class="kw">use</span> <span class="ident">file</span>::{
+  <span class="ident">metadata</span>::<span class="kw-2">*</span>, <span class="ident">properties</span>::<span class="ident">WriterPropertiesPtr</span>,
+  <span class="ident">statistics</span>::<span class="ident">to_thrift</span> <span class="kw">as</span> <span class="ident">statistics_to_thrift</span>, <span class="ident">FOOTER_SIZE</span>, <span class="ident">PARQUET_MAGIC</span>,
+};
 <span class="kw">use</span> <span class="ident">parquet_format</span> <span class="kw">as</span> <span class="ident">parquet</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">types</span>::{<span class="self">self</span>, <span class="ident">SchemaDescriptor</span>, <span class="ident">SchemaDescPtr</span>, <span class="ident">TypePtr</span>};
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">types</span>::{<span class="self">self</span>, <span class="ident">SchemaDescPtr</span>, <span class="ident">SchemaDescriptor</span>, <span class="ident">TypePtr</span>};
 <span class="kw">use</span> <span class="ident">thrift</span>::<span class="ident">protocol</span>::{<span class="ident">TCompactOutputProtocol</span>, <span class="ident">TOutputProtocol</span>};
 <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">io</span>::{<span class="ident">FileSink</span>, <span class="ident">Position</span>};
 
@@ -1051,7 +1068,7 @@
   <span class="ident">total_num_rows</span>: <span class="ident">u64</span>,
   <span class="ident">row_groups</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">RowGroupMetaDataPtr</span><span class="op">&gt;</span>,
   <span class="ident">previous_writer_closed</span>: <span class="ident">bool</span>,
-  <span class="ident">is_closed</span>: <span class="ident">bool</span>
+  <span class="ident">is_closed</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">SerializedFileWriter</span> {
@@ -1059,18 +1076,19 @@
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
     <span class="kw-2">mut</span> <span class="ident">file</span>: <span class="ident">File</span>,
     <span class="ident">schema</span>: <span class="ident">TypePtr</span>,
-    <span class="ident">properties</span>: <span class="ident">WriterPropertiesPtr</span>
-  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="ident">properties</span>: <span class="ident">WriterPropertiesPtr</span>,
+  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>
+  {
     <span class="self">Self</span>::<span class="ident">start_file</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">file</span>)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
-      <span class="ident">file</span>: <span class="ident">file</span>,
+      <span class="ident">file</span>,
       <span class="ident">schema</span>: <span class="ident">schema</span>.<span class="ident">clone</span>(),
       <span class="ident">descr</span>: <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">SchemaDescriptor</span>::<span class="ident">new</span>(<span class="ident">schema</span>)),
       <span class="ident">props</span>: <span class="ident">properties</span>,
       <span class="ident">total_num_rows</span>: <span class="number">0</span>,
       <span class="ident">row_groups</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
       <span class="ident">previous_writer_closed</span>: <span class="bool-val">true</span>,
-      <span class="ident">is_closed</span>: <span class="bool-val">false</span>
+      <span class="ident">is_closed</span>: <span class="bool-val">false</span>,
     })
   }
 
@@ -1083,8 +1101,9 @@
   <span class="doccomment">/// Finalises active row group writer, otherwise no-op.</span>
   <span class="kw">fn</span> <span class="ident">finalise_row_group_writer</span>(
     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-    <span class="kw-2">mut</span> <span class="ident">row_group_writer</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">RowGroupWriter</span><span class="op">&gt;</span>
-  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw-2">mut</span> <span class="ident">row_group_writer</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">RowGroupWriter</span><span class="op">&gt;</span>,
+  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>
+  {
     <span class="kw">let</span> <span class="ident">row_group_metadata</span> <span class="op">=</span> <span class="ident">row_group_writer</span>.<span class="ident">close</span>()<span class="question-mark">?</span>;
     <span class="self">self</span>.<span class="ident">row_groups</span>.<span class="ident">push</span>(<span class="ident">row_group_metadata</span>);
     <span class="prelude-val">Ok</span>(())
@@ -1096,10 +1115,15 @@
       <span class="ident">version</span>: <span class="self">self</span>.<span class="ident">props</span>.<span class="ident">writer_version</span>().<span class="ident">as_num</span>(),
       <span class="ident">schema</span>: <span class="ident">types</span>::<span class="ident">to_thrift</span>(<span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">as_ref</span>())<span class="question-mark">?</span>,
       <span class="ident">num_rows</span>: <span class="self">self</span>.<span class="ident">total_num_rows</span> <span class="kw">as</span> <span class="ident">i64</span>,
-      <span class="ident">row_groups</span>: <span class="self">self</span>.<span class="ident">row_groups</span>.<span class="ident">as_slice</span>().<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="ident">v</span>.<span class="ident">to_thrift</span>()).<span class="ident">collect</span>(),
+      <span class="ident">row_groups</span>: <span class="self">self</span>
+        .<span class="ident">row_groups</span>
+        .<span class="ident">as_slice</span>()
+        .<span class="ident">into_iter</span>()
+        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="ident">v</span>.<span class="ident">to_thrift</span>())
+        .<span class="ident">collect</span>(),
       <span class="ident">key_value_metadata</span>: <span class="prelude-val">None</span>,
       <span class="ident">created_by</span>: <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">props</span>.<span class="ident">created_by</span>().<span class="ident">to_owned</span>()),
-      <span class="ident">column_orders</span>: <span class="prelude-val">None</span>
+      <span class="ident">column_orders</span>: <span class="prelude-val">None</span>,
     };
 
     <span class="comment">// Write file metadata</span>
@@ -1144,11 +1168,8 @@
   <span class="kw">fn</span> <span class="ident">next_row_group</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">RowGroupWriter</span><span class="op">&gt;&gt;</span> {
     <span class="self">self</span>.<span class="ident">assert_closed</span>()<span class="question-mark">?</span>;
     <span class="self">self</span>.<span class="ident">assert_previous_writer_closed</span>()<span class="question-mark">?</span>;
-    <span class="kw">let</span> <span class="ident">row_group_writer</span> <span class="op">=</span> <span class="ident">SerializedRowGroupWriter</span>::<span class="ident">new</span>(
-      <span class="self">self</span>.<span class="ident">descr</span>.<span class="ident">clone</span>(),
-      <span class="self">self</span>.<span class="ident">props</span>.<span class="ident">clone</span>(),
-      <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">file</span>
-    );
+    <span class="kw">let</span> <span class="ident">row_group_writer</span> <span class="op">=</span>
+      <span class="ident">SerializedRowGroupWriter</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">descr</span>.<span class="ident">clone</span>(), <span class="self">self</span>.<span class="ident">props</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">file</span>);
     <span class="self">self</span>.<span class="ident">previous_writer_closed</span> <span class="op">=</span> <span class="bool-val">false</span>;
     <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">row_group_writer</span>))
   }
@@ -1183,15 +1204,16 @@
   <span class="ident">column_index</span>: <span class="ident">usize</span>,
   <span class="ident">previous_writer_closed</span>: <span class="ident">bool</span>,
   <span class="ident">row_group_metadata</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RowGroupMetaDataPtr</span><span class="op">&gt;</span>,
-  <span class="ident">column_chunks</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ColumnChunkMetaDataPtr</span><span class="op">&gt;</span>
+  <span class="ident">column_chunks</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ColumnChunkMetaDataPtr</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">SerializedRowGroupWriter</span> {
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
     <span class="ident">schema_descr</span>: <span class="ident">SchemaDescPtr</span>,
     <span class="ident">properties</span>: <span class="ident">WriterPropertiesPtr</span>,
-    <span class="ident">file</span>: <span class="kw-2">&amp;</span><span class="ident">File</span>
-  ) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="ident">file</span>: <span class="kw-2">&amp;</span><span class="ident">File</span>,
+  ) <span class="op">-&gt;</span> <span class="self">Self</span>
+  {
     <span class="kw">let</span> <span class="ident">num_columns</span> <span class="op">=</span> <span class="ident">schema_descr</span>.<span class="ident">num_columns</span>();
     <span class="self">Self</span> {
       <span class="ident">descr</span>: <span class="ident">schema_descr</span>,
@@ -1202,7 +1224,7 @@
       <span class="ident">column_index</span>: <span class="number">0</span>,
       <span class="ident">previous_writer_closed</span>: <span class="bool-val">true</span>,
       <span class="ident">row_group_metadata</span>: <span class="prelude-val">None</span>,
-      <span class="ident">column_chunks</span>: <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">num_columns</span>)
+      <span class="ident">column_chunks</span>: <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">num_columns</span>),
     }
   }
 
@@ -1216,7 +1238,7 @@
       <span class="ident">ColumnWriter</span>::<span class="ident">FloatColumnWriter</span>(<span class="ident">typed</span>) <span class="op">=&gt;</span> <span class="ident">typed</span>.<span class="ident">close</span>()<span class="question-mark">?</span>,
       <span class="ident">ColumnWriter</span>::<span class="ident">DoubleColumnWriter</span>(<span class="ident">typed</span>) <span class="op">=&gt;</span> <span class="ident">typed</span>.<span class="ident">close</span>()<span class="question-mark">?</span>,
       <span class="ident">ColumnWriter</span>::<span class="ident">ByteArrayColumnWriter</span>(<span class="ident">typed</span>) <span class="op">=&gt;</span> <span class="ident">typed</span>.<span class="ident">close</span>()<span class="question-mark">?</span>,
-      <span class="ident">ColumnWriter</span>::<span class="ident">FixedLenByteArrayColumnWriter</span>(<span class="ident">typed</span>) <span class="op">=&gt;</span> <span class="ident">typed</span>.<span class="ident">close</span>()<span class="question-mark">?</span>
+      <span class="ident">ColumnWriter</span>::<span class="ident">FixedLenByteArrayColumnWriter</span>(<span class="ident">typed</span>) <span class="op">=&gt;</span> <span class="ident">typed</span>.<span class="ident">close</span>()<span class="question-mark">?</span>,
     };
 
     <span class="comment">// Update row group writer metrics</span>
@@ -1270,7 +1292,7 @@
     <span class="kw">let</span> <span class="ident">column_writer</span> <span class="op">=</span> <span class="ident">get_column_writer</span>(
       <span class="self">self</span>.<span class="ident">descr</span>.<span class="ident">column</span>(<span class="self">self</span>.<span class="ident">column_index</span>),
       <span class="self">self</span>.<span class="ident">props</span>.<span class="ident">clone</span>(),
-      <span class="ident">page_writer</span>
+      <span class="ident">page_writer</span>,
     );
     <span class="self">self</span>.<span class="ident">column_index</span> <span class="op">+=</span> <span class="number">1</span>;
     <span class="self">self</span>.<span class="ident">previous_writer_closed</span> <span class="op">=</span> <span class="bool-val">false</span>;
@@ -1290,12 +1312,11 @@
     <span class="kw">if</span> <span class="self">self</span>.<span class="ident">row_group_metadata</span>.<span class="ident">is_none</span>() {
       <span class="self">self</span>.<span class="ident">assert_previous_writer_closed</span>()<span class="question-mark">?</span>;
 
-      <span class="kw">let</span> <span class="ident">row_group_metadata</span> <span class="op">=</span>
-        <span class="ident">RowGroupMetaData</span>::<span class="ident">builder</span>(<span class="self">self</span>.<span class="ident">descr</span>.<span class="ident">clone</span>())
-          .<span class="ident">set_column_metadata</span>(<span class="self">self</span>.<span class="ident">column_chunks</span>.<span class="ident">clone</span>())
-          .<span class="ident">set_total_byte_size</span>(<span class="self">self</span>.<span class="ident">total_bytes_written</span> <span class="kw">as</span> <span class="ident">i64</span>)
-          .<span class="ident">set_num_rows</span>(<span class="self">self</span>.<span class="ident">total_rows_written</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>) <span class="kw">as</span> <span class="ident">i64</span>)
-          .<span class="ident">build</span>()<span class="question-mark">?</span>;
+      <span class="kw">let</span> <span class="ident">row_group_metadata</span> <span class="op">=</span> <span class="ident">RowGroupMetaData</span>::<span class="ident">builder</span>(<span class="self">self</span>.<span class="ident">descr</span>.<span class="ident">clone</span>())
+        .<span class="ident">set_column_metadata</span>(<span class="self">self</span>.<span class="ident">column_chunks</span>.<span class="ident">clone</span>())
+        .<span class="ident">set_total_byte_size</span>(<span class="self">self</span>.<span class="ident">total_bytes_written</span> <span class="kw">as</span> <span class="ident">i64</span>)
+        .<span class="ident">set_num_rows</span>(<span class="self">self</span>.<span class="ident">total_rows_written</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>) <span class="kw">as</span> <span class="ident">i64</span>)
+        .<span class="ident">build</span>()<span class="question-mark">?</span>;
 
       <span class="self">self</span>.<span class="ident">row_group_metadata</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">row_group_metadata</span>));
     }
@@ -1310,14 +1331,12 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// `SerializedPageWriter` should not be used after calling `close()`.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializedPageWriter</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Write</span> <span class="op">+</span> <span class="ident">Position</span><span class="op">&gt;</span> {
-  <span class="ident">sink</span>: <span class="ident">T</span>
+  <span class="ident">sink</span>: <span class="ident">T</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Write</span> <span class="op">+</span> <span class="ident">Position</span><span class="op">&gt;</span> <span class="ident">SerializedPageWriter</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
   <span class="doccomment">/// Creates new page writer.</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">sink</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-    <span class="self">Self</span> { <span class="ident">sink</span>: <span class="ident">sink</span> }
-  }
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">sink</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="self">Self</span> { <span class="self">Self</span> { <span class="ident">sink</span> } }
 
   <span class="doccomment">/// Serializes page header into Thrift.</span>
   <span class="doccomment">/// Returns number of bytes that have been written into the sink.</span>
@@ -1360,7 +1379,7 @@
       <span class="ident">data_page_header</span>: <span class="prelude-val">None</span>,
       <span class="ident">index_page_header</span>: <span class="prelude-val">None</span>,
       <span class="ident">dictionary_page_header</span>: <span class="prelude-val">None</span>,
-      <span class="ident">data_page_header_v2</span>: <span class="prelude-val">None</span>
+      <span class="ident">data_page_header_v2</span>: <span class="prelude-val">None</span>,
     };
 
     <span class="kw">match</span> <span class="ident">page</span>.<span class="ident">compressed_page</span>() {
@@ -1375,7 +1394,7 @@
           <span class="ident">encoding</span>: <span class="ident">encoding</span>.<span class="ident">into</span>(),
           <span class="ident">definition_level_encoding</span>: <span class="ident">def_level_encoding</span>.<span class="ident">into</span>(),
           <span class="ident">repetition_level_encoding</span>: <span class="ident">rep_level_encoding</span>.<span class="ident">into</span>(),
-          <span class="ident">statistics</span>: <span class="ident">statistics_to_thrift</span>(<span class="ident">statistics</span>.<span class="ident">as_ref</span>())
+          <span class="ident">statistics</span>: <span class="ident">statistics_to_thrift</span>(<span class="ident">statistics</span>.<span class="ident">as_ref</span>()),
         };
         <span class="ident">page_header</span>.<span class="ident">data_page_header</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">data_page_header</span>);
       },
@@ -1396,7 +1415,7 @@
           <span class="ident">definition_levels_byte_length</span>: <span class="ident">def_levels_byte_len</span> <span class="kw">as</span> <span class="ident">i32</span>,
           <span class="ident">repetition_levels_byte_length</span>: <span class="ident">rep_levels_byte_len</span> <span class="kw">as</span> <span class="ident">i32</span>,
           <span class="ident">is_compressed</span>: <span class="prelude-val">Some</span>(<span class="ident">is_compressed</span>),
-          <span class="ident">statistics</span>: <span class="ident">statistics_to_thrift</span>(<span class="ident">statistics</span>.<span class="ident">as_ref</span>())
+          <span class="ident">statistics</span>: <span class="ident">statistics_to_thrift</span>(<span class="ident">statistics</span>.<span class="ident">as_ref</span>()),
         };
         <span class="ident">page_header</span>.<span class="ident">data_page_header_v2</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">data_page_header_v2</span>);
       },
@@ -1404,10 +1423,10 @@
         <span class="kw">let</span> <span class="ident">dictionary_page_header</span> <span class="op">=</span> <span class="ident">parquet</span>::<span class="ident">DictionaryPageHeader</span> {
           <span class="ident">num_values</span>: <span class="ident">num_values</span> <span class="kw">as</span> <span class="ident">i32</span>,
           <span class="ident">encoding</span>: <span class="ident">encoding</span>.<span class="ident">into</span>(),
-          <span class="ident">is_sorted</span>: <span class="prelude-val">Some</span>(<span class="ident">is_sorted</span>)
+          <span class="ident">is_sorted</span>: <span class="prelude-val">Some</span>(<span class="ident">is_sorted</span>),
         };
         <span class="ident">page_header</span>.<span class="ident">dictionary_page_header</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">dictionary_page_header</span>);
-      }
+      },
     }
 
     <span class="kw">let</span> <span class="ident">start_pos</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">sink</span>.<span class="ident">pos</span>();
@@ -1439,22 +1458,21 @@
   }
 }
 
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-  <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">error</span>::<span class="ident">Error</span>;
-  <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Cursor</span>;
+  <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">error</span>::<span class="ident">Error</span>, <span class="ident">io</span>::<span class="ident">Cursor</span>};
 
   <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
   <span class="kw">use</span> <span class="ident">basic</span>::{<span class="ident">Compression</span>, <span class="ident">Encoding</span>, <span class="ident">Repetition</span>, <span class="ident">Type</span>};
   <span class="kw">use</span> <span class="ident">column</span>::<span class="ident">page</span>::<span class="ident">PageReader</span>;
-  <span class="kw">use</span> <span class="ident">compression</span>::{<span class="ident">Codec</span>, <span class="ident">create_codec</span>};
-  <span class="kw">use</span> <span class="ident">file</span>::<span class="ident">properties</span>::<span class="ident">WriterProperties</span>;
-  <span class="kw">use</span> <span class="ident">file</span>::<span class="ident">reader</span>::{<span class="ident">FileReader</span>, <span class="ident">SerializedFileReader</span>, <span class="ident">SerializedPageReader</span>};
-  <span class="kw">use</span> <span class="ident">file</span>::<span class="ident">statistics</span>::{<span class="ident">Statistics</span>, <span class="ident">from_thrift</span>, <span class="ident">to_thrift</span>};
+  <span class="kw">use</span> <span class="ident">compression</span>::{<span class="ident">create_codec</span>, <span class="ident">Codec</span>};
+  <span class="kw">use</span> <span class="ident">file</span>::{
+    <span class="ident">properties</span>::<span class="ident">WriterProperties</span>,
+    <span class="ident">reader</span>::{<span class="ident">FileReader</span>, <span class="ident">SerializedFileReader</span>, <span class="ident">SerializedPageReader</span>},
+    <span class="ident">statistics</span>::{<span class="ident">from_thrift</span>, <span class="ident">to_thrift</span>, <span class="ident">Statistics</span>},
+  };
   <span class="kw">use</span> <span class="ident">record</span>::<span class="ident">RowAccessor</span>;
-  <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">memory</span>::<span class="ident">ByteBufferPtr</span>;
-  <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">test_common</span>::<span class="ident">get_temp_file</span>;
+  <span class="kw">use</span> <span class="ident">util</span>::{<span class="ident">memory</span>::<span class="ident">ByteBufferPtr</span>, <span class="ident">test_common</span>::<span class="ident">get_temp_file</span>};
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_file_writer_error_after_close</span>() {
@@ -1500,12 +1518,13 @@
     <span class="kw">let</span> <span class="ident">file</span> <span class="op">=</span> <span class="ident">get_temp_file</span>(<span class="string">&quot;test_row_group_writer_error_not_all_columns_written&quot;</span>, <span class="kw-2">&amp;</span>[]);
     <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(
       <span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">group_type_builder</span>(<span class="string">&quot;schema&quot;</span>)
-        .<span class="ident">with_fields</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="macro">vec</span><span class="macro">!</span>[
-          <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col1&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>)
-            .<span class="ident">build</span>().<span class="ident">unwrap</span>())
-        ])
+        .<span class="ident">with_fields</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Rc</span>::<span class="ident">new</span>(
+          <span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col1&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>)
+            .<span class="ident">build</span>()
+            .<span class="ident">unwrap</span>(),
+        )])
         .<span class="ident">build</span>()
-        .<span class="ident">unwrap</span>()
+        .<span class="ident">unwrap</span>(),
     );
     <span class="kw">let</span> <span class="ident">props</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">WriterProperties</span>::<span class="ident">builder</span>().<span class="ident">build</span>());
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">writer</span> <span class="op">=</span> <span class="ident">SerializedFileWriter</span>::<span class="ident">new</span>(<span class="ident">file</span>, <span class="ident">schema</span>, <span class="ident">props</span>).<span class="ident">unwrap</span>();
@@ -1523,15 +1542,21 @@
     <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(
       <span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">group_type_builder</span>(<span class="string">&quot;schema&quot;</span>)
         .<span class="ident">with_fields</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="macro">vec</span><span class="macro">!</span>[
-          <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col1&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>)
-            .<span class="ident">with_repetition</span>(<span class="ident">Repetition</span>::<span class="ident">REQUIRED</span>)
-            .<span class="ident">build</span>().<span class="ident">unwrap</span>()),
-          <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col2&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>)
-            .<span class="ident">with_repetition</span>(<span class="ident">Repetition</span>::<span class="ident">REQUIRED</span>)
-            .<span class="ident">build</span>().<span class="ident">unwrap</span>())
+          <span class="ident">Rc</span>::<span class="ident">new</span>(
+            <span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col1&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>)
+              .<span class="ident">with_repetition</span>(<span class="ident">Repetition</span>::<span class="ident">REQUIRED</span>)
+              .<span class="ident">build</span>()
+              .<span class="ident">unwrap</span>(),
+          ),
+          <span class="ident">Rc</span>::<span class="ident">new</span>(
+            <span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col2&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>)
+              .<span class="ident">with_repetition</span>(<span class="ident">Repetition</span>::<span class="ident">REQUIRED</span>)
+              .<span class="ident">build</span>()
+              .<span class="ident">unwrap</span>(),
+          ),
         ])
         .<span class="ident">build</span>()
-        .<span class="ident">unwrap</span>()
+        .<span class="ident">unwrap</span>(),
     );
     <span class="kw">let</span> <span class="ident">props</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">WriterProperties</span>::<span class="ident">builder</span>().<span class="ident">build</span>());
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">writer</span> <span class="op">=</span> <span class="ident">SerializedFileWriter</span>::<span class="ident">new</span>(<span class="ident">file</span>, <span class="ident">schema</span>, <span class="ident">props</span>).<span class="ident">unwrap</span>();
@@ -1551,7 +1576,10 @@
     <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">row_group_writer</span>.<span class="ident">close_column</span>(<span class="ident">col_writer</span>);
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">is_err</span>());
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=</span> <span class="ident">res</span> {
-      <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">description</span>(), <span class="string">&quot;Incorrect number of rows, expected 3 != 2 rows&quot;</span>);
+      <span class="macro">assert_eq</span><span class="macro">!</span>(
+        <span class="ident">err</span>.<span class="ident">description</span>(),
+        <span class="string">&quot;Incorrect number of rows, expected 3 != 2 rows&quot;</span>
+      );
     }
   }
 
@@ -1561,16 +1589,17 @@
 
     <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(
       <span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">group_type_builder</span>(<span class="string">&quot;schema&quot;</span>)
-        .<span class="ident">with_fields</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="macro">vec</span><span class="macro">!</span>[
-          <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col1&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>)
-            .<span class="ident">build</span>().<span class="ident">unwrap</span>())
-        ])
+        .<span class="ident">with_fields</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Rc</span>::<span class="ident">new</span>(
+          <span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col1&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>)
+            .<span class="ident">build</span>()
+            .<span class="ident">unwrap</span>(),
+        )])
         .<span class="ident">build</span>()
-        .<span class="ident">unwrap</span>()
+        .<span class="ident">unwrap</span>(),
     );
     <span class="kw">let</span> <span class="ident">props</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">WriterProperties</span>::<span class="ident">builder</span>().<span class="ident">build</span>());
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">writer</span> <span class="op">=</span> <span class="ident">SerializedFileWriter</span>::<span class="ident">new</span>(<span class="ident">file</span>.<span class="ident">try_clone</span>().<span class="ident">unwrap</span>(), <span class="ident">schema</span>, <span class="ident">props</span>)
-      .<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">writer</span> <span class="op">=</span>
+      <span class="ident">SerializedFileWriter</span>::<span class="ident">new</span>(<span class="ident">file</span>.<span class="ident">try_clone</span>().<span class="ident">unwrap</span>(), <span class="ident">schema</span>, <span class="ident">props</span>).<span class="ident">unwrap</span>();
     <span class="ident">writer</span>.<span class="ident">close</span>().<span class="ident">unwrap</span>();
 
     <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">SerializedFileReader</span>::<span class="ident">new</span>(<span class="ident">file</span>).<span class="ident">unwrap</span>();
@@ -1592,23 +1621,24 @@
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_file_writer_multiple_row_groups</span>() {
     <span class="kw">let</span> <span class="ident">file</span> <span class="op">=</span> <span class="ident">get_temp_file</span>(<span class="string">&quot;test_file_writer_write_multiple_row_groups&quot;</span>, <span class="kw-2">&amp;</span>[]);
-    <span class="ident">test_file_roundtrip</span>(<span class="ident">file</span>, <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>],
-      <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>],
-      <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>],
-      <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>]
-    ]);
+    <span class="ident">test_file_roundtrip</span>(
+      <span class="ident">file</span>,
+      <span class="macro">vec</span><span class="macro">!</span>[
+        <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>],
+        <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>],
+        <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>],
+        <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>],
+      ],
+    );
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_file_writer_multiple_large_row_groups</span>() {
     <span class="kw">let</span> <span class="ident">file</span> <span class="op">=</span> <span class="ident">get_temp_file</span>(<span class="string">&quot;test_file_writer_multiple_large_row_groups&quot;</span>, <span class="kw-2">&amp;</span>[]);
-    <span class="ident">test_file_roundtrip</span>(<span class="ident">file</span>, <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="macro">vec</span><span class="macro">!</span>[<span class="number">123</span>; <span class="number">1024</span>],
-      <span class="macro">vec</span><span class="macro">!</span>[<span class="number">124</span>; <span class="number">1000</span>],
-      <span class="macro">vec</span><span class="macro">!</span>[<span class="number">125</span>; <span class="number">15</span>],
-      <span class="macro">vec</span><span class="macro">!</span>[]
-    ]);
+    <span class="ident">test_file_roundtrip</span>(
+      <span class="ident">file</span>,
+      <span class="macro">vec</span><span class="macro">!</span>[<span class="macro">vec</span><span class="macro">!</span>[<span class="number">123</span>; <span class="number">1024</span>], <span class="macro">vec</span><span class="macro">!</span>[<span class="number">124</span>; <span class="number">1000</span>], <span class="macro">vec</span><span class="macro">!</span>[<span class="number">125</span>; <span class="number">15</span>], <span class="macro">vec</span><span class="macro">!</span>[]],
+    );
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1620,7 +1650,7 @@
         <span class="ident">encoding</span>: <span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span>,
         <span class="ident">def_level_encoding</span>: <span class="ident">Encoding</span>::<span class="ident">RLE</span>,
         <span class="ident">rep_level_encoding</span>: <span class="ident">Encoding</span>::<span class="ident">RLE</span>,
-        <span class="ident">statistics</span>: <span class="prelude-val">Some</span>(<span class="ident">Statistics</span>::<span class="ident">int32</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>), <span class="prelude-val">Some</span>(<span class="number">3</span>), <span class="prelude-val">None</span>, <span class="number">7</span>, <span class="bool-val">true</span>))
+        <span class="ident">statistics</span>: <span class="prelude-val">Some</span>(<span class="ident">Statistics</span>::<span class="ident">int32</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>), <span class="prelude-val">Some</span>(<span class="number">3</span>), <span class="prelude-val">None</span>, <span class="number">7</span>, <span class="bool-val">true</span>)),
       },
       <span class="ident">Page</span>::<span class="ident">DataPageV2</span> {
         <span class="ident">buf</span>: <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">4</span>; <span class="number">128</span>]),
@@ -1631,8 +1661,8 @@
         <span class="ident">def_levels_byte_len</span>: <span class="number">24</span>,
         <span class="ident">rep_levels_byte_len</span>: <span class="number">32</span>,
         <span class="ident">is_compressed</span>: <span class="bool-val">false</span>,
-        <span class="ident">statistics</span>: <span class="prelude-val">Some</span>(<span class="ident">Statistics</span>::<span class="ident">int32</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>), <span class="prelude-val">Some</span>(<span class="number">3</span>), <span class="prelude-val">None</span>, <span class="number">7</span>, <span class="bool-val">true</span>))
-      }
+        <span class="ident">statistics</span>: <span class="prelude-val">Some</span>(<span class="ident">Statistics</span>::<span class="ident">int32</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>), <span class="prelude-val">Some</span>(<span class="number">3</span>), <span class="prelude-val">None</span>, <span class="number">7</span>, <span class="bool-val">true</span>)),
+      },
     ];
 
     <span class="ident">test_page_roundtrip</span>(<span class="kw-2">&amp;</span><span class="ident">pages</span>[..], <span class="ident">Compression</span>::<span class="ident">SNAPPY</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>);
@@ -1646,7 +1676,7 @@
         <span class="ident">buf</span>: <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>]),
         <span class="ident">num_values</span>: <span class="number">5</span>,
         <span class="ident">encoding</span>: <span class="ident">Encoding</span>::<span class="ident">RLE_DICTIONARY</span>,
-        <span class="ident">is_sorted</span>: <span class="bool-val">false</span>
+        <span class="ident">is_sorted</span>: <span class="bool-val">false</span>,
       },
       <span class="ident">Page</span>::<span class="ident">DataPage</span> {
         <span class="ident">buf</span>: <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>]),
@@ -1654,7 +1684,7 @@
         <span class="ident">encoding</span>: <span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span>,
         <span class="ident">def_level_encoding</span>: <span class="ident">Encoding</span>::<span class="ident">RLE</span>,
         <span class="ident">rep_level_encoding</span>: <span class="ident">Encoding</span>::<span class="ident">RLE</span>,
-        <span class="ident">statistics</span>: <span class="prelude-val">Some</span>(<span class="ident">Statistics</span>::<span class="ident">int32</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>), <span class="prelude-val">Some</span>(<span class="number">3</span>), <span class="prelude-val">None</span>, <span class="number">7</span>, <span class="bool-val">true</span>))
+        <span class="ident">statistics</span>: <span class="prelude-val">Some</span>(<span class="ident">Statistics</span>::<span class="ident">int32</span>(<span class="prelude-val">Some</span>(<span class="number">1</span>), <span class="prelude-val">Some</span>(<span class="number">3</span>), <span class="prelude-val">None</span>, <span class="number">7</span>, <span class="bool-val">true</span>)),
       },
       <span class="ident">Page</span>::<span class="ident">DataPageV2</span> {
         <span class="ident">buf</span>: <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">4</span>; <span class="number">128</span>]),
@@ -1665,8 +1695,8 @@
         <span class="ident">def_levels_byte_len</span>: <span class="number">24</span>,
         <span class="ident">rep_levels_byte_len</span>: <span class="number">32</span>,
         <span class="ident">is_compressed</span>: <span class="bool-val">false</span>,
-        <span class="ident">statistics</span>: <span class="prelude-val">None</span>
-      }
+        <span class="ident">statistics</span>: <span class="prelude-val">None</span>,
+      },
     ];
 
     <span class="ident">test_page_roundtrip</span>(<span class="kw-2">&amp;</span><span class="ident">pages</span>[..], <span class="ident">Compression</span>::<span class="ident">SNAPPY</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>);
@@ -1676,11 +1706,7 @@
   <span class="doccomment">/// Tests writing and reading pages.</span>
   <span class="doccomment">/// Physical type is for statistics only, should match any defined statistics type in</span>
   <span class="doccomment">/// pages.</span>
-  <span class="kw">fn</span> <span class="ident">test_page_roundtrip</span>(
-    <span class="ident">pages</span>: <span class="kw-2">&amp;</span>[<span class="ident">Page</span>],
-    <span class="ident">codec</span>: <span class="ident">Compression</span>,
-    <span class="ident">physical_type</span>: <span class="ident">Type</span>
-  ) {
+  <span class="kw">fn</span> <span class="ident">test_page_roundtrip</span>(<span class="ident">pages</span>: <span class="kw-2">&amp;</span>[<span class="ident">Page</span>], <span class="ident">codec</span>: <span class="ident">Compression</span>, <span class="ident">physical_type</span>: <span class="ident">Type</span>) {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">compressed_pages</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_num_values</span> <span class="op">=</span> <span class="number">0i64</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">compressor</span> <span class="op">=</span> <span class="ident">create_codec</span>(<span class="ident">codec</span>).<span class="ident">unwrap</span>();
@@ -1695,18 +1721,18 @@
           <span class="ident">encoding</span>,
           <span class="ident">def_level_encoding</span>,
           <span class="ident">rep_level_encoding</span>,
-          <span class="kw-2">ref</span> <span class="ident">statistics</span>
+          <span class="kw-2">ref</span> <span class="ident">statistics</span>,
         } <span class="op">=&gt;</span> {
           <span class="ident">total_num_values</span> <span class="op">+=</span> <span class="ident">num_values</span> <span class="kw">as</span> <span class="ident">i64</span>;
           <span class="kw">let</span> <span class="ident">output_buf</span> <span class="op">=</span> <span class="ident">compress_helper</span>(<span class="ident">compressor</span>.<span class="ident">as_mut</span>(), <span class="ident">buf</span>.<span class="ident">data</span>());
 
           <span class="ident">Page</span>::<span class="ident">DataPage</span> {
             <span class="ident">buf</span>: <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">output_buf</span>),
-            <span class="ident">num_values</span>: <span class="ident">num_values</span>,
-            <span class="ident">encoding</span>: <span class="ident">encoding</span>,
-            <span class="ident">def_level_encoding</span>: <span class="ident">def_level_encoding</span>,
-            <span class="ident">rep_level_encoding</span>: <span class="ident">rep_level_encoding</span>,
-            <span class="ident">statistics</span>: <span class="ident">from_thrift</span>(<span class="ident">physical_type</span>, <span class="ident">to_thrift</span>(<span class="ident">statistics</span>.<span class="ident">as_ref</span>()))
+            <span class="ident">num_values</span>,
+            <span class="ident">encoding</span>,
+            <span class="ident">def_level_encoding</span>,
+            <span class="ident">rep_level_encoding</span>,
+            <span class="ident">statistics</span>: <span class="ident">from_thrift</span>(<span class="ident">physical_type</span>, <span class="ident">to_thrift</span>(<span class="ident">statistics</span>.<span class="ident">as_ref</span>())),
           }
         },
         <span class="kw-2">&amp;</span><span class="ident">Page</span>::<span class="ident">DataPageV2</span> {
@@ -1728,31 +1754,31 @@
 
           <span class="ident">Page</span>::<span class="ident">DataPageV2</span> {
             <span class="ident">buf</span>: <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">output_buf</span>),
-            <span class="ident">num_values</span>: <span class="ident">num_values</span>,
-            <span class="ident">encoding</span>: <span class="ident">encoding</span>,
-            <span class="ident">num_nulls</span>: <span class="ident">num_nulls</span>,
-            <span class="ident">num_rows</span>: <span class="ident">num_rows</span>,
-            <span class="ident">def_levels_byte_len</span>: <span class="ident">def_levels_byte_len</span>,
-            <span class="ident">rep_levels_byte_len</span>: <span class="ident">rep_levels_byte_len</span>,
+            <span class="ident">num_values</span>,
+            <span class="ident">encoding</span>,
+            <span class="ident">num_nulls</span>,
+            <span class="ident">num_rows</span>,
+            <span class="ident">def_levels_byte_len</span>,
+            <span class="ident">rep_levels_byte_len</span>,
             <span class="ident">is_compressed</span>: <span class="ident">compressor</span>.<span class="ident">is_some</span>(),
-            <span class="ident">statistics</span>: <span class="ident">from_thrift</span>(<span class="ident">physical_type</span>, <span class="ident">to_thrift</span>(<span class="ident">statistics</span>.<span class="ident">as_ref</span>()))
+            <span class="ident">statistics</span>: <span class="ident">from_thrift</span>(<span class="ident">physical_type</span>, <span class="ident">to_thrift</span>(<span class="ident">statistics</span>.<span class="ident">as_ref</span>())),
           }
         },
         <span class="kw-2">&amp;</span><span class="ident">Page</span>::<span class="ident">DictionaryPage</span> {
           <span class="kw-2">ref</span> <span class="ident">buf</span>,
           <span class="ident">num_values</span>,
           <span class="ident">encoding</span>,
-          <span class="ident">is_sorted</span>
+          <span class="ident">is_sorted</span>,
         } <span class="op">=&gt;</span> {
           <span class="kw">let</span> <span class="ident">output_buf</span> <span class="op">=</span> <span class="ident">compress_helper</span>(<span class="ident">compressor</span>.<span class="ident">as_mut</span>(), <span class="ident">buf</span>.<span class="ident">data</span>());
 
           <span class="ident">Page</span>::<span class="ident">DictionaryPage</span> {
             <span class="ident">buf</span>: <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">output_buf</span>),
-            <span class="ident">num_values</span>: <span class="ident">num_values</span>,
-            <span class="ident">encoding</span>: <span class="ident">encoding</span>,
-            <span class="ident">is_sorted</span>
+            <span class="ident">num_values</span>,
+            <span class="ident">encoding</span>,
+            <span class="ident">is_sorted</span>,
           }
-        }
+        },
       };
 
       <span class="kw">let</span> <span class="ident">compressed_page</span> <span class="op">=</span> <span class="ident">CompressedPage</span>::<span class="ident">new</span>(<span class="ident">compressed_page</span>, <span class="ident">uncompressed_len</span>);
@@ -1775,8 +1801,9 @@
         <span class="ident">Cursor</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">buffer</span>),
         <span class="ident">total_num_values</span>,
         <span class="ident">codec</span>,
-        <span class="ident">physical_type</span>
-      ).<span class="ident">unwrap</span>();
+        <span class="ident">physical_type</span>,
+      )
+      .<span class="ident">unwrap</span>();
 
       <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">page</span>) <span class="op">=</span> <span class="ident">page_reader</span>.<span class="ident">get_next_page</span>().<span class="ident">unwrap</span>() {
         <span class="ident">result_pages</span>.<span class="ident">push</span>(<span class="ident">page</span>);
@@ -1814,21 +1841,18 @@
   <span class="kw">fn</span> <span class="ident">test_file_roundtrip</span>(<span class="ident">file</span>: <span class="ident">File</span>, <span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;&gt;</span>) {
     <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(
       <span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">group_type_builder</span>(<span class="string">&quot;schema&quot;</span>)
-        .<span class="ident">with_fields</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="macro">vec</span><span class="macro">!</span>[
-          <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col1&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>)
+        .<span class="ident">with_fields</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Rc</span>::<span class="ident">new</span>(
+          <span class="ident">types</span>::<span class="ident">Type</span>::<span class="ident">primitive_type_builder</span>(<span class="string">&quot;col1&quot;</span>, <span class="ident">Type</span>::<span class="ident">INT32</span>)
             .<span class="ident">with_repetition</span>(<span class="ident">Repetition</span>::<span class="ident">REQUIRED</span>)
             .<span class="ident">build</span>()
-            .<span class="ident">unwrap</span>())
-        ])
+            .<span class="ident">unwrap</span>(),
+        )])
         .<span class="ident">build</span>()
-        .<span class="ident">unwrap</span>()
+        .<span class="ident">unwrap</span>(),
     );
     <span class="kw">let</span> <span class="ident">props</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">WriterProperties</span>::<span class="ident">builder</span>().<span class="ident">build</span>());
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">file_writer</span> <span class="op">=</span> <span class="ident">SerializedFileWriter</span>::<span class="ident">new</span>(
-      <span class="ident">file</span>.<span class="ident">try_clone</span>().<span class="ident">unwrap</span>(),
-      <span class="ident">schema</span>,
-      <span class="ident">props</span>
-    ).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">file_writer</span> <span class="op">=</span>
+      <span class="ident">SerializedFileWriter</span>::<span class="ident">new</span>(<span class="ident">file</span>.<span class="ident">try_clone</span>().<span class="ident">unwrap</span>(), <span class="ident">schema</span>, <span class="ident">props</span>).<span class="ident">unwrap</span>();
 
     <span class="kw">for</span> <span class="ident">subset</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">data</span> {
       <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">row_group_writer</span> <span class="op">=</span> <span class="ident">file_writer</span>.<span class="ident">next_row_group</span>().<span class="ident">unwrap</span>();
@@ -1840,7 +1864,7 @@
           },
           <span class="kw">_</span> <span class="op">=&gt;</span> {
             <span class="macro">unimplemented</span><span class="macro">!</span>();
-          }
+          },
         }
         <span class="ident">row_group_writer</span>.<span class="ident">close_column</span>(<span class="ident">writer</span>).<span class="ident">unwrap</span>();
       }
@@ -1854,7 +1878,9 @@
     <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">num_row_groups</span>() {
       <span class="kw">let</span> <span class="ident">row_group_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_row_group</span>(<span class="ident">i</span>).<span class="ident">unwrap</span>();
       <span class="kw">let</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">row_group_reader</span>.<span class="ident">get_row_iter</span>(<span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
-      <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">elem</span><span class="op">|</span> <span class="ident">elem</span>.<span class="ident">get_int</span>(<span class="number">0</span>).<span class="ident">unwrap</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;&gt;</span>();
+      <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">iter</span>
+        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">elem</span><span class="op">|</span> <span class="ident">elem</span>.<span class="ident">get_int</span>(<span class="number">0</span>).<span class="ident">unwrap</span>())
+        .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;&gt;</span>();
       <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">res</span>, <span class="ident">data</span>[<span class="ident">i</span>]);
     }
   }

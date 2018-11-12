@@ -1386,6 +1386,67 @@
 <span id="1386">1386</span>
 <span id="1387">1387</span>
 <span id="1388">1388</span>
+<span id="1389">1389</span>
+<span id="1390">1390</span>
+<span id="1391">1391</span>
+<span id="1392">1392</span>
+<span id="1393">1393</span>
+<span id="1394">1394</span>
+<span id="1395">1395</span>
+<span id="1396">1396</span>
+<span id="1397">1397</span>
+<span id="1398">1398</span>
+<span id="1399">1399</span>
+<span id="1400">1400</span>
+<span id="1401">1401</span>
+<span id="1402">1402</span>
+<span id="1403">1403</span>
+<span id="1404">1404</span>
+<span id="1405">1405</span>
+<span id="1406">1406</span>
+<span id="1407">1407</span>
+<span id="1408">1408</span>
+<span id="1409">1409</span>
+<span id="1410">1410</span>
+<span id="1411">1411</span>
+<span id="1412">1412</span>
+<span id="1413">1413</span>
+<span id="1414">1414</span>
+<span id="1415">1415</span>
+<span id="1416">1416</span>
+<span id="1417">1417</span>
+<span id="1418">1418</span>
+<span id="1419">1419</span>
+<span id="1420">1420</span>
+<span id="1421">1421</span>
+<span id="1422">1422</span>
+<span id="1423">1423</span>
+<span id="1424">1424</span>
+<span id="1425">1425</span>
+<span id="1426">1426</span>
+<span id="1427">1427</span>
+<span id="1428">1428</span>
+<span id="1429">1429</span>
+<span id="1430">1430</span>
+<span id="1431">1431</span>
+<span id="1432">1432</span>
+<span id="1433">1433</span>
+<span id="1434">1434</span>
+<span id="1435">1435</span>
+<span id="1436">1436</span>
+<span id="1437">1437</span>
+<span id="1438">1438</span>
+<span id="1439">1439</span>
+<span id="1440">1440</span>
+<span id="1441">1441</span>
+<span id="1442">1442</span>
+<span id="1443">1443</span>
+<span id="1444">1444</span>
+<span id="1445">1445</span>
+<span id="1446">1446</span>
+<span id="1447">1447</span>
+<span id="1448">1448</span>
+<span id="1449">1449</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -1407,16 +1468,16 @@
 <span class="doccomment">//! Contains implementation of record assembly and converting Parquet types into</span>
 <span class="doccomment">//! [`Row`](`::record::api::Row`)s.</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">collections</span>::<span class="ident">HashMap</span>, <span class="ident">fmt</span>, <span class="ident">rc</span>::<span class="ident">Rc</span>};
 
 <span class="kw">use</span> <span class="ident">basic</span>::{<span class="ident">LogicalType</span>, <span class="ident">Repetition</span>};
 <span class="kw">use</span> <span class="ident">errors</span>::{<span class="ident">ParquetError</span>, <span class="prelude-ty">Result</span>};
 <span class="kw">use</span> <span class="ident">file</span>::<span class="ident">reader</span>::{<span class="ident">FileReader</span>, <span class="ident">RowGroupReader</span>};
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">types</span>::{<span class="ident">ColumnPath</span>, <span class="ident">SchemaDescriptor</span>, <span class="ident">SchemaDescPtr</span>, <span class="ident">Type</span>, <span class="ident">TypePtr</span>};
-<span class="kw">use</span> <span class="ident">record</span>::<span class="ident">api</span>::{<span class="ident">Row</span>, <span class="ident">Field</span>, <span class="ident">make_row</span>, <span class="ident">make_list</span>, <span class="ident">make_map</span>};
-<span class="kw">use</span> <span class="ident">record</span>::<span class="ident">triplet</span>::<span class="ident">TripletIter</span>;
+<span class="kw">use</span> <span class="ident">record</span>::{
+  <span class="ident">api</span>::{<span class="ident">make_list</span>, <span class="ident">make_map</span>, <span class="ident">make_row</span>, <span class="ident">Field</span>, <span class="ident">Row</span>},
+  <span class="ident">triplet</span>::<span class="ident">TripletIter</span>,
+};
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">types</span>::{<span class="ident">ColumnPath</span>, <span class="ident">SchemaDescPtr</span>, <span class="ident">SchemaDescriptor</span>, <span class="ident">Type</span>, <span class="ident">TypePtr</span>};
 
 <span class="doccomment">/// Default batch size for a reader</span>
 <span class="kw">const</span> <span class="ident">DEFAULT_BATCH_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">1024</span>;
@@ -1426,14 +1487,14 @@
 <span class="doccomment">/// accessing a records iterator [`RowIter`].</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TreeBuilder</span> {
   <span class="comment">// Batch size (&gt;= 1) for triplet iterators</span>
-  <span class="ident">batch_size</span>: <span class="ident">usize</span>
+  <span class="ident">batch_size</span>: <span class="ident">usize</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TreeBuilder</span> {
   <span class="doccomment">/// Creates new tree builder with default parameters.</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
     <span class="self">Self</span> {
-      <span class="ident">batch_size</span>: <span class="ident">DEFAULT_BATCH_SIZE</span>
+      <span class="ident">batch_size</span>: <span class="ident">DEFAULT_BATCH_SIZE</span>,
     }
   }
 
@@ -1444,11 +1505,7 @@
   }
 
   <span class="doccomment">/// Creates new root reader for provided schema and row group.</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span>(
-    <span class="kw-2">&amp;</span><span class="self">self</span>,
-    <span class="ident">descr</span>: <span class="ident">SchemaDescPtr</span>,
-    <span class="ident">row_group_reader</span>: <span class="kw-2">&amp;</span><span class="ident">RowGroupReader</span>
-  ) <span class="op">-&gt;</span> <span class="ident">Reader</span> {
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">build</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">descr</span>: <span class="ident">SchemaDescPtr</span>, <span class="ident">row_group_reader</span>: <span class="kw-2">&amp;</span><span class="ident">RowGroupReader</span>) <span class="op">-&gt;</span> <span class="ident">Reader</span> {
     <span class="comment">// Prepare lookup table of column path -&gt; original column index</span>
     <span class="comment">// This allows to prune columns and map schema leaf nodes to the column readers</span>
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">paths</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">ColumnPath</span>, <span class="ident">usize</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
@@ -1465,8 +1522,8 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
 
     <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">descr</span>.<span class="ident">root_schema</span>().<span class="ident">get_fields</span>() {
-      <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(
-        <span class="ident">field</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="kw-2">&amp;</span><span class="ident">paths</span>, <span class="ident">row_group_reader</span>);
+      <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span>
+        <span class="self">self</span>.<span class="ident">reader_tree</span>(<span class="ident">field</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="kw-2">&amp;</span><span class="ident">paths</span>, <span class="ident">row_group_reader</span>);
       <span class="ident">readers</span>.<span class="ident">push</span>(<span class="ident">reader</span>);
     }
 
@@ -1479,8 +1536,9 @@
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_iter</span>(
     <span class="kw-2">&amp;</span><span class="self">self</span>,
     <span class="ident">descr</span>: <span class="ident">SchemaDescPtr</span>,
-    <span class="ident">row_group_reader</span>: <span class="kw-2">&amp;</span><span class="ident">RowGroupReader</span>
-  ) <span class="op">-&gt;</span> <span class="ident">ReaderIter</span> {
+    <span class="ident">row_group_reader</span>: <span class="kw-2">&amp;</span><span class="ident">RowGroupReader</span>,
+  ) <span class="op">-&gt;</span> <span class="ident">ReaderIter</span>
+  {
     <span class="kw">let</span> <span class="ident">num_records</span> <span class="op">=</span> <span class="ident">row_group_reader</span>.<span class="ident">metadata</span>().<span class="ident">num_rows</span>() <span class="kw">as</span> <span class="ident">usize</span>;
     <span class="ident">ReaderIter</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">build</span>(<span class="ident">descr</span>, <span class="ident">row_group_reader</span>), <span class="ident">num_records</span>)
   }
@@ -1493,8 +1551,9 @@
     <span class="kw-2">mut</span> <span class="ident">curr_def_level</span>: <span class="ident">i16</span>,
     <span class="kw-2">mut</span> <span class="ident">curr_rep_level</span>: <span class="ident">i16</span>,
     <span class="ident">paths</span>: <span class="kw-2">&amp;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">ColumnPath</span>, <span class="ident">usize</span><span class="op">&gt;</span>,
-    <span class="ident">row_group_reader</span>: <span class="kw-2">&amp;</span><span class="ident">RowGroupReader</span>
-  ) <span class="op">-&gt;</span> <span class="ident">Reader</span> {
+    <span class="ident">row_group_reader</span>: <span class="kw-2">&amp;</span><span class="ident">RowGroupReader</span>,
+  ) <span class="op">-&gt;</span> <span class="ident">Reader</span>
+  {
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">field</span>.<span class="ident">get_basic_info</span>().<span class="ident">has_repetition</span>());
     <span class="comment">// Update current definition and repetition levels for this type</span>
     <span class="kw">let</span> <span class="ident">repetition</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">get_basic_info</span>().<span class="ident">repetition</span>();
@@ -1506,14 +1565,17 @@
         <span class="ident">curr_def_level</span> <span class="op">+=</span> <span class="number">1</span>;
         <span class="ident">curr_rep_level</span> <span class="op">+=</span> <span class="number">1</span>;
       },
-      <span class="kw">_</span> <span class="op">=&gt;</span> {}
+      <span class="kw">_</span> <span class="op">=&gt;</span> {},
     }
 
     <span class="ident">path</span>.<span class="ident">push</span>(<span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">field</span>.<span class="ident">name</span>()));
     <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">field</span>.<span class="ident">is_primitive</span>() {
       <span class="kw">let</span> <span class="ident">col_path</span> <span class="op">=</span> <span class="ident">ColumnPath</span>::<span class="ident">new</span>(<span class="ident">path</span>.<span class="ident">to_vec</span>());
       <span class="kw">let</span> <span class="ident">orig_index</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">paths</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">col_path</span>).<span class="ident">unwrap</span>();
-      <span class="kw">let</span> <span class="ident">col_descr</span> <span class="op">=</span> <span class="ident">row_group_reader</span>.<span class="ident">metadata</span>().<span class="ident">column</span>(<span class="ident">orig_index</span>).<span class="ident">column_descr_ptr</span>();
+      <span class="kw">let</span> <span class="ident">col_descr</span> <span class="op">=</span> <span class="ident">row_group_reader</span>
+        .<span class="ident">metadata</span>()
+        .<span class="ident">column</span>(<span class="ident">orig_index</span>)
+        .<span class="ident">column_descr_ptr</span>();
       <span class="kw">let</span> <span class="ident">col_reader</span> <span class="op">=</span> <span class="ident">row_group_reader</span>.<span class="ident">get_column_reader</span>(<span class="ident">orig_index</span>).<span class="ident">unwrap</span>();
       <span class="kw">let</span> <span class="ident">column</span> <span class="op">=</span> <span class="ident">TripletIter</span>::<span class="ident">new</span>(<span class="ident">col_descr</span>, <span class="ident">col_reader</span>, <span class="self">self</span>.<span class="ident">batch_size</span>);
       <span class="ident">Reader</span>::<span class="ident">PrimitiveReader</span>(<span class="ident">field</span>, <span class="ident">column</span>)
@@ -1533,29 +1595,53 @@
 
           <span class="kw">if</span> <span class="ident">Reader</span>::<span class="ident">is_element_type</span>(<span class="kw-2">&amp;</span><span class="ident">repeated_field</span>) {
             <span class="comment">// Support for backward compatible lists</span>
-            <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(<span class="ident">repeated_field</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
-              <span class="ident">curr_def_level</span>, <span class="ident">curr_rep_level</span>, <span class="ident">paths</span>, <span class="ident">row_group_reader</span>);
+            <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(
+              <span class="ident">repeated_field</span>.<span class="ident">clone</span>(),
+              <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
+              <span class="ident">curr_def_level</span>,
+              <span class="ident">curr_rep_level</span>,
+              <span class="ident">paths</span>,
+              <span class="ident">row_group_reader</span>,
+            );
 
             <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(
-              <span class="ident">field</span>, <span class="ident">curr_def_level</span>, <span class="ident">curr_rep_level</span>, <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">reader</span>))
+              <span class="ident">field</span>,
+              <span class="ident">curr_def_level</span>,
+              <span class="ident">curr_rep_level</span>,
+              <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">reader</span>),
+            )
           } <span class="kw">else</span> {
             <span class="kw">let</span> <span class="ident">child_field</span> <span class="op">=</span> <span class="ident">repeated_field</span>.<span class="ident">get_fields</span>()[<span class="number">0</span>].<span class="ident">clone</span>();
 
             <span class="ident">path</span>.<span class="ident">push</span>(<span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">repeated_field</span>.<span class="ident">name</span>()));
 
-            <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(<span class="ident">child_field</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
-              <span class="ident">curr_def_level</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">curr_rep_level</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">paths</span>, <span class="ident">row_group_reader</span>);
+            <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(
+              <span class="ident">child_field</span>,
+              <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
+              <span class="ident">curr_def_level</span> <span class="op">+</span> <span class="number">1</span>,
+              <span class="ident">curr_rep_level</span> <span class="op">+</span> <span class="number">1</span>,
+              <span class="ident">paths</span>,
+              <span class="ident">row_group_reader</span>,
+            );
 
             <span class="ident">path</span>.<span class="ident">pop</span>();
 
             <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(
-              <span class="ident">field</span>, <span class="ident">curr_def_level</span>, <span class="ident">curr_rep_level</span>, <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">reader</span>))
+              <span class="ident">field</span>,
+              <span class="ident">curr_def_level</span>,
+              <span class="ident">curr_rep_level</span>,
+              <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">reader</span>),
+            )
           }
         },
         <span class="comment">// Map types (key-value pairs)</span>
-        <span class="ident">LogicalType</span>::<span class="ident">MAP</span> <span class="op">|</span> <span class="ident">LogicalType</span>:: <span class="ident">MAP_KEY_VALUE</span> <span class="op">=&gt;</span> {
+        <span class="ident">LogicalType</span>::<span class="ident">MAP</span> <span class="op">|</span> <span class="ident">LogicalType</span>::<span class="ident">MAP_KEY_VALUE</span> <span class="op">=&gt;</span> {
           <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">field</span>.<span class="ident">get_fields</span>().<span class="ident">len</span>(), <span class="number">1</span>, <span class="string">&quot;Invalid map type: {:?}&quot;</span>, <span class="ident">field</span>);
-          <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">field</span>.<span class="ident">get_fields</span>()[<span class="number">0</span>].<span class="ident">is_primitive</span>(), <span class="string">&quot;Invalid map type: {:?}&quot;</span>, <span class="ident">field</span>);
+          <span class="macro">assert</span><span class="macro">!</span>(
+            <span class="op">!</span><span class="ident">field</span>.<span class="ident">get_fields</span>()[<span class="number">0</span>].<span class="ident">is_primitive</span>(),
+            <span class="string">&quot;Invalid map type: {:?}&quot;</span>,
+            <span class="ident">field</span>
+          );
 
           <span class="kw">let</span> <span class="ident">key_value_type</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">get_fields</span>()[<span class="number">0</span>].<span class="ident">clone</span>();
           <span class="macro">assert_eq</span><span class="macro">!</span>(
@@ -1579,17 +1665,34 @@
             <span class="string">&quot;Map key type is expected to be a primitive type, but found {:?}&quot;</span>,
             <span class="ident">key_type</span>
           );
-          <span class="kw">let</span> <span class="ident">key_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(<span class="ident">key_type</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
-            <span class="ident">curr_def_level</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">curr_rep_level</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">paths</span>, <span class="ident">row_group_reader</span>);
+          <span class="kw">let</span> <span class="ident">key_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(
+            <span class="ident">key_type</span>.<span class="ident">clone</span>(),
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
+            <span class="ident">curr_def_level</span> <span class="op">+</span> <span class="number">1</span>,
+            <span class="ident">curr_rep_level</span> <span class="op">+</span> <span class="number">1</span>,
+            <span class="ident">paths</span>,
+            <span class="ident">row_group_reader</span>,
+          );
 
           <span class="kw">let</span> <span class="ident">value_type</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">key_value_type</span>.<span class="ident">get_fields</span>()[<span class="number">1</span>];
-          <span class="kw">let</span> <span class="ident">value_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(<span class="ident">value_type</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
-            <span class="ident">curr_def_level</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">curr_rep_level</span> <span class="op">+</span> <span class="number">1</span>, <span class="ident">paths</span>, <span class="ident">row_group_reader</span>);
+          <span class="kw">let</span> <span class="ident">value_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(
+            <span class="ident">value_type</span>.<span class="ident">clone</span>(),
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
+            <span class="ident">curr_def_level</span> <span class="op">+</span> <span class="number">1</span>,
+            <span class="ident">curr_rep_level</span> <span class="op">+</span> <span class="number">1</span>,
+            <span class="ident">paths</span>,
+            <span class="ident">row_group_reader</span>,
+          );
 
           <span class="ident">path</span>.<span class="ident">pop</span>();
 
-          <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="ident">field</span>, <span class="ident">curr_def_level</span>, <span class="ident">curr_rep_level</span>,
-            <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">key_reader</span>), <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">value_reader</span>))
+          <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(
+            <span class="ident">field</span>,
+            <span class="ident">curr_def_level</span>,
+            <span class="ident">curr_rep_level</span>,
+            <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">key_reader</span>),
+            <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">value_reader</span>),
+          )
         },
         <span class="comment">// A repeated field that is neither contained by a `LIST`- or `MAP`-annotated</span>
         <span class="comment">// group nor annotated by `LIST` or `MAP` should be interpreted as a required</span>
@@ -1604,22 +1707,38 @@
 
           <span class="ident">path</span>.<span class="ident">pop</span>();
 
-          <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">required_field</span>), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
-            <span class="ident">curr_def_level</span>, <span class="ident">curr_rep_level</span>, <span class="ident">paths</span>, <span class="ident">row_group_reader</span>);
+          <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(
+            <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">required_field</span>),
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
+            <span class="ident">curr_def_level</span>,
+            <span class="ident">curr_rep_level</span>,
+            <span class="ident">paths</span>,
+            <span class="ident">row_group_reader</span>,
+          );
 
-          <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="ident">field</span>, <span class="ident">curr_def_level</span> <span class="op">-</span> <span class="number">1</span>, <span class="ident">curr_rep_level</span> <span class="op">-</span> <span class="number">1</span>,
-            <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">reader</span>))
+          <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(
+            <span class="ident">field</span>,
+            <span class="ident">curr_def_level</span> <span class="op">-</span> <span class="number">1</span>,
+            <span class="ident">curr_rep_level</span> <span class="op">-</span> <span class="number">1</span>,
+            <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">reader</span>),
+          )
         },
         <span class="comment">// Group types (structs)</span>
         <span class="kw">_</span> <span class="op">=&gt;</span> {
           <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">readers</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
           <span class="kw">for</span> <span class="ident">child</span> <span class="kw">in</span> <span class="ident">field</span>.<span class="ident">get_fields</span>() {
-            <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(<span class="ident">child</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
-              <span class="ident">curr_def_level</span>, <span class="ident">curr_rep_level</span>, <span class="ident">paths</span>, <span class="ident">row_group_reader</span>);
+            <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(
+              <span class="ident">child</span>.<span class="ident">clone</span>(),
+              <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>,
+              <span class="ident">curr_def_level</span>,
+              <span class="ident">curr_rep_level</span>,
+              <span class="ident">paths</span>,
+              <span class="ident">row_group_reader</span>,
+            );
             <span class="ident">readers</span>.<span class="ident">push</span>(<span class="ident">reader</span>);
           }
           <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="prelude-val">Some</span>(<span class="ident">field</span>), <span class="ident">curr_def_level</span>, <span class="ident">readers</span>)
-        }
+        },
       }
     };
     <span class="ident">path</span>.<span class="ident">pop</span>();
@@ -1637,12 +1756,12 @@
   <span class="comment">// Group (struct) reader with type information, definition level and list of child</span>
   <span class="comment">// readers. When it represents message type, type information is None</span>
   <span class="ident">GroupReader</span>(<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TypePtr</span><span class="op">&gt;</span>, <span class="ident">i16</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Reader</span><span class="op">&gt;</span>),
-  <span class="comment">// Reader for repeated values, e.g. lists, contains type information, definition level,</span>
-  <span class="comment">// repetition level and a child reader</span>
+  <span class="comment">// Reader for repeated values, e.g. lists, contains type information, definition</span>
+  <span class="comment">// level, repetition level and a child reader</span>
   <span class="ident">RepeatedReader</span>(<span class="ident">TypePtr</span>, <span class="ident">i16</span>, <span class="ident">i16</span>, <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Reader</span><span class="op">&gt;</span>),
   <span class="comment">// Reader of key-value pairs, e.g. maps, contains type information, definition level,</span>
   <span class="comment">// repetition level, child reader for keys and child reader for values</span>
-  <span class="ident">KeyValueReader</span>(<span class="ident">TypePtr</span>, <span class="ident">i16</span>, <span class="ident">i16</span>, <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Reader</span><span class="op">&gt;</span>, <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Reader</span><span class="op">&gt;</span>)
+  <span class="ident">KeyValueReader</span>(<span class="ident">TypePtr</span>, <span class="ident">i16</span>, <span class="ident">i16</span>, <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Reader</span><span class="op">&gt;</span>, <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Reader</span><span class="op">&gt;</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">Reader</span> {
@@ -1717,7 +1836,7 @@
         }
         <span class="ident">make_row</span>(<span class="ident">fields</span>)
       },
-      <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Cannot call read() on {}&quot;</span>, <span class="self">self</span>)
+      <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Cannot call read() on {}&quot;</span>, <span class="self">self</span>),
     }
   }
 
@@ -1741,8 +1860,9 @@
       <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw">_</span>, <span class="ident">def_level</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">readers</span>) <span class="op">=&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="ident">readers</span> {
-          <span class="kw">if</span> <span class="ident">reader</span>.<span class="ident">repetition</span>() <span class="op">!=</span> <span class="ident">Repetition</span>::<span class="ident">OPTIONAL</span> <span class="op">||</span>
-              <span class="ident">reader</span>.<span class="ident">current_def_level</span>() <span class="op">&gt;</span> <span class="ident">def_level</span> {
+          <span class="kw">if</span> <span class="ident">reader</span>.<span class="ident">repetition</span>() <span class="op">!=</span> <span class="ident">Repetition</span>::<span class="ident">OPTIONAL</span>
+            <span class="op">||</span> <span class="ident">reader</span>.<span class="ident">current_def_level</span>() <span class="op">&gt;</span> <span class="ident">def_level</span>
+          {
             <span class="ident">fields</span>.<span class="ident">push</span>((<span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">reader</span>.<span class="ident">field_name</span>()), <span class="ident">reader</span>.<span class="ident">read_field</span>()));
           } <span class="kw">else</span> {
             <span class="ident">reader</span>.<span class="ident">advance_columns</span>();
@@ -1773,9 +1893,7 @@
         }
         <span class="ident">Field</span>::<span class="ident">ListInternal</span>(<span class="ident">make_list</span>(<span class="ident">elements</span>))
       },
-      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="ident">def_level</span>, <span class="ident">rep_level</span>,
-          <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">keys</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">values</span>) <span class="op">=&gt;</span> {
-
+      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="ident">def_level</span>, <span class="ident">rep_level</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">keys</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">values</span>) <span class="op">=&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pairs</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="kw">loop</span> {
           <span class="kw">if</span> <span class="ident">keys</span>.<span class="ident">current_def_level</span>() <span class="op">&gt;</span> <span class="ident">def_level</span> {
@@ -1797,7 +1915,7 @@
         }
 
         <span class="ident">Field</span>::<span class="ident">MapInternal</span>(<span class="ident">make_map</span>(<span class="ident">pairs</span>))
-      }
+      },
     }
   }
 
@@ -1806,34 +1924,26 @@
     <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
       <span class="ident">Reader</span>::<span class="ident">PrimitiveReader</span>(<span class="kw-2">ref</span> <span class="ident">field</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">field</span>.<span class="ident">name</span>(),
       <span class="ident">Reader</span>::<span class="ident">OptionReader</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">reader</span>) <span class="op">=&gt;</span> <span class="ident">reader</span>.<span class="ident">field_name</span>(),
-      <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw-2">ref</span> <span class="ident">opt</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">opt</span> {
+      <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw-2">ref</span> <span class="ident">opt</span>, ..) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">opt</span> {
         <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">field</span>) <span class="op">=&gt;</span> <span class="ident">field</span>.<span class="ident">name</span>(),
-        <span class="kw-2">&amp;</span><span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Field is None for group reader&quot;</span>)
+        <span class="kw-2">&amp;</span><span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Field is None for group reader&quot;</span>),
       },
-      <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="kw-2">ref</span> <span class="ident">field</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">field</span>.<span class="ident">name</span>(),
-      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw-2">ref</span> <span class="ident">field</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">field</span>.<span class="ident">name</span>()
+      <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="kw-2">ref</span> <span class="ident">field</span>, ..) <span class="op">=&gt;</span> <span class="ident">field</span>.<span class="ident">name</span>(),
+      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw-2">ref</span> <span class="ident">field</span>, ..) <span class="op">=&gt;</span> <span class="ident">field</span>.<span class="ident">name</span>(),
     }
   }
 
   <span class="doccomment">/// Returns repetition for the current reader.</span>
   <span class="kw">fn</span> <span class="ident">repetition</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Repetition</span> {
     <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-      <span class="ident">Reader</span>::<span class="ident">PrimitiveReader</span>(<span class="kw-2">ref</span> <span class="ident">field</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> {
-        <span class="ident">field</span>.<span class="ident">get_basic_info</span>().<span class="ident">repetition</span>()
-      },
-      <span class="ident">Reader</span>::<span class="ident">OptionReader</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">reader</span>) <span class="op">=&gt;</span> {
-        <span class="ident">reader</span>.<span class="ident">repetition</span>()
-      },
-      <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw-2">ref</span> <span class="ident">opt</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">opt</span> {
+      <span class="ident">Reader</span>::<span class="ident">PrimitiveReader</span>(<span class="kw-2">ref</span> <span class="ident">field</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">field</span>.<span class="ident">get_basic_info</span>().<span class="ident">repetition</span>(),
+      <span class="ident">Reader</span>::<span class="ident">OptionReader</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">reader</span>) <span class="op">=&gt;</span> <span class="ident">reader</span>.<span class="ident">repetition</span>(),
+      <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw-2">ref</span> <span class="ident">opt</span>, ..) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">opt</span> {
         <span class="kw-2">&amp;</span><span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">field</span>) <span class="op">=&gt;</span> <span class="ident">field</span>.<span class="ident">get_basic_info</span>().<span class="ident">repetition</span>(),
-        <span class="kw-2">&amp;</span><span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Field is None for group reader&quot;</span>)
+        <span class="kw-2">&amp;</span><span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Field is None for group reader&quot;</span>),
       },
-      <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="kw-2">ref</span> <span class="ident">field</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> {
-        <span class="ident">field</span>.<span class="ident">get_basic_info</span>().<span class="ident">repetition</span>()
-      },
-      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw-2">ref</span> <span class="ident">field</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> {
-        <span class="ident">field</span>.<span class="ident">get_basic_info</span>().<span class="ident">repetition</span>()
-      }
+      <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="kw-2">ref</span> <span class="ident">field</span>, ..) <span class="op">=&gt;</span> <span class="ident">field</span>.<span class="ident">get_basic_info</span>().<span class="ident">repetition</span>(),
+      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw-2">ref</span> <span class="ident">field</span>, ..) <span class="op">=&gt;</span> <span class="ident">field</span>.<span class="ident">get_basic_info</span>().<span class="ident">repetition</span>(),
     }
   }
 
@@ -1845,7 +1955,7 @@
       <span class="ident">Reader</span>::<span class="ident">OptionReader</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">reader</span>) <span class="op">=&gt;</span> <span class="ident">reader</span>.<span class="ident">has_next</span>(),
       <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">readers</span>) <span class="op">=&gt;</span> <span class="ident">readers</span>.<span class="ident">first</span>().<span class="ident">unwrap</span>().<span class="ident">has_next</span>(),
       <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">reader</span>) <span class="op">=&gt;</span> <span class="ident">reader</span>.<span class="ident">has_next</span>(),
-      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">keys</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">keys</span>.<span class="ident">has_next</span>()
+      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">keys</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">keys</span>.<span class="ident">has_next</span>(),
     }
   }
 
@@ -1857,10 +1967,10 @@
       <span class="ident">Reader</span>::<span class="ident">OptionReader</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">reader</span>) <span class="op">=&gt;</span> <span class="ident">reader</span>.<span class="ident">current_def_level</span>(),
       <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">readers</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">readers</span>.<span class="ident">first</span>() {
         <span class="prelude-val">Some</span>(<span class="ident">reader</span>) <span class="op">=&gt;</span> <span class="ident">reader</span>.<span class="ident">current_def_level</span>(),
-        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Current definition level: empty group reader&quot;</span>)
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Current definition level: empty group reader&quot;</span>),
       },
       <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">reader</span>) <span class="op">=&gt;</span> <span class="ident">reader</span>.<span class="ident">current_def_level</span>(),
-      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">keys</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">keys</span>.<span class="ident">current_def_level</span>()
+      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">keys</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">keys</span>.<span class="ident">current_def_level</span>(),
     }
   }
 
@@ -1872,10 +1982,10 @@
       <span class="ident">Reader</span>::<span class="ident">OptionReader</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">reader</span>) <span class="op">=&gt;</span> <span class="ident">reader</span>.<span class="ident">current_rep_level</span>(),
       <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">readers</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">readers</span>.<span class="ident">first</span>() {
         <span class="prelude-val">Some</span>(<span class="ident">reader</span>) <span class="op">=&gt;</span> <span class="ident">reader</span>.<span class="ident">current_rep_level</span>(),
-        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Current repetition level: empty group reader&quot;</span>)
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Current repetition level: empty group reader&quot;</span>),
       },
       <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">reader</span>) <span class="op">=&gt;</span> <span class="ident">reader</span>.<span class="ident">current_rep_level</span>(),
-      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">keys</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">keys</span>.<span class="ident">current_rep_level</span>()
+      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">keys</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">keys</span>.<span class="ident">current_rep_level</span>(),
     }
   }
 
@@ -1899,25 +2009,23 @@
       <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">keys</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">values</span>) <span class="op">=&gt;</span> {
         <span class="ident">keys</span>.<span class="ident">advance_columns</span>();
         <span class="ident">values</span>.<span class="ident">advance_columns</span>();
-      }
+      },
     }
   }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Reader</span> {
   <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-    <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span>
-      <span class="kw">match</span> <span class="self">self</span> {
-        <span class="ident">Reader</span>::<span class="ident">PrimitiveReader</span>(<span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;PrimitiveReader&quot;</span>,
-        <span class="ident">Reader</span>::<span class="ident">OptionReader</span>(<span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;OptionReader&quot;</span>,
-        <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;GroupReader&quot;</span>,
-        <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;RepeatedReader&quot;</span>,
-        <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;KeyValueReader&quot;</span>
-      };
+    <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span> {
+      <span class="ident">Reader</span>::<span class="ident">PrimitiveReader</span>(..) <span class="op">=&gt;</span> <span class="string">&quot;PrimitiveReader&quot;</span>,
+      <span class="ident">Reader</span>::<span class="ident">OptionReader</span>(..) <span class="op">=&gt;</span> <span class="string">&quot;OptionReader&quot;</span>,
+      <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(..) <span class="op">=&gt;</span> <span class="string">&quot;GroupReader&quot;</span>,
+      <span class="ident">Reader</span>::<span class="ident">RepeatedReader</span>(..) <span class="op">=&gt;</span> <span class="string">&quot;RepeatedReader&quot;</span>,
+      <span class="ident">Reader</span>::<span class="ident">KeyValueReader</span>(..) <span class="op">=&gt;</span> <span class="string">&quot;KeyValueReader&quot;</span>,
+    };
     <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">s</span>)
   }
 }
-
 
 <span class="comment">// ----------------------------------------------------------------------</span>
 <span class="comment">// Row iterators</span>
@@ -1931,23 +2039,23 @@
   <span class="ident">file_reader</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">FileReader</span><span class="op">&gt;</span>,
   <span class="ident">current_row_group</span>: <span class="ident">usize</span>,
   <span class="ident">num_row_groups</span>: <span class="ident">usize</span>,
-  <span class="ident">row_iter</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ReaderIter</span><span class="op">&gt;</span>
+  <span class="ident">row_iter</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ReaderIter</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">RowIter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
   <span class="doccomment">/// Creates iterator of [`Row`](`::record::api::Row`)s for all row groups in a file.</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_file</span>(<span class="ident">proj</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Type</span><span class="op">&gt;</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">FileReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">descr</span> <span class="op">=</span> <span class="self">Self</span>::<span class="ident">get_proj_descr</span>(<span class="ident">proj</span>,
-      <span class="ident">reader</span>.<span class="ident">metadata</span>().<span class="ident">file_metadata</span>().<span class="ident">schema_descr_ptr</span>())<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">descr</span> <span class="op">=</span>
+      <span class="self">Self</span>::<span class="ident">get_proj_descr</span>(<span class="ident">proj</span>, <span class="ident">reader</span>.<span class="ident">metadata</span>().<span class="ident">file_metadata</span>().<span class="ident">schema_descr_ptr</span>())<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="ident">num_row_groups</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">num_row_groups</span>();
 
     <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
-      <span class="ident">descr</span>: <span class="ident">descr</span>,
+      <span class="ident">descr</span>,
       <span class="ident">tree_builder</span>: <span class="self">Self</span>::<span class="ident">tree_builder</span>(),
       <span class="ident">file_reader</span>: <span class="prelude-val">Some</span>(<span class="ident">reader</span>),
       <span class="ident">current_row_group</span>: <span class="number">0</span>,
-      <span class="ident">num_row_groups</span>: <span class="ident">num_row_groups</span>,
-      <span class="ident">row_iter</span>: <span class="prelude-val">None</span>
+      <span class="ident">num_row_groups</span>,
+      <span class="ident">row_iter</span>: <span class="prelude-val">None</span>,
     })
   }
 
@@ -1960,29 +2068,28 @@
     <span class="comment">// For row group we need to set `current_row_group` &gt;= `num_row_groups`, because we</span>
     <span class="comment">// only have one row group and can&#39;t buffer more.</span>
     <span class="prelude-val">Ok</span>(<span class="self">Self</span> {
-      <span class="ident">descr</span>: <span class="ident">descr</span>,
-      <span class="ident">tree_builder</span>: <span class="ident">tree_builder</span>,
+      <span class="ident">descr</span>,
+      <span class="ident">tree_builder</span>,
       <span class="ident">file_reader</span>: <span class="prelude-val">None</span>,
       <span class="ident">current_row_group</span>: <span class="number">0</span>,
       <span class="ident">num_row_groups</span>: <span class="number">0</span>,
-      <span class="ident">row_iter</span>: <span class="prelude-val">Some</span>(<span class="ident">row_iter</span>)
+      <span class="ident">row_iter</span>: <span class="prelude-val">Some</span>(<span class="ident">row_iter</span>),
     })
   }
 
   <span class="doccomment">/// Returns common tree builder, so the same settings are applied to both iterators</span>
   <span class="doccomment">/// from file reader and row group.</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">fn</span> <span class="ident">tree_builder</span>() <span class="op">-&gt;</span> <span class="ident">TreeBuilder</span> {
-    <span class="ident">TreeBuilder</span>::<span class="ident">new</span>()
-  }
+  <span class="kw">fn</span> <span class="ident">tree_builder</span>() <span class="op">-&gt;</span> <span class="ident">TreeBuilder</span> { <span class="ident">TreeBuilder</span>::<span class="ident">new</span>() }
 
   <span class="doccomment">/// Helper method to get schema descriptor for projected schema.</span>
   <span class="doccomment">/// If projection is None, then full schema is returned.</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">fn</span> <span class="ident">get_proj_descr</span>(
     <span class="ident">proj</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Type</span><span class="op">&gt;</span>,
-    <span class="ident">root_descr</span>: <span class="ident">SchemaDescPtr</span>
-  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SchemaDescPtr</span><span class="op">&gt;</span> {
+    <span class="ident">root_descr</span>: <span class="ident">SchemaDescPtr</span>,
+  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SchemaDescPtr</span><span class="op">&gt;</span>
+  {
     <span class="kw">match</span> <span class="ident">proj</span> {
       <span class="prelude-val">Some</span>(<span class="ident">projection</span>) <span class="op">=&gt;</span> {
         <span class="comment">// check if projection is part of file schema</span>
@@ -1992,9 +2099,7 @@
         }
         <span class="prelude-val">Ok</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">SchemaDescriptor</span>::<span class="ident">new</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">projection</span>))))
       },
-      <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="ident">root_descr</span>)
-      }
+      <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">root_descr</span>),
     }
   }
 }
@@ -2011,12 +2116,16 @@
     <span class="kw">while</span> <span class="ident">row</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">current_row_group</span> <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">num_row_groups</span> {
       <span class="comment">// We do not expect any failures when accessing a row group, and file reader</span>
       <span class="comment">// must be set for selecting next row group.</span>
-      <span class="kw">let</span> <span class="ident">row_group_reader</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">file_reader</span>
+      <span class="kw">let</span> <span class="ident">row_group_reader</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>
+        .<span class="ident">file_reader</span>
         .<span class="ident">as_ref</span>()
         .<span class="ident">expect</span>(<span class="string">&quot;File reader is required to advance row group&quot;</span>)
-        .<span class="ident">get_row_group</span>(<span class="self">self</span>.<span class="ident">current_row_group</span>).<span class="ident">unwrap</span>();
+        .<span class="ident">get_row_group</span>(<span class="self">self</span>.<span class="ident">current_row_group</span>)
+        .<span class="ident">unwrap</span>();
       <span class="self">self</span>.<span class="ident">current_row_group</span> <span class="op">+=</span> <span class="number">1</span>;
-      <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">tree_builder</span>.<span class="ident">as_iter</span>(<span class="self">self</span>.<span class="ident">descr</span>.<span class="ident">clone</span>(), <span class="ident">row_group_reader</span>);
+      <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="self">self</span>
+        .<span class="ident">tree_builder</span>
+        .<span class="ident">as_iter</span>(<span class="self">self</span>.<span class="ident">descr</span>.<span class="ident">clone</span>(), <span class="ident">row_group_reader</span>);
       <span class="ident">row</span> <span class="op">=</span> <span class="ident">iter</span>.<span class="ident">next</span>();
       <span class="self">self</span>.<span class="ident">row_iter</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">iter</span>);
     }
@@ -2028,7 +2137,7 @@
 <span class="doccomment">/// Internal iterator of [`Row`](`::record::api::Row`)s for a reader.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ReaderIter</span> {
   <span class="ident">root_reader</span>: <span class="ident">Reader</span>,
-  <span class="ident">records_left</span>: <span class="ident">usize</span>
+  <span class="ident">records_left</span>: <span class="ident">usize</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">ReaderIter</span> {
@@ -2036,8 +2145,8 @@
     <span class="comment">// Prepare root reader by advancing all column vectors</span>
     <span class="ident">root_reader</span>.<span class="ident">advance_columns</span>();
     <span class="self">Self</span> {
-      <span class="ident">root_reader</span>: <span class="ident">root_reader</span>,
-      <span class="ident">records_left</span>: <span class="ident">num_records</span>
+      <span class="ident">root_reader</span>,
+      <span class="ident">records_left</span>: <span class="ident">num_records</span>,
     }
   }
 }
@@ -2055,13 +2164,12 @@
   }
 }
 
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
   <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
   <span class="kw">use</span> <span class="ident">errors</span>::{<span class="ident">ParquetError</span>, <span class="prelude-ty">Result</span>};
   <span class="kw">use</span> <span class="ident">file</span>::<span class="ident">reader</span>::{<span class="ident">FileReader</span>, <span class="ident">SerializedFileReader</span>};
-  <span class="kw">use</span> <span class="ident">record</span>::<span class="ident">api</span>::{<span class="ident">Row</span>, <span class="ident">Field</span>};
+  <span class="kw">use</span> <span class="ident">record</span>::<span class="ident">api</span>::{<span class="ident">Field</span>, <span class="ident">Row</span>};
   <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">parser</span>::<span class="ident">parse_message_type</span>;
   <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">test_common</span>::<span class="ident">get_test_file</span>;
 
@@ -2115,38 +2223,38 @@
   <span class="kw">fn</span> <span class="ident">test_file_reader_rows_nulls</span>() {
     <span class="kw">let</span> <span class="ident">rows</span> <span class="op">=</span> <span class="ident">test_file_reader_rows</span>(<span class="string">&quot;nulls.snappy.parquet&quot;</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
     <span class="kw">let</span> <span class="ident">expected_rows</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
-         <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
-         <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
-         <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
-         <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
-         <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
-         <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
-         <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
-         <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)])
-      ]
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)]
+      )],
     ];
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">rows</span>, <span class="ident">expected_rows</span>);
   }
@@ -2154,40 +2262,45 @@
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_file_reader_rows_nonnullable</span>() {
     <span class="kw">let</span> <span class="ident">rows</span> <span class="op">=</span> <span class="ident">test_file_reader_rows</span>(<span class="string">&quot;nonnullable.impala.parquet&quot;</span>, <span class="prelude-val">None</span>).<span class="ident">unwrap</span>();
-    <span class="kw">let</span> <span class="ident">expected_rows</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;ID&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">8</span>)),
-        (<span class="string">&quot;Int_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">1</span>)]),
-        (<span class="string">&quot;int_array_array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-          <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">2</span>)],
-          <span class="macro">list</span><span class="macro">!</span>[]
-        ]),
-        (<span class="string">&quot;Int_Map&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[(<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">1</span>))]),
-        (<span class="string">&quot;int_map_array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
+    <span class="kw">let</span> <span class="ident">expected_rows</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="macro">row</span><span class="macro">!</span>[
+      (<span class="string">&quot;ID&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">8</span>)),
+      (<span class="string">&quot;Int_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">1</span>)]),
+      (
+        <span class="string">&quot;int_array_array&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">list</span><span class="macro">!</span>[<span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">2</span>)], <span class="macro">list</span><span class="macro">!</span>[]]
+      ),
+      (
+        <span class="string">&quot;Int_Map&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">map</span><span class="macro">!</span>[(<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">1</span>))]
+      ),
+      (
+        <span class="string">&quot;int_map_array&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">list</span><span class="macro">!</span>[
           <span class="macro">map</span><span class="macro">!</span>[],
           <span class="macro">map</span><span class="macro">!</span>[(<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>))],
           <span class="macro">map</span><span class="macro">!</span>[],
           <span class="macro">map</span><span class="macro">!</span>[]
-        ]),
-        (<span class="string">&quot;nested_Struct&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
+        ]
+      ),
+      (
+        <span class="string">&quot;nested_Struct&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">group</span><span class="macro">!</span>[
           (<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">1</span>)),
-          (<span class="string">&quot;B&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-            <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">1</span>)
-          ]),
-          (<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-            (<span class="string">&quot;D&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-              <span class="macro">list</span><span class="macro">!</span>[
-                <span class="macro">group</span><span class="macro">!</span>[
-                  (<span class="string">&quot;e&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">1</span>)),
-                  (<span class="string">&quot;f&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;nonnullable&quot;</span>.<span class="ident">to_string</span>()))
-                ]
-              ]
-            ])
-          ]),
+          (<span class="string">&quot;B&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">1</span>)]),
+          (
+            <span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>(),
+            <span class="macro">group</span><span class="macro">!</span>[(
+              <span class="string">&quot;D&quot;</span>.<span class="ident">to_string</span>(),
+              <span class="macro">list</span><span class="macro">!</span>[<span class="macro">list</span><span class="macro">!</span>[<span class="macro">group</span><span class="macro">!</span>[
+                (<span class="string">&quot;e&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">1</span>)),
+                (<span class="string">&quot;f&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;nonnullable&quot;</span>.<span class="ident">to_string</span>()))
+              ]]]
+            )]
+          ),
           (<span class="string">&quot;G&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[])
-        ])
-      ]
-    ];
+        ]
+      )
+    ]];
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">rows</span>, <span class="ident">expected_rows</span>);
   }
 
@@ -2197,208 +2310,240 @@
     <span class="kw">let</span> <span class="ident">expected_rows</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">1</span>)),
-        (<span class="string">&quot;int_array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>)]),
-        (<span class="string">&quot;int_array_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-          <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>)],
-          <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">4</span>)]
-        ]),
-        (<span class="string">&quot;int_map&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>)),
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k2&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">100</span>))
-        ]),
-        (<span class="string">&quot;int_Map_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-          <span class="macro">map</span><span class="macro">!</span>[(<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>))]
-        ]),
-        (<span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-          (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>)),
-          (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>)]),
-          (<span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-            (<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-              <span class="macro">list</span><span class="macro">!</span>[
-                <span class="macro">group</span><span class="macro">!</span>[
-                  (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">10</span>)),
-                  (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;aaa&quot;</span>.<span class="ident">to_string</span>()))
-                ],
-                <span class="macro">group</span><span class="macro">!</span>[
-                  (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">10</span>)),
-                  (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;bbb&quot;</span>.<span class="ident">to_string</span>()))
+        (
+          <span class="string">&quot;int_array&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>)]
+        ),
+        (
+          <span class="string">&quot;int_array_Array&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">list</span><span class="macro">!</span>[
+            <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>)],
+            <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">4</span>)]
+          ]
+        ),
+        (
+          <span class="string">&quot;int_map&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">map</span><span class="macro">!</span>[
+            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>)),
+            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k2&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">100</span>))
+          ]
+        ),
+        (
+          <span class="string">&quot;int_Map_Array&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">list</span><span class="macro">!</span>[<span class="macro">map</span><span class="macro">!</span>[(<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>))]]
+        ),
+        (
+          <span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">group</span><span class="macro">!</span>[
+            (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>)),
+            (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>)]),
+            (
+              <span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(),
+              <span class="macro">group</span><span class="macro">!</span>[(
+                <span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="macro">list</span><span class="macro">!</span>[
+                  <span class="macro">list</span><span class="macro">!</span>[
+                    <span class="macro">group</span><span class="macro">!</span>[
+                      (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">10</span>)),
+                      (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;aaa&quot;</span>.<span class="ident">to_string</span>()))
+                    ],
+                    <span class="macro">group</span><span class="macro">!</span>[
+                      (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">10</span>)),
+                      (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;bbb&quot;</span>.<span class="ident">to_string</span>()))
+                    ]
+                  ],
+                  <span class="macro">list</span><span class="macro">!</span>[<span class="macro">group</span><span class="macro">!</span>[
+                    (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">11</span>)),
+                    (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()))
+                  ]]
                 ]
-              ],
-              <span class="macro">list</span><span class="macro">!</span>[
-                <span class="macro">group</span><span class="macro">!</span>[
-                  (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">11</span>)),
-                  (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()))
-                ]
-              ]
-            ])
-          ]),
-          (<span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">group</span><span class="macro">!</span>[
-              (<span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-                (<span class="string">&quot;i&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Double</span>(<span class="number">1.1</span>)])
-              ])
-            ])
-          ])
-        ])
+              )]
+            ),
+            (
+              <span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(),
+              <span class="macro">map</span><span class="macro">!</span>[(
+                <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
+                <span class="macro">group</span><span class="macro">!</span>[(
+                  <span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(),
+                  <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;i&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Double</span>(<span class="number">1.1</span>)])]
+                )]
+              )]
+            )
+          ]
+        )
       ],
-
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">2</span>)),
-        (<span class="string">&quot;int_array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-          <span class="ident">Field</span>::<span class="ident">Null</span>,
-          <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>),
-          <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>),
-          <span class="ident">Field</span>::<span class="ident">Null</span>,
-          <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>),
-          <span class="ident">Field</span>::<span class="ident">Null</span>
-        ]),
-        (<span class="string">&quot;int_array_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
+        (
+          <span class="string">&quot;int_array&quot;</span>.<span class="ident">to_string</span>(),
           <span class="macro">list</span><span class="macro">!</span>[
             <span class="ident">Field</span>::<span class="ident">Null</span>,
             <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>),
             <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>),
-            <span class="ident">Field</span>::<span class="ident">Null</span>
-          ],
-          <span class="macro">list</span><span class="macro">!</span>[
-            <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>),
             <span class="ident">Field</span>::<span class="ident">Null</span>,
-            <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">4</span>)
-          ],
-          <span class="macro">list</span><span class="macro">!</span>[],
-          <span class="ident">Field</span>::<span class="ident">Null</span>
-        ]),
-        (<span class="string">&quot;int_map&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>)),
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k2&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>)
-        ]),
-        (<span class="string">&quot;int_Map_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-          <span class="macro">map</span><span class="macro">!</span>[
-            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k3&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>),
-            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>))
-          ],
-          <span class="ident">Field</span>::<span class="ident">Null</span>,
-          <span class="macro">map</span><span class="macro">!</span>[]
-        ]),
-        (<span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-          (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-          (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
+            <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>),
             <span class="ident">Field</span>::<span class="ident">Null</span>
-          ]),
-          (<span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-            (<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-              <span class="macro">list</span><span class="macro">!</span>[
-                <span class="macro">group</span><span class="macro">!</span>[
-                  (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-                  (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
-                ],
-                <span class="macro">group</span><span class="macro">!</span>[
-                  (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">10</span>)),
-                  (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;aaa&quot;</span>.<span class="ident">to_string</span>()))
-                ],
-                <span class="macro">group</span><span class="macro">!</span>[
-                  (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-                  (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
-                ],
-                <span class="macro">group</span><span class="macro">!</span>[
-                  (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">10</span>)),
-                  (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;bbb&quot;</span>.<span class="ident">to_string</span>()))
-                ],
-                <span class="macro">group</span><span class="macro">!</span>[
-                  (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-                  (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
-                ]
-              ],
-              <span class="macro">list</span><span class="macro">!</span>[
-                <span class="macro">group</span><span class="macro">!</span>[
-                  (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">11</span>)),
-                  (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()))
-                ],
-                <span class="ident">Field</span>::<span class="ident">Null</span>
-              ],
-              <span class="macro">list</span><span class="macro">!</span>[],
-              <span class="ident">Field</span>::<span class="ident">Null</span>
-            ])
-          ]),
-          (<span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;g1&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">group</span><span class="macro">!</span>[
-              (<span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-                (<span class="string">&quot;i&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-                  <span class="ident">Field</span>::<span class="ident">Double</span>(<span class="number">2.2</span>),
+          ]
+        ),
+        (
+          <span class="string">&quot;int_array_Array&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">list</span><span class="macro">!</span>[
+            <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Null</span>, <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>), <span class="ident">Field</span>::<span class="ident">Null</span>],
+            <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>), <span class="ident">Field</span>::<span class="ident">Null</span>, <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">4</span>)],
+            <span class="macro">list</span><span class="macro">!</span>[],
+            <span class="ident">Field</span>::<span class="ident">Null</span>
+          ]
+        ),
+        (
+          <span class="string">&quot;int_map&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">map</span><span class="macro">!</span>[
+            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>)),
+            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k2&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>)
+          ]
+        ),
+        (
+          <span class="string">&quot;int_Map_Array&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">list</span><span class="macro">!</span>[
+            <span class="macro">map</span><span class="macro">!</span>[
+              (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k3&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>),
+              (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>))
+            ],
+            <span class="ident">Field</span>::<span class="ident">Null</span>,
+            <span class="macro">map</span><span class="macro">!</span>[]
+          ]
+        ),
+        (
+          <span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">group</span><span class="macro">!</span>[
+            (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
+            (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Null</span>]),
+            (
+              <span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(),
+              <span class="macro">group</span><span class="macro">!</span>[(
+                <span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="macro">list</span><span class="macro">!</span>[
+                  <span class="macro">list</span><span class="macro">!</span>[
+                    <span class="macro">group</span><span class="macro">!</span>[
+                      (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
+                      (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
+                    ],
+                    <span class="macro">group</span><span class="macro">!</span>[
+                      (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">10</span>)),
+                      (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;aaa&quot;</span>.<span class="ident">to_string</span>()))
+                    ],
+                    <span class="macro">group</span><span class="macro">!</span>[
+                      (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
+                      (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
+                    ],
+                    <span class="macro">group</span><span class="macro">!</span>[
+                      (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="op">-</span><span class="number">10</span>)),
+                      (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;bbb&quot;</span>.<span class="ident">to_string</span>()))
+                    ],
+                    <span class="macro">group</span><span class="macro">!</span>[
+                      (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
+                      (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
+                    ]
+                  ],
+                  <span class="macro">list</span><span class="macro">!</span>[
+                    <span class="macro">group</span><span class="macro">!</span>[
+                      (<span class="string">&quot;E&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">11</span>)),
+                      (<span class="string">&quot;F&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()))
+                    ],
+                    <span class="ident">Field</span>::<span class="ident">Null</span>
+                  ],
+                  <span class="macro">list</span><span class="macro">!</span>[],
                   <span class="ident">Field</span>::<span class="ident">Null</span>
-                ])
-              ])
-            ]),
-            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;g2&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">group</span><span class="macro">!</span>[
-              (<span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-                (<span class="string">&quot;i&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[])
-              ])
-            ]),
-            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;g3&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>),
-            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;g4&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">group</span><span class="macro">!</span>[
-              (<span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-                (<span class="string">&quot;i&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
-              ])
-            ]),
-            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;g5&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">group</span><span class="macro">!</span>[
-              (<span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
-            ])
-          ])
-        ])
+                ]
+              )]
+            ),
+            (
+              <span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(),
+              <span class="macro">map</span><span class="macro">!</span>[
+                (
+                  <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;g1&quot;</span>.<span class="ident">to_string</span>()),
+                  <span class="macro">group</span><span class="macro">!</span>[(
+                    <span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;i&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Double</span>(<span class="number">2.2</span>), <span class="ident">Field</span>::<span class="ident">Null</span>])]
+                  )]
+                ),
+                (
+                  <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;g2&quot;</span>.<span class="ident">to_string</span>()),
+                  <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;i&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[])])]
+                ),
+                (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;g3&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>),
+                (
+                  <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;g4&quot;</span>.<span class="ident">to_string</span>()),
+                  <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;i&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)])]
+                ),
+                (
+                  <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;g5&quot;</span>.<span class="ident">to_string</span>()),
+                  <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)]
+                )
+              ]
+            )
+          ]
+        )
       ],
-
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">3</span>)),
         (<span class="string">&quot;int_array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[]),
         (<span class="string">&quot;int_array_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Null</span>]),
         (<span class="string">&quot;int_map&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[]),
         (<span class="string">&quot;int_Map_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Null</span>, <span class="ident">Field</span>::<span class="ident">Null</span>]),
-        (<span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-          (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-          (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-          (<span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[])]),
-          (<span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[])
-        ])
+        (
+          <span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">group</span><span class="macro">!</span>[
+            (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
+            (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
+            (<span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[])]),
+            (<span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[])
+          ]
+        )
       ],
-
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">4</span>)),
         (<span class="string">&quot;int_array&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
         (<span class="string">&quot;int_array_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[]),
         (<span class="string">&quot;int_map&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[]),
         (<span class="string">&quot;int_Map_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[]),
-        (<span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-          (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-          (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-          (<span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-            (<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
-          ]),
-          (<span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
-        ])
+        (
+          <span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">group</span><span class="macro">!</span>[
+            (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
+            (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
+            (<span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)]),
+            (<span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
+          ]
+        )
       ],
-
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">5</span>)),
         (<span class="string">&quot;int_array&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
         (<span class="string">&quot;int_array_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
         (<span class="string">&quot;int_map&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[]),
         (<span class="string">&quot;int_Map_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-        (<span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-          (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-          (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-          (<span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-          (<span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">group</span><span class="macro">!</span>[
-              (<span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-                (<span class="string">&quot;i&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-                  <span class="ident">Field</span>::<span class="ident">Double</span>(<span class="number">2.2</span>),
-                  <span class="ident">Field</span>::<span class="ident">Double</span>(<span class="number">3.3</span>)
-                ])
-              ])
-            ])
-          ])
-        ])
+        (
+          <span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">group</span><span class="macro">!</span>[
+            (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
+            (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
+            (<span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
+            (
+              <span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(),
+              <span class="macro">map</span><span class="macro">!</span>[(
+                <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;foo&quot;</span>.<span class="ident">to_string</span>()),
+                <span class="macro">group</span><span class="macro">!</span>[(
+                  <span class="string">&quot;H&quot;</span>.<span class="ident">to_string</span>(),
+                  <span class="macro">group</span><span class="macro">!</span>[(
+                    <span class="string">&quot;i&quot;</span>.<span class="ident">to_string</span>(),
+                    <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Double</span>(<span class="number">2.2</span>), <span class="ident">Field</span>::<span class="ident">Double</span>(<span class="number">3.3</span>)]
+                  )]
+                )]
+              )]
+            )
+          ]
+        )
       ],
-
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">6</span>)),
         (<span class="string">&quot;int_array&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
@@ -2407,38 +2552,40 @@
         (<span class="string">&quot;int_Map_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
         (<span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
       ],
-
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">7</span>)),
         (<span class="string">&quot;int_array&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-        (<span class="string">&quot;int_array_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-          <span class="ident">Field</span>::<span class="ident">Null</span>,
-          <span class="macro">list</span><span class="macro">!</span>[
-            <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">5</span>),
-            <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">6</span>)
+        (
+          <span class="string">&quot;int_array_Array&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Null</span>, <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">5</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">6</span>)]]
+        ),
+        (
+          <span class="string">&quot;int_map&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">map</span><span class="macro">!</span>[
+            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>),
+            (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k3&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>)
           ]
-        ]),
-        (<span class="string">&quot;int_map&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k1&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>),
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;k3&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>)
-        ]),
+        ),
         (<span class="string">&quot;int_Map_Array&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>),
-        (<span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-          (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">7</span>)),
-          (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-            <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>),
-            <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>), <span class="ident">Field</span>::<span class="ident">Null</span>
-          ]),
-          (<span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-            (<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-              <span class="macro">list</span><span class="macro">!</span>[],
-              <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Null</span>],
-              <span class="ident">Field</span>::<span class="ident">Null</span>
-            ])
-          ]),
-          (<span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
-        ])
-      ]
+        (
+          <span class="string">&quot;nested_struct&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">group</span><span class="macro">!</span>[
+            (<span class="string">&quot;A&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">7</span>)),
+            (
+              <span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(),
+              <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>), <span class="ident">Field</span>::<span class="ident">Null</span>]
+            ),
+            (
+              <span class="string">&quot;C&quot;</span>.<span class="ident">to_string</span>(),
+              <span class="macro">group</span><span class="macro">!</span>[(
+                <span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>(),
+                <span class="macro">list</span><span class="macro">!</span>[<span class="macro">list</span><span class="macro">!</span>[], <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Null</span>], <span class="ident">Field</span>::<span class="ident">Null</span>]
+              )]
+            ),
+            (<span class="string">&quot;g&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
+          ]
+        )
+      ],
     ];
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">rows</span>, <span class="ident">expected_rows</span>);
   }
@@ -2452,8 +2599,7 @@
       }
     &quot;</span>;
     <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">parse_message_type</span>(<span class="kw-2">&amp;</span><span class="ident">schema</span>).<span class="ident">unwrap</span>();
-    <span class="kw">let</span> <span class="ident">rows</span> <span class="op">=</span>
-      <span class="ident">test_file_reader_rows</span>(<span class="string">&quot;nested_maps.snappy.parquet&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">schema</span>)).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="ident">rows</span> <span class="op">=</span> <span class="ident">test_file_reader_rows</span>(<span class="string">&quot;nested_maps.snappy.parquet&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">schema</span>)).<span class="ident">unwrap</span>();
     <span class="kw">let</span> <span class="ident">expected_rows</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Double</span>(<span class="number">1.0</span>)),
@@ -2478,7 +2624,7 @@
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Double</span>(<span class="number">1.0</span>)),
         (<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>))
-      ]
+      ],
     ];
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">rows</span>, <span class="ident">expected_rows</span>);
   }
@@ -2501,50 +2647,48 @@
       }
     &quot;</span>;
     <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">parse_message_type</span>(<span class="kw-2">&amp;</span><span class="ident">schema</span>).<span class="ident">unwrap</span>();
-    <span class="kw">let</span> <span class="ident">rows</span> <span class="op">=</span>
-      <span class="ident">test_file_reader_rows</span>(<span class="string">&quot;nested_maps.snappy.parquet&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">schema</span>)).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="ident">rows</span> <span class="op">=</span> <span class="ident">test_file_reader_rows</span>(<span class="string">&quot;nested_maps.snappy.parquet&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">schema</span>)).<span class="ident">unwrap</span>();
     <span class="kw">let</span> <span class="ident">expected_rows</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">map</span><span class="macro">!</span>[
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">map</span><span class="macro">!</span>[(
+          <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>()),
+          <span class="macro">map</span><span class="macro">!</span>[
             (<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Bool</span>(<span class="bool-val">true</span>)),
             (<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">2</span>), <span class="ident">Field</span>::<span class="ident">Bool</span>(<span class="bool-val">false</span>))
-          ])
-        ])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">map</span><span class="macro">!</span>[
-            (<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Bool</span>(<span class="bool-val">true</span>))
-          ])
-        ])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>)
-        ])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">map</span><span class="macro">!</span>[])
-        ])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;e&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">map</span><span class="macro">!</span>[
-            (<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Bool</span>(<span class="bool-val">true</span>))
-          ])
-        ])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[
-          (<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;f&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">map</span><span class="macro">!</span>[
+          ]
+        )]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">map</span><span class="macro">!</span>[(
+          <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>()),
+          <span class="macro">map</span><span class="macro">!</span>[(<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Bool</span>(<span class="bool-val">true</span>))]
+        )]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">map</span><span class="macro">!</span>[(<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Null</span>)]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">map</span><span class="macro">!</span>[(<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>()), <span class="macro">map</span><span class="macro">!</span>[])])],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">map</span><span class="macro">!</span>[(
+          <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;e&quot;</span>.<span class="ident">to_string</span>()),
+          <span class="macro">map</span><span class="macro">!</span>[(<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Bool</span>(<span class="bool-val">true</span>))]
+        )]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">map</span><span class="macro">!</span>[(
+          <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;f&quot;</span>.<span class="ident">to_string</span>()),
+          <span class="macro">map</span><span class="macro">!</span>[
             (<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>), <span class="ident">Field</span>::<span class="ident">Bool</span>(<span class="bool-val">true</span>)),
             (<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">4</span>), <span class="ident">Field</span>::<span class="ident">Bool</span>(<span class="bool-val">false</span>)),
             (<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">5</span>), <span class="ident">Field</span>::<span class="ident">Bool</span>(<span class="bool-val">true</span>))
-          ])
-        ])
-      ]
+          ]
+        )]
+      )],
     ];
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">rows</span>, <span class="ident">expected_rows</span>);
   }
@@ -2572,68 +2716,37 @@
     <span class="kw">let</span> <span class="ident">rows</span> <span class="op">=</span>
       <span class="ident">test_file_reader_rows</span>(<span class="string">&quot;nested_lists.snappy.parquet&quot;</span>, <span class="prelude-val">Some</span>(<span class="ident">schema</span>)).<span class="ident">unwrap</span>();
     <span class="kw">let</span> <span class="ident">expected_rows</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">list</span><span class="macro">!</span>[
           <span class="macro">list</span><span class="macro">!</span>[
-            <span class="macro">list</span><span class="macro">!</span>[
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>()),
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>())
-            ],
-            <span class="macro">list</span><span class="macro">!</span>[
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>())
-            ]
+            <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>())],
+            <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>())]
           ],
+          <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Null</span>, <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>())]]
+        ]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">list</span><span class="macro">!</span>[
           <span class="macro">list</span><span class="macro">!</span>[
-            <span class="ident">Field</span>::<span class="ident">Null</span>,
-            <span class="macro">list</span><span class="macro">!</span>[
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>())
-            ]
-          ]
-        ])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-          <span class="macro">list</span><span class="macro">!</span>[
-            <span class="macro">list</span><span class="macro">!</span>[
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>()),
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>())
-            ],
-            <span class="macro">list</span><span class="macro">!</span>[
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()),
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>())
-            ]
+            <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>())],
+            <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>())]
           ],
+          <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Null</span>, <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;e&quot;</span>.<span class="ident">to_string</span>())]]
+        ]
+      )],
+      <span class="macro">row</span><span class="macro">!</span>[(
+        <span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(),
+        <span class="macro">list</span><span class="macro">!</span>[
           <span class="macro">list</span><span class="macro">!</span>[
-            <span class="ident">Field</span>::<span class="ident">Null</span>,
-            <span class="macro">list</span><span class="macro">!</span>[
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;e&quot;</span>.<span class="ident">to_string</span>())
-            ]
-          ]
-        ])
-      ],
-      <span class="macro">row</span><span class="macro">!</span>[
-        (<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-          <span class="macro">list</span><span class="macro">!</span>[
-            <span class="macro">list</span><span class="macro">!</span>[
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>()),
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>())
-            ],
-            <span class="macro">list</span><span class="macro">!</span>[
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()),
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>())
-            ],
-            <span class="macro">list</span><span class="macro">!</span>[
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;e&quot;</span>.<span class="ident">to_string</span>())
-            ]
+            <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;b&quot;</span>.<span class="ident">to_string</span>())],
+            <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>())],
+            <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;e&quot;</span>.<span class="ident">to_string</span>())]
           ],
-          <span class="macro">list</span><span class="macro">!</span>[
-            <span class="ident">Field</span>::<span class="ident">Null</span>,
-            <span class="macro">list</span><span class="macro">!</span>[
-              <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;f&quot;</span>.<span class="ident">to_string</span>())
-            ]
-          ]
-        ])
-      ]
+          <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Null</span>, <span class="macro">list</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;f&quot;</span>.<span class="ident">to_string</span>())]]
+        ]
+      )],
     ];
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">rows</span>, <span class="ident">expected_rows</span>);
   }
@@ -2709,51 +2822,60 @@
       ],
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>)),
-        (<span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-          (<span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[])
-        ])
+        (
+          <span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">group</span><span class="macro">!</span>[(<span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[])]
+        )
       ],
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">4</span>)),
-        (<span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-          (<span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-            <span class="macro">group</span><span class="macro">!</span>[
+        (
+          <span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">group</span><span class="macro">!</span>[(
+            <span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(),
+            <span class="macro">list</span><span class="macro">!</span>[<span class="macro">group</span><span class="macro">!</span>[
               (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">5555555555</span>)),
               (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
-            ]
-          ])
-        ])
+            ]]
+          )]
+        )
       ],
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">5</span>)),
-        (<span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-          (<span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-            <span class="macro">group</span><span class="macro">!</span>[
+        (
+          <span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">group</span><span class="macro">!</span>[(
+            <span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(),
+            <span class="macro">list</span><span class="macro">!</span>[<span class="macro">group</span><span class="macro">!</span>[
               (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">1111111111</span>)),
               (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;home&quot;</span>.<span class="ident">to_string</span>()))
-            ]
-          ])
-        ])
+            ]]
+          )]
+        )
       ],
       <span class="macro">row</span><span class="macro">!</span>[
         (<span class="string">&quot;id&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">6</span>)),
-        (<span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">group</span><span class="macro">!</span>[
-          (<span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(), <span class="macro">list</span><span class="macro">!</span>[
-            <span class="macro">group</span><span class="macro">!</span>[
-              (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">1111111111</span>)),
-              (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;home&quot;</span>.<span class="ident">to_string</span>()))
-            ],
-            <span class="macro">group</span><span class="macro">!</span>[
-              (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">2222222222</span>)),
-              (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
-            ],
-            <span class="macro">group</span><span class="macro">!</span>[
-              (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">3333333333</span>)),
-              (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;mobile&quot;</span>.<span class="ident">to_string</span>()))
+        (
+          <span class="string">&quot;phoneNumbers&quot;</span>.<span class="ident">to_string</span>(),
+          <span class="macro">group</span><span class="macro">!</span>[(
+            <span class="string">&quot;phone&quot;</span>.<span class="ident">to_string</span>(),
+            <span class="macro">list</span><span class="macro">!</span>[
+              <span class="macro">group</span><span class="macro">!</span>[
+                (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">1111111111</span>)),
+                (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;home&quot;</span>.<span class="ident">to_string</span>()))
+              ],
+              <span class="macro">group</span><span class="macro">!</span>[
+                (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">2222222222</span>)),
+                (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Null</span>)
+              ],
+              <span class="macro">group</span><span class="macro">!</span>[
+                (<span class="string">&quot;number&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">3333333333</span>)),
+                (<span class="string">&quot;kind&quot;</span>.<span class="ident">to_string</span>(), <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;mobile&quot;</span>.<span class="ident">to_string</span>()))
+              ]
             ]
-          ])
-        ])
-      ]
+          )]
+        )
+      ],
     ];
 
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">rows</span>, <span class="ident">expected_rows</span>);

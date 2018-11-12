@@ -84,6 +84,7 @@
 <span id="84">84</span>
 <span id="85">85</span>
 <span id="86">86</span>
+<span id="87">87</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -114,9 +115,8 @@
 <span class="doccomment">//! # Example of reading an existing file</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```rust</span>
-<span class="doccomment">//! use std::fs::File;</span>
-<span class="doccomment">//! use std::path::Path;</span>
 <span class="doccomment">//! use parquet::file::reader::{FileReader, SerializedFileReader};</span>
+<span class="doccomment">//! use std::{fs::File, path::Path};</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! let path = Path::new(&quot;data/alltypes_plain.parquet&quot;);</span>
 <span class="doccomment">//! let file = File::open(&amp;path).unwrap();</span>
@@ -132,13 +132,15 @@
 <span class="doccomment">//! # Example of writing a new file</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```rust</span>
-<span class="doccomment">//!use std::fs;</span>
-<span class="doccomment">//! use std::path::Path;</span>
-<span class="doccomment">//! use std::rc::Rc;</span>
+<span class="doccomment">//! use std::{fs, path::Path, rc::Rc};</span>
 <span class="doccomment">//!</span>
-<span class="doccomment">//! use parquet::file::properties::WriterProperties;</span>
-<span class="doccomment">//! use parquet::file::writer::{FileWriter, SerializedFileWriter};</span>
-<span class="doccomment">//! use parquet::schema::parser::parse_message_type;</span>
+<span class="doccomment">//! use parquet::{</span>
+<span class="doccomment">//!   file::{</span>
+<span class="doccomment">//!     properties::WriterProperties,</span>
+<span class="doccomment">//!     writer::{FileWriter, SerializedFileWriter},</span>
+<span class="doccomment">//!   },</span>
+<span class="doccomment">//!   schema::parser::parse_message_type,</span>
+<span class="doccomment">//! };</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! let path = Path::new(&quot;target/debug/examples/sample.parquet&quot;);</span>
 <span class="doccomment">//!</span>
@@ -166,8 +168,8 @@
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">metadata</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">properties</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">reader</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">writer</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">statistics</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">writer</span>;
 
 <span class="kw">const</span> <span class="ident">FOOTER_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">8</span>;
 <span class="kw">const</span> <span class="ident">PARQUET_MAGIC</span>: [<span class="ident">u8</span>; <span class="number">4</span>] <span class="op">=</span> [<span class="string">b&#39;P&#39;</span>, <span class="string">b&#39;A&#39;</span>, <span class="string">b&#39;R&#39;</span>, <span class="string">b&#39;1&#39;</span>];

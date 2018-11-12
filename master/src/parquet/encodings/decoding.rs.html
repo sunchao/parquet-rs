@@ -1356,6 +1356,27 @@
 <span id="1356">1356</span>
 <span id="1357">1357</span>
 <span id="1358">1358</span>
+<span id="1359">1359</span>
+<span id="1360">1360</span>
+<span id="1361">1361</span>
+<span id="1362">1362</span>
+<span id="1363">1363</span>
+<span id="1364">1364</span>
+<span id="1365">1365</span>
+<span id="1366">1366</span>
+<span id="1367">1367</span>
+<span id="1368">1368</span>
+<span id="1369">1369</span>
+<span id="1370">1370</span>
+<span id="1371">1371</span>
+<span id="1372">1372</span>
+<span id="1373">1373</span>
+<span id="1374">1374</span>
+<span id="1375">1375</span>
+<span id="1376">1376</span>
+<span id="1377">1377</span>
+<span id="1378">1378</span>
+<span id="1379">1379</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -1376,10 +1397,7 @@
 
 <span class="doccomment">//! Contains all supported decoders for Parquet.</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>;
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">cmp</span>, <span class="ident">marker</span>::<span class="ident">PhantomData</span>, <span class="ident">mem</span>, <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>};
 
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">rle</span>::<span class="ident">RleDecoder</span>;
 <span class="kw">use</span> <span class="ident">basic</span>::<span class="kw-2">*</span>;
@@ -1387,8 +1405,10 @@
 <span class="kw">use</span> <span class="ident">data_type</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">errors</span>::{<span class="ident">ParquetError</span>, <span class="prelude-ty">Result</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">types</span>::<span class="ident">ColumnDescPtr</span>;
-<span class="kw">use</span> <span class="ident">util</span>::<span class="ident">bit_util</span>::<span class="ident">BitReader</span>;
-<span class="kw">use</span> <span class="ident">util</span>::<span class="ident">memory</span>::{<span class="ident">ByteBuffer</span>, <span class="ident">ByteBufferPtr</span>};
+<span class="kw">use</span> <span class="ident">util</span>::{
+  <span class="ident">bit_util</span>::<span class="ident">BitReader</span>,
+  <span class="ident">memory</span>::{<span class="ident">ByteBuffer</span>, <span class="ident">ByteBufferPtr</span>},
+};
 
 <span class="comment">// ----------------------------------------------------------------------</span>
 <span class="comment">// Decoders</span>
@@ -1419,28 +1439,21 @@
 <span class="doccomment">/// disastrous consequence could occur.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_decoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
   <span class="ident">descr</span>: <span class="ident">ColumnDescPtr</span>,
-  <span class="ident">encoding</span>: <span class="ident">Encoding</span>
-) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> {
+  <span class="ident">encoding</span>: <span class="ident">Encoding</span>,
+) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>
+{
   <span class="kw">let</span> <span class="ident">decoder</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">encoding</span> {
-    <span class="ident">Encoding</span>::<span class="ident">PLAIN</span> <span class="op">=&gt;</span> {
-      <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PlainDecoder</span>::<span class="ident">new</span>(<span class="ident">descr</span>.<span class="ident">type_length</span>()))
-    },
+    <span class="ident">Encoding</span>::<span class="ident">PLAIN</span> <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PlainDecoder</span>::<span class="ident">new</span>(<span class="ident">descr</span>.<span class="ident">type_length</span>())),
     <span class="ident">Encoding</span>::<span class="ident">RLE_DICTIONARY</span> <span class="op">|</span> <span class="ident">Encoding</span>::<span class="ident">PLAIN_DICTIONARY</span> <span class="op">=&gt;</span> {
-      <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;Cannot initialize this encoding through this function&quot;</span>))
+      <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(
+        <span class="string">&quot;Cannot initialize this encoding through this function&quot;</span>
+      ))
     },
-    <span class="ident">Encoding</span>::<span class="ident">RLE</span> <span class="op">=&gt;</span> {
-      <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">RleValueDecoder</span>::<span class="ident">new</span>())
-    },
-    <span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span> <span class="op">=&gt;</span> {
-      <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaBitPackDecoder</span>::<span class="ident">new</span>())
-    },
-    <span class="ident">Encoding</span>::<span class="ident">DELTA_LENGTH_BYTE_ARRAY</span> <span class="op">=&gt;</span> {
-      <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaLengthByteArrayDecoder</span>::<span class="ident">new</span>())
-    },
-    <span class="ident">Encoding</span>::<span class="ident">DELTA_BYTE_ARRAY</span> <span class="op">=&gt;</span> {
-      <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaByteArrayDecoder</span>::<span class="ident">new</span>())
-    },
-    <span class="ident">e</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">nyi_err</span><span class="macro">!</span>(<span class="string">&quot;Encoding {} is not supported&quot;</span>, <span class="ident">e</span>))
+    <span class="ident">Encoding</span>::<span class="ident">RLE</span> <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">RleValueDecoder</span>::<span class="ident">new</span>()),
+    <span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span> <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaBitPackDecoder</span>::<span class="ident">new</span>()),
+    <span class="ident">Encoding</span>::<span class="ident">DELTA_LENGTH_BYTE_ARRAY</span> <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaLengthByteArrayDecoder</span>::<span class="ident">new</span>()),
+    <span class="ident">Encoding</span>::<span class="ident">DELTA_BYTE_ARRAY</span> <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaByteArrayDecoder</span>::<span class="ident">new</span>()),
+    <span class="ident">e</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">nyi_err</span><span class="macro">!</span>(<span class="string">&quot;Encoding {} is not supported&quot;</span>, <span class="ident">e</span>)),
   };
   <span class="prelude-val">Ok</span>(<span class="ident">decoder</span>)
 }
@@ -1469,7 +1482,7 @@
   <span class="ident">bit_reader</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BitReader</span><span class="op">&gt;</span>,
 
   <span class="comment">// To allow `T` in the generic parameter for this struct. This doesn&#39;t take any space.</span>
-  <span class="ident">_phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+  <span class="ident">_phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">PlainDecoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
@@ -1478,10 +1491,10 @@
     <span class="ident">PlainDecoder</span> {
       <span class="ident">data</span>: <span class="prelude-val">None</span>,
       <span class="ident">bit_reader</span>: <span class="prelude-val">None</span>,
-      <span class="ident">type_length</span>: <span class="ident">type_length</span>,
+      <span class="ident">type_length</span>,
       <span class="ident">num_values</span>: <span class="number">0</span>,
       <span class="ident">start</span>: <span class="number">0</span>,
-      <span class="ident">_phantom</span>: <span class="ident">PhantomData</span>
+      <span class="ident">_phantom</span>: <span class="ident">PhantomData</span>,
     }
   }
 }
@@ -1496,14 +1509,10 @@
   }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="self">self</span>.<span class="ident">num_values</span>
-  }
+  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">num_values</span> }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> {
-    <span class="ident">Encoding</span>::<span class="ident">PLAIN</span>
-  }
+  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> { <span class="ident">Encoding</span>::<span class="ident">PLAIN</span> }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="ident">default</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">T</span>::<span class="ident">T</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
@@ -1516,9 +1525,8 @@
     <span class="kw">if</span> <span class="ident">bytes_left</span> <span class="op">&lt;</span> <span class="ident">bytes_to_decode</span> {
       <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough bytes to decode&quot;</span>));
     }
-    <span class="kw">let</span> <span class="ident">raw_buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>] <span class="op">=</span> <span class="kw">unsafe</span> {
-      <span class="ident">from_raw_parts_mut</span>(<span class="ident">buffer</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>, <span class="ident">bytes_to_decode</span>)
-    };
+    <span class="kw">let</span> <span class="ident">raw_buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>] <span class="op">=</span>
+      <span class="kw">unsafe</span> { <span class="ident">from_raw_parts_mut</span>(<span class="ident">buffer</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>, <span class="ident">bytes_to_decode</span>) };
     <span class="ident">raw_buffer</span>.<span class="ident">copy_from_slice</span>(<span class="ident">data</span>.<span class="ident">range</span>(<span class="self">self</span>.<span class="ident">start</span>, <span class="ident">bytes_to_decode</span>).<span class="ident">as_ref</span>());
     <span class="self">self</span>.<span class="ident">start</span> <span class="op">+=</span> <span class="ident">bytes_to_decode</span>;
     <span class="self">self</span>.<span class="ident">num_values</span> <span class="op">-=</span> <span class="ident">num_values</span>;
@@ -1545,9 +1553,9 @@
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pos</span> <span class="op">=</span> <span class="number">0</span>; <span class="comment">// position in byte array</span>
     <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_values</span> {
-      <span class="kw">let</span> <span class="ident">elem0</span> <span class="op">=</span> <span class="ident">LittleEndian</span>::<span class="ident">read_u32</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="ident">pos</span>..<span class="ident">pos</span><span class="op">+</span><span class="number">4</span>]);
-      <span class="kw">let</span> <span class="ident">elem1</span> <span class="op">=</span> <span class="ident">LittleEndian</span>::<span class="ident">read_u32</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="ident">pos</span><span class="op">+</span><span class="number">4</span>..<span class="ident">pos</span><span class="op">+</span><span class="number">8</span>]);
-      <span class="kw">let</span> <span class="ident">elem2</span> <span class="op">=</span> <span class="ident">LittleEndian</span>::<span class="ident">read_u32</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="ident">pos</span><span class="op">+</span><span class="number">8</span>..<span class="ident">pos</span><span class="op">+</span><span class="number">12</span>]);
+      <span class="kw">let</span> <span class="ident">elem0</span> <span class="op">=</span> <span class="ident">LittleEndian</span>::<span class="ident">read_u32</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="ident">pos</span>..<span class="ident">pos</span> <span class="op">+</span> <span class="number">4</span>]);
+      <span class="kw">let</span> <span class="ident">elem1</span> <span class="op">=</span> <span class="ident">LittleEndian</span>::<span class="ident">read_u32</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="ident">pos</span> <span class="op">+</span> <span class="number">4</span>..<span class="ident">pos</span> <span class="op">+</span> <span class="number">8</span>]);
+      <span class="kw">let</span> <span class="ident">elem2</span> <span class="op">=</span> <span class="ident">LittleEndian</span>::<span class="ident">read_u32</span>(<span class="kw-2">&amp;</span><span class="ident">bytes</span>[<span class="ident">pos</span> <span class="op">+</span> <span class="number">8</span>..<span class="ident">pos</span> <span class="op">+</span> <span class="number">12</span>]);
       <span class="ident">buffer</span>[<span class="ident">i</span>].<span class="ident">set_data</span>(<span class="ident">elem0</span>, <span class="ident">elem1</span>, <span class="ident">elem2</span>);
       <span class="ident">pos</span> <span class="op">+=</span> <span class="number">12</span>;
     }
@@ -1582,8 +1590,8 @@
     <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>();
     <span class="kw">let</span> <span class="ident">num_values</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">buffer</span>.<span class="ident">len</span>(), <span class="self">self</span>.<span class="ident">num_values</span>);
     <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_values</span> {
-      <span class="kw">let</span> <span class="ident">len</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="macro">read_num_bytes</span><span class="macro">!</span>(
-        <span class="ident">u32</span>, <span class="number">4</span>, <span class="ident">data</span>.<span class="ident">start_from</span>(<span class="self">self</span>.<span class="ident">start</span>).<span class="ident">as_ref</span>()) <span class="kw">as</span> <span class="ident">usize</span>;
+      <span class="kw">let</span> <span class="ident">len</span>: <span class="ident">usize</span> <span class="op">=</span>
+        <span class="macro">read_num_bytes</span><span class="macro">!</span>(<span class="ident">u32</span>, <span class="number">4</span>, <span class="ident">data</span>.<span class="ident">start_from</span>(<span class="self">self</span>.<span class="ident">start</span>).<span class="ident">as_ref</span>()) <span class="kw">as</span> <span class="ident">usize</span>;
       <span class="self">self</span>.<span class="ident">start</span> <span class="op">+=</span> <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>();
       <span class="kw">if</span> <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">start</span> <span class="op">+</span> <span class="ident">len</span> {
         <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough bytes to decode&quot;</span>));
@@ -1636,7 +1644,7 @@
   <span class="ident">rle_decoder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RleDecoder</span><span class="op">&gt;</span>,
 
   <span class="comment">// Number of values left in the data stream</span>
-  <span class="ident">num_values</span>: <span class="ident">usize</span>
+  <span class="ident">num_values</span>: <span class="ident">usize</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">DictDecoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
@@ -1646,7 +1654,7 @@
       <span class="ident">dictionary</span>: <span class="macro">vec</span><span class="macro">!</span>[],
       <span class="ident">has_dictionary</span>: <span class="bool-val">false</span>,
       <span class="ident">rle_decoder</span>: <span class="prelude-val">None</span>,
-      <span class="ident">num_values</span>: <span class="number">0</span>
+      <span class="ident">num_values</span>: <span class="number">0</span>,
     }
   }
 
@@ -1681,13 +1689,9 @@
   }
 
   <span class="doccomment">/// Number of values left in this decoder stream</span>
-  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="self">self</span>.<span class="ident">num_values</span>
-  }
+  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">num_values</span> }
 
-  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> {
-    <span class="ident">Encoding</span>::<span class="ident">RLE_DICTIONARY</span>
-  }
+  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> { <span class="ident">Encoding</span>::<span class="ident">RLE_DICTIONARY</span> }
 }
 
 <span class="comment">// ----------------------------------------------------------------------</span>
@@ -1699,7 +1703,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RleValueDecoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> {
   <span class="ident">values_left</span>: <span class="ident">usize</span>,
   <span class="ident">decoder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RleDecoder</span><span class="op">&gt;</span>,
-  <span class="ident">_phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+  <span class="ident">_phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">RleValueDecoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
@@ -1707,19 +1711,19 @@
     <span class="self">Self</span> {
       <span class="ident">values_left</span>: <span class="number">0</span>,
       <span class="ident">decoder</span>: <span class="prelude-val">None</span>,
-      <span class="ident">_phantom</span>: <span class="ident">PhantomData</span>
+      <span class="ident">_phantom</span>: <span class="ident">PhantomData</span>,
     }
   }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">fn</span> <span class="ident">set_data_internal</span>(
-    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">data</span>: <span class="ident">ByteBufferPtr</span>,
-    <span class="ident">num_values</span>: <span class="ident">usize</span>
-  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+  <span class="kw">fn</span> <span class="ident">set_data_internal</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">data</span>: <span class="ident">ByteBufferPtr</span>, <span class="ident">num_values</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="comment">// We still need to remove prefix of i32 from the stream.</span>
     <span class="kw">let</span> <span class="ident">i32_size</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>();
     <span class="kw">let</span> <span class="ident">data_size</span> <span class="op">=</span> <span class="macro">read_num_bytes</span><span class="macro">!</span>(<span class="ident">i32</span>, <span class="ident">i32_size</span>, <span class="ident">data</span>.<span class="ident">as_ref</span>()) <span class="kw">as</span> <span class="ident">usize</span>;
-    <span class="kw">let</span> <span class="ident">rle_decoder</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">decoder</span>.<span class="ident">as_mut</span>().<span class="ident">expect</span>(<span class="string">&quot;RLE decoder is not initialized&quot;</span>);
+    <span class="kw">let</span> <span class="ident">rle_decoder</span> <span class="op">=</span> <span class="self">self</span>
+      .<span class="ident">decoder</span>
+      .<span class="ident">as_mut</span>()
+      .<span class="ident">expect</span>(<span class="string">&quot;RLE decoder is not initialized&quot;</span>);
     <span class="ident">rle_decoder</span>.<span class="ident">set_data</span>(<span class="ident">data</span>.<span class="ident">range</span>(<span class="ident">i32_size</span>, <span class="ident">data_size</span>));
     <span class="self">self</span>.<span class="ident">values_left</span> <span class="op">=</span> <span class="ident">num_values</span>;
     <span class="prelude-val">Ok</span>(())
@@ -1728,27 +1732,22 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">RleValueDecoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="ident">default</span> <span class="kw">fn</span> <span class="ident">set_data</span>(
-    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-    <span class="ident">_data</span>: <span class="ident">ByteBufferPtr</span>,
-    <span class="ident">_num_values</span>: <span class="ident">usize</span>
-  ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+  <span class="ident">default</span> <span class="kw">fn</span> <span class="ident">set_data</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_data</span>: <span class="ident">ByteBufferPtr</span>, <span class="ident">_num_values</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;RleValueDecoder only supports BoolType&quot;</span>);
   }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="self">self</span>.<span class="ident">values_left</span>
-  }
+  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">values_left</span> }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> {
-    <span class="ident">Encoding</span>::<span class="ident">RLE</span>
-  }
+  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> { <span class="ident">Encoding</span>::<span class="ident">RLE</span> }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">T</span>::<span class="ident">T</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">rle_decoder</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">decoder</span>.<span class="ident">as_mut</span>().<span class="ident">expect</span>(<span class="string">&quot;RLE decoder is not initialized&quot;</span>);
+    <span class="kw">let</span> <span class="ident">rle_decoder</span> <span class="op">=</span> <span class="self">self</span>
+      .<span class="ident">decoder</span>
+      .<span class="ident">as_mut</span>()
+      .<span class="ident">expect</span>(<span class="string">&quot;RLE decoder is not initialized&quot;</span>);
     <span class="kw">let</span> <span class="ident">values_read</span> <span class="op">=</span> <span class="ident">rle_decoder</span>.<span class="ident">get_batch</span>(<span class="ident">buffer</span>)<span class="question-mark">?</span>;
     <span class="self">self</span>.<span class="ident">values_left</span> <span class="op">-=</span> <span class="ident">values_read</span>;
     <span class="prelude-val">Ok</span>(<span class="ident">values_read</span>)
@@ -1792,7 +1791,7 @@
 
   <span class="ident">current_value</span>: <span class="ident">i64</span>,
 
-  <span class="ident">_phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+  <span class="ident">_phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">DeltaBitPackDecoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
@@ -1814,7 +1813,7 @@
       <span class="ident">deltas_in_mini_block</span>: <span class="macro">vec</span><span class="macro">!</span>[],
       <span class="ident">use_batch</span>: <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;</span>() <span class="op">==</span> <span class="number">4</span>,
       <span class="ident">current_value</span>: <span class="number">0</span>,
-      <span class="ident">_phantom</span>: <span class="ident">PhantomData</span>
+      <span class="ident">_phantom</span>: <span class="ident">PhantomData</span>,
     }
   }
 
@@ -1827,13 +1826,15 @@
   <span class="doccomment">/// Initializes new mini block.</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">fn</span> <span class="ident">init_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-    <span class="self">self</span>.<span class="ident">min_delta</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span>
+    <span class="self">self</span>.<span class="ident">min_delta</span> <span class="op">=</span> <span class="self">self</span>
+      .<span class="ident">bit_reader</span>
       .<span class="ident">get_zigzag_vlq_int</span>()
       .<span class="ident">ok_or</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough data to decode &#39;min_delta&#39;&quot;</span>))<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">widths</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
     <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">num_mini_blocks</span> {
-      <span class="kw">let</span> <span class="ident">w</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span>
+      <span class="kw">let</span> <span class="ident">w</span> <span class="op">=</span> <span class="self">self</span>
+        .<span class="ident">bit_reader</span>
         .<span class="ident">get_aligned</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>(<span class="number">1</span>)
         .<span class="ident">ok_or</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough data to decode &#39;width&#39;&quot;</span>))<span class="question-mark">?</span>;
       <span class="ident">widths</span>.<span class="ident">push</span>(<span class="ident">w</span>);
@@ -1851,15 +1852,19 @@
   <span class="kw">fn</span> <span class="ident">load_deltas_in_mini_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="self">self</span>.<span class="ident">deltas_in_mini_block</span>.<span class="ident">clear</span>();
     <span class="kw">if</span> <span class="self">self</span>.<span class="ident">use_batch</span> {
-      <span class="self">self</span>.<span class="ident">deltas_in_mini_block</span>.<span class="ident">resize</span>(<span class="self">self</span>.<span class="ident">values_current_mini_block</span>, <span class="ident">T</span>::<span class="ident">T</span>::<span class="ident">default</span>());
+      <span class="self">self</span>
+        .<span class="ident">deltas_in_mini_block</span>
+        .<span class="ident">resize</span>(<span class="self">self</span>.<span class="ident">values_current_mini_block</span>, <span class="ident">T</span>::<span class="ident">T</span>::<span class="ident">default</span>());
       <span class="kw">let</span> <span class="ident">loaded</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span>.<span class="ident">get_batch</span>::<span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;</span>(
-        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">deltas_in_mini_block</span>[..], <span class="self">self</span>.<span class="ident">delta_bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">deltas_in_mini_block</span>[..],
+        <span class="self">self</span>.<span class="ident">delta_bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>,
       );
       <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">loaded</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">values_current_mini_block</span>);
     } <span class="kw">else</span> {
       <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">values_current_mini_block</span> {
         <span class="comment">// TODO: load one batch at a time similar to int32</span>
-        <span class="kw">let</span> <span class="ident">delta</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span>
+        <span class="kw">let</span> <span class="ident">delta</span> <span class="op">=</span> <span class="self">self</span>
+          .<span class="ident">bit_reader</span>
           .<span class="ident">get_value</span>::<span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;</span>(<span class="self">self</span>.<span class="ident">delta_bit_width</span> <span class="kw">as</span> <span class="ident">usize</span>)
           .<span class="ident">ok_or</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough data to decode &#39;delta&#39;&quot;</span>))<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="ident">deltas_in_mini_block</span>.<span class="ident">push</span>(<span class="ident">delta</span>);
@@ -1877,16 +1882,21 @@
     <span class="self">self</span>.<span class="ident">bit_reader</span> <span class="op">=</span> <span class="ident">BitReader</span>::<span class="ident">new</span>(<span class="ident">data</span>);
     <span class="self">self</span>.<span class="ident">initialized</span> <span class="op">=</span> <span class="bool-val">true</span>;
 
-    <span class="kw">let</span> <span class="ident">block_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span>
+    <span class="kw">let</span> <span class="ident">block_size</span> <span class="op">=</span> <span class="self">self</span>
+      .<span class="ident">bit_reader</span>
       .<span class="ident">get_vlq_int</span>()
       .<span class="ident">ok_or</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough data to decode &#39;block_size&#39;&quot;</span>))<span class="question-mark">?</span>;
-    <span class="self">self</span>.<span class="ident">num_mini_blocks</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span>
+    <span class="self">self</span>.<span class="ident">num_mini_blocks</span> <span class="op">=</span> <span class="self">self</span>
+      .<span class="ident">bit_reader</span>
       .<span class="ident">get_vlq_int</span>()
       .<span class="ident">ok_or</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough data to decode &#39;num_mini_blocks&#39;&quot;</span>))<span class="question-mark">?</span>;
-    <span class="self">self</span>.<span class="ident">num_values</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span>
+    <span class="self">self</span>.<span class="ident">num_values</span> <span class="op">=</span> <span class="self">self</span>
+      .<span class="ident">bit_reader</span>
       .<span class="ident">get_vlq_int</span>()
-      .<span class="ident">ok_or</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough data to decode &#39;num_values&#39;&quot;</span>))<span class="question-mark">?</span> <span class="kw">as</span> <span class="ident">usize</span>;
-    <span class="self">self</span>.<span class="ident">first_value</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bit_reader</span>
+      .<span class="ident">ok_or</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough data to decode &#39;num_values&#39;&quot;</span>))<span class="question-mark">?</span>
+      <span class="kw">as</span> <span class="ident">usize</span>;
+    <span class="self">self</span>.<span class="ident">first_value</span> <span class="op">=</span> <span class="self">self</span>
+      .<span class="ident">bit_reader</span>
       .<span class="ident">get_zigzag_vlq_int</span>()
       .<span class="ident">ok_or</span>(<span class="macro">eof_err</span><span class="macro">!</span>(<span class="string">&quot;Not enough data to decode &#39;first_value&#39;&quot;</span>))<span class="question-mark">?</span>;
 
@@ -1926,9 +1936,8 @@
       }
 
       <span class="comment">// we decrement values in current mini block, so we need to invert index for delta</span>
-      <span class="kw">let</span> <span class="ident">delta</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_delta</span>(
-        <span class="self">self</span>.<span class="ident">deltas_in_mini_block</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="self">self</span>.<span class="ident">values_current_mini_block</span>
-      );
+      <span class="kw">let</span> <span class="ident">delta</span> <span class="op">=</span>
+        <span class="self">self</span>.<span class="ident">get_delta</span>(<span class="self">self</span>.<span class="ident">deltas_in_mini_block</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="self">self</span>.<span class="ident">values_current_mini_block</span>);
       <span class="comment">// It is OK for deltas to contain &quot;overflowed&quot; values after encoding,</span>
       <span class="comment">// e.g. i64::MAX - i64::MIN, so we use `wrapping_add` to &quot;overflow&quot; again and</span>
       <span class="comment">// restore original value.</span>
@@ -1942,13 +1951,9 @@
     <span class="prelude-val">Ok</span>(<span class="ident">num_values</span>)
   }
 
-  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="self">self</span>.<span class="ident">num_values</span>
-  }
+  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">num_values</span> }
 
-  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> {
-    <span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span>
-  }
+  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> { <span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span> }
 }
 
 <span class="doccomment">/// Helper trait to define specific conversions when decoding values</span>
@@ -1975,9 +1980,7 @@
 
 <span class="kw">impl</span> <span class="ident">DeltaBitPackDecoderConversion</span><span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DeltaBitPackDecoder</span><span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span> {
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">fn</span> <span class="ident">get_delta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">i64</span> {
-    <span class="self">self</span>.<span class="ident">deltas_in_mini_block</span>[<span class="ident">index</span>] <span class="kw">as</span> <span class="ident">i64</span>
-  }
+  <span class="kw">fn</span> <span class="ident">get_delta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">i64</span> { <span class="self">self</span>.<span class="ident">deltas_in_mini_block</span>[<span class="ident">index</span>] <span class="kw">as</span> <span class="ident">i64</span> }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">fn</span> <span class="ident">set_decoded_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i32</span>], <span class="ident">index</span>: <span class="ident">usize</span>, <span class="ident">value</span>: <span class="ident">i64</span>) {
@@ -1987,16 +1990,13 @@
 
 <span class="kw">impl</span> <span class="ident">DeltaBitPackDecoderConversion</span><span class="op">&lt;</span><span class="ident">Int64Type</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DeltaBitPackDecoder</span><span class="op">&lt;</span><span class="ident">Int64Type</span><span class="op">&gt;</span> {
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">fn</span> <span class="ident">get_delta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">i64</span> {
-    <span class="self">self</span>.<span class="ident">deltas_in_mini_block</span>[<span class="ident">index</span>]
-  }
+  <span class="kw">fn</span> <span class="ident">get_delta</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">index</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">i64</span> { <span class="self">self</span>.<span class="ident">deltas_in_mini_block</span>[<span class="ident">index</span>] }
 
   <span class="attribute">#[<span class="ident">inline</span>]</span>
   <span class="kw">fn</span> <span class="ident">set_decoded_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i64</span>], <span class="ident">index</span>: <span class="ident">usize</span>, <span class="ident">value</span>: <span class="ident">i64</span>) {
     <span class="ident">buffer</span>[<span class="ident">index</span>] <span class="op">=</span> <span class="ident">value</span>;
   }
 }
-
 
 <span class="comment">// ----------------------------------------------------------------------</span>
 <span class="comment">// DELTA_LENGTH_BYTE_ARRAY Decoding</span>
@@ -2024,7 +2024,7 @@
   <span class="ident">num_values</span>: <span class="ident">usize</span>,
 
   <span class="comment">// Placeholder to allow `T` as generic parameter</span>
-  <span class="ident">_phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+  <span class="ident">_phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">DeltaLengthByteArrayDecoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
@@ -2036,27 +2036,27 @@
       <span class="ident">data</span>: <span class="prelude-val">None</span>,
       <span class="ident">offset</span>: <span class="number">0</span>,
       <span class="ident">num_values</span>: <span class="number">0</span>,
-      <span class="ident">_phantom</span>: <span class="ident">PhantomData</span>
+      <span class="ident">_phantom</span>: <span class="ident">PhantomData</span>,
     }
   }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DeltaLengthByteArrayDecoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
   <span class="ident">default</span> <span class="kw">fn</span> <span class="ident">set_data</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw">_</span>: <span class="ident">ByteBufferPtr</span>, <span class="kw">_</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-    <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;DeltaLengthByteArrayDecoder only support ByteArrayType&quot;</span>))
+    <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(
+      <span class="string">&quot;DeltaLengthByteArrayDecoder only support ByteArrayType&quot;</span>
+    ))
   }
 
   <span class="ident">default</span> <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">T</span>::<span class="ident">T</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-    <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;DeltaLengthByteArrayDecoder only support ByteArrayType&quot;</span>))
+    <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(
+      <span class="string">&quot;DeltaLengthByteArrayDecoder only support ByteArrayType&quot;</span>
+    ))
   }
 
-  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="self">self</span>.<span class="ident">num_values</span>
-  }
+  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">num_values</span> }
 
-  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> {
-    <span class="ident">Encoding</span>::<span class="ident">DELTA_LENGTH_BYTE_ARRAY</span>
-  }
+  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> { <span class="ident">Encoding</span>::<span class="ident">DELTA_LENGTH_BYTE_ARRAY</span> }
 }
 
 <span class="kw">impl</span> <span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">ByteArrayType</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DeltaLengthByteArrayDecoder</span><span class="op">&lt;</span><span class="ident">ByteArrayType</span><span class="op">&gt;</span> {
@@ -2107,7 +2107,8 @@
   <span class="comment">// The current index into `prefix_lengths`,</span>
   <span class="ident">current_idx</span>: <span class="ident">usize</span>,
 
-  <span class="comment">// Decoder for all suffixes, the # of which should be the same as `prefix_lengths.len()`</span>
+  <span class="comment">// Decoder for all suffixes, the # of which should be the same as</span>
+  <span class="comment">// `prefix_lengths.len()`</span>
   <span class="ident">suffix_decoder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DeltaLengthByteArrayDecoder</span><span class="op">&lt;</span><span class="ident">ByteArrayType</span><span class="op">&gt;&gt;</span>,
 
   <span class="comment">// The last byte array, used to derive the current prefix</span>
@@ -2117,7 +2118,7 @@
   <span class="ident">num_values</span>: <span class="ident">usize</span>,
 
   <span class="comment">// Placeholder to allow `T` as generic parameter</span>
-  <span class="ident">_phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
+  <span class="ident">_phantom</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">DeltaByteArrayDecoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
@@ -2129,7 +2130,7 @@
       <span class="ident">suffix_decoder</span>: <span class="prelude-val">None</span>,
       <span class="ident">previous_value</span>: <span class="macro">vec</span><span class="macro">!</span>[],
       <span class="ident">num_values</span>: <span class="number">0</span>,
-      <span class="ident">_phantom</span>: <span class="ident">PhantomData</span>
+      <span class="ident">_phantom</span>: <span class="ident">PhantomData</span>,
     }
   }
 }
@@ -2147,16 +2148,12 @@
     ))
   }
 
-  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="self">self</span>.<span class="ident">num_values</span>
-  }
+  <span class="kw">fn</span> <span class="ident">values_left</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> { <span class="self">self</span>.<span class="ident">num_values</span> }
 
-  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> {
-    <span class="ident">Encoding</span>::<span class="ident">DELTA_BYTE_ARRAY</span>
-  }
+  <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> { <span class="ident">Encoding</span>::<span class="ident">DELTA_BYTE_ARRAY</span> }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="op">&gt;</span> <span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">ByteArrayType</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DeltaByteArrayDecoder</span><span class="op">&lt;</span><span class="ident">ByteArrayType</span><span class="op">&gt;</span> {
+<span class="kw">impl</span> <span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">ByteArrayType</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DeltaByteArrayDecoder</span><span class="op">&lt;</span><span class="ident">ByteArrayType</span><span class="op">&gt;</span> {
   <span class="kw">fn</span> <span class="ident">set_data</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">data</span>: <span class="ident">ByteBufferPtr</span>, <span class="ident">num_values</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prefix_len_decoder</span> <span class="op">=</span> <span class="ident">DeltaBitPackDecoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>::<span class="ident">new</span>();
     <span class="ident">prefix_len_decoder</span>.<span class="ident">set_data</span>(<span class="ident">data</span>.<span class="ident">all</span>(), <span class="ident">num_values</span>)<span class="question-mark">?</span>;
@@ -2165,8 +2162,8 @@
     <span class="ident">prefix_len_decoder</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">prefix_lengths</span>[..])<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">suffix_decoder</span> <span class="op">=</span> <span class="ident">DeltaLengthByteArrayDecoder</span>::<span class="ident">new</span>();
-    <span class="ident">suffix_decoder</span>.<span class="ident">set_data</span>(
-      <span class="ident">data</span>.<span class="ident">start_from</span>(<span class="ident">prefix_len_decoder</span>.<span class="ident">get_offset</span>()), <span class="ident">num_values</span>)<span class="question-mark">?</span>;
+    <span class="ident">suffix_decoder</span>
+      .<span class="ident">set_data</span>(<span class="ident">data</span>.<span class="ident">start_from</span>(<span class="ident">prefix_len_decoder</span>.<span class="ident">get_offset</span>()), <span class="ident">num_values</span>)<span class="question-mark">?</span>;
     <span class="self">self</span>.<span class="ident">suffix_decoder</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">suffix_decoder</span>);
     <span class="self">self</span>.<span class="ident">num_values</span> <span class="op">=</span> <span class="ident">num_prefixes</span>;
     <span class="self">self</span>.<span class="ident">current_idx</span> <span class="op">=</span> <span class="number">0</span>;
@@ -2205,7 +2202,7 @@
   }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="op">&gt;</span> <span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">FixedLenByteArrayType</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DeltaByteArrayDecoder</span><span class="op">&lt;</span><span class="ident">FixedLenByteArrayType</span><span class="op">&gt;</span> {
+<span class="kw">impl</span> <span class="ident">Decoder</span><span class="op">&lt;</span><span class="ident">FixedLenByteArrayType</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DeltaByteArrayDecoder</span><span class="op">&lt;</span><span class="ident">FixedLenByteArrayType</span><span class="op">&gt;</span> {
   <span class="kw">fn</span> <span class="ident">set_data</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">data</span>: <span class="ident">ByteBufferPtr</span>, <span class="ident">num_values</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">DeltaByteArrayDecoder</span><span class="op">&lt;</span><span class="ident">ByteArrayType</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="self">self</span>) };
     <span class="ident">s</span>.<span class="ident">set_data</span>(<span class="ident">data</span>, <span class="ident">num_values</span>)
@@ -2219,14 +2216,10 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-  <span class="kw">use</span> <span class="kw">super</span>::<span class="kw">super</span>::<span class="ident">encoding</span>::<span class="kw-2">*</span>;
-  <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-  <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">types</span>::{<span class="ident">ColumnDescriptor</span>, <span class="ident">ColumnDescPtr</span>, <span class="ident">ColumnPath</span>, <span class="ident">Type</span> <span class="kw">as</span> <span class="ident">SchemaType</span>};
-  <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
-  <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
-  <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">bit_util</span>::<span class="ident">set_array_bit</span>;
-  <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">memory</span>::<span class="ident">MemTracker</span>;
-  <span class="kw">use</span> <span class="ident">util</span>::<span class="ident">test_common</span>::<span class="ident">RandGen</span>;
+  <span class="kw">use</span> <span class="kw">super</span>::{<span class="kw">super</span>::<span class="ident">encoding</span>::<span class="kw-2">*</span>, <span class="kw-2">*</span>};
+  <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">types</span>::{<span class="ident">ColumnDescPtr</span>, <span class="ident">ColumnDescriptor</span>, <span class="ident">ColumnPath</span>, <span class="ident">Type</span> <span class="kw">as</span> <span class="ident">SchemaType</span>};
+  <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">mem</span>, <span class="ident">rc</span>::<span class="ident">Rc</span>};
+  <span class="kw">use</span> <span class="ident">util</span>::{<span class="ident">bit_util</span>::<span class="ident">set_array_bit</span>, <span class="ident">memory</span>::<span class="ident">MemTracker</span>, <span class="ident">test_common</span>::<span class="ident">RandGen</span>};
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_get_decoders</span>() {
@@ -2240,17 +2233,21 @@
     <span class="comment">// error when initializing</span>
     <span class="ident">create_and_check_decoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(
       <span class="ident">Encoding</span>::<span class="ident">RLE_DICTIONARY</span>,
-      <span class="prelude-val">Some</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;Cannot initialize this encoding through this function&quot;</span>))
+      <span class="prelude-val">Some</span>(<span class="macro">general_err</span><span class="macro">!</span>(
+        <span class="string">&quot;Cannot initialize this encoding through this function&quot;</span>
+      )),
     );
     <span class="ident">create_and_check_decoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(
       <span class="ident">Encoding</span>::<span class="ident">PLAIN_DICTIONARY</span>,
-      <span class="prelude-val">Some</span>(<span class="macro">general_err</span><span class="macro">!</span>(<span class="string">&quot;Cannot initialize this encoding through this function&quot;</span>))
+      <span class="prelude-val">Some</span>(<span class="macro">general_err</span><span class="macro">!</span>(
+        <span class="string">&quot;Cannot initialize this encoding through this function&quot;</span>
+      )),
     );
 
     <span class="comment">// unsupported</span>
     <span class="ident">create_and_check_decoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(
       <span class="ident">Encoding</span>::<span class="ident">BIT_PACKED</span>,
-      <span class="prelude-val">Some</span>(<span class="macro">nyi_err</span><span class="macro">!</span>(<span class="string">&quot;Encoding BIT_PACKED is not supported&quot;</span>))
+      <span class="prelude-val">Some</span>(<span class="macro">nyi_err</span><span class="macro">!</span>(<span class="string">&quot;Encoding BIT_PACKED is not supported&quot;</span>)),
     );
   }
 
@@ -2260,7 +2257,11 @@
     <span class="kw">let</span> <span class="ident">data_bytes</span> <span class="op">=</span> <span class="ident">Int32Type</span>::<span class="ident">to_byte_array</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[..]);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="number">3</span>];
     <span class="ident">test_plain_decode</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(
-      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>), <span class="number">3</span>, <span class="op">-</span><span class="number">1</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..], <span class="kw-2">&amp;</span><span class="ident">data</span>[..]
+      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>),
+      <span class="number">3</span>,
+      <span class="op">-</span><span class="number">1</span>,
+      <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..],
+      <span class="kw-2">&amp;</span><span class="ident">data</span>[..],
     );
   }
 
@@ -2270,7 +2271,11 @@
     <span class="kw">let</span> <span class="ident">data_bytes</span> <span class="op">=</span> <span class="ident">Int64Type</span>::<span class="ident">to_byte_array</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[..]);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="number">3</span>];
     <span class="ident">test_plain_decode</span>::<span class="op">&lt;</span><span class="ident">Int64Type</span><span class="op">&gt;</span>(
-      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>), <span class="number">3</span>, <span class="op">-</span><span class="number">1</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..], <span class="kw-2">&amp;</span><span class="ident">data</span>[..]
+      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>),
+      <span class="number">3</span>,
+      <span class="op">-</span><span class="number">1</span>,
+      <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..],
+      <span class="kw-2">&amp;</span><span class="ident">data</span>[..],
     );
   }
 
@@ -2280,7 +2285,11 @@
     <span class="kw">let</span> <span class="ident">data_bytes</span> <span class="op">=</span> <span class="ident">FloatType</span>::<span class="ident">to_byte_array</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[..]);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0.0</span>; <span class="number">3</span>];
     <span class="ident">test_plain_decode</span>::<span class="op">&lt;</span><span class="ident">FloatType</span><span class="op">&gt;</span>(
-      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>), <span class="number">3</span>, <span class="op">-</span><span class="number">1</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..], <span class="kw-2">&amp;</span><span class="ident">data</span>[..]
+      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>),
+      <span class="number">3</span>,
+      <span class="op">-</span><span class="number">1</span>,
+      <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..],
+      <span class="kw-2">&amp;</span><span class="ident">data</span>[..],
     );
   }
 
@@ -2290,7 +2299,11 @@
     <span class="kw">let</span> <span class="ident">data_bytes</span> <span class="op">=</span> <span class="ident">DoubleType</span>::<span class="ident">to_byte_array</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[..]);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0.0f64</span>; <span class="number">3</span>];
     <span class="ident">test_plain_decode</span>::<span class="op">&lt;</span><span class="ident">DoubleType</span><span class="op">&gt;</span>(
-      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>), <span class="number">3</span>, <span class="op">-</span><span class="number">1</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..], <span class="kw-2">&amp;</span><span class="ident">data</span>[..]
+      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>),
+      <span class="number">3</span>,
+      <span class="op">-</span><span class="number">1</span>,
+      <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..],
+      <span class="kw-2">&amp;</span><span class="ident">data</span>[..],
     );
   }
 
@@ -2304,17 +2317,27 @@
     <span class="kw">let</span> <span class="ident">data_bytes</span> <span class="op">=</span> <span class="ident">Int96Type</span>::<span class="ident">to_byte_array</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[..]);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Int96</span>::<span class="ident">new</span>(); <span class="number">4</span>];
     <span class="ident">test_plain_decode</span>::<span class="op">&lt;</span><span class="ident">Int96Type</span><span class="op">&gt;</span>(
-      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>), <span class="number">4</span>, <span class="op">-</span><span class="number">1</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..], <span class="kw-2">&amp;</span><span class="ident">data</span>[..]
+      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>),
+      <span class="number">4</span>,
+      <span class="op">-</span><span class="number">1</span>,
+      <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..],
+      <span class="kw-2">&amp;</span><span class="ident">data</span>[..],
     );
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_plain_decode_bool</span>() {
-    <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>];
+    <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
+      <span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>,
+    ];
     <span class="kw">let</span> <span class="ident">data_bytes</span> <span class="op">=</span> <span class="ident">BoolType</span>::<span class="ident">to_byte_array</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[..]);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="bool-val">false</span>; <span class="number">10</span>];
     <span class="ident">test_plain_decode</span>::<span class="op">&lt;</span><span class="ident">BoolType</span><span class="op">&gt;</span>(
-      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>), <span class="number">10</span>, <span class="op">-</span><span class="number">1</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..], <span class="kw-2">&amp;</span><span class="ident">data</span>[..]
+      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>),
+      <span class="number">10</span>,
+      <span class="op">-</span><span class="number">1</span>,
+      <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..],
+      <span class="kw-2">&amp;</span><span class="ident">data</span>[..],
     );
   }
 
@@ -2326,7 +2349,11 @@
     <span class="kw">let</span> <span class="ident">data_bytes</span> <span class="op">=</span> <span class="ident">ByteArrayType</span>::<span class="ident">to_byte_array</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[..]);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">ByteArray</span>::<span class="ident">new</span>(); <span class="number">2</span>];
     <span class="ident">test_plain_decode</span>::<span class="op">&lt;</span><span class="ident">ByteArrayType</span><span class="op">&gt;</span>(
-      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>), <span class="number">2</span>, <span class="op">-</span><span class="number">1</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..], <span class="kw-2">&amp;</span><span class="ident">data</span>[..]
+      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>),
+      <span class="number">2</span>,
+      <span class="op">-</span><span class="number">1</span>,
+      <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..],
+      <span class="kw-2">&amp;</span><span class="ident">data</span>[..],
     );
   }
 
@@ -2339,7 +2366,11 @@
     <span class="kw">let</span> <span class="ident">data_bytes</span> <span class="op">=</span> <span class="ident">FixedLenByteArrayType</span>::<span class="ident">to_byte_array</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[..]);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">ByteArray</span>::<span class="ident">default</span>(); <span class="number">3</span>];
     <span class="ident">test_plain_decode</span>::<span class="op">&lt;</span><span class="ident">FixedLenByteArrayType</span><span class="op">&gt;</span>(
-      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>), <span class="number">3</span>, <span class="number">4</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..], <span class="kw-2">&amp;</span><span class="ident">data</span>[..]
+      <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>),
+      <span class="number">3</span>,
+      <span class="number">4</span>,
+      <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buffer</span>[..],
+      <span class="kw-2">&amp;</span><span class="ident">data</span>[..],
     );
   }
 
@@ -2354,7 +2385,9 @@
   <span class="attribute">#[<span class="ident">should_panic</span>(<span class="ident">expected</span> <span class="op">=</span> <span class="string">&quot;RleValueDecoder only supports BoolType&quot;</span>)]</span>
   <span class="kw">fn</span> <span class="ident">test_rle_value_decode_int32_not_supported</span>() {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">RleValueDecoder</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>::<span class="ident">new</span>();
-    <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">5</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>]), <span class="number">1</span>).<span class="ident">unwrap</span>();
+    <span class="ident">decoder</span>
+      .<span class="ident">set_data</span>(<span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">5</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>]), <span class="number">1</span>)
+      .<span class="ident">unwrap</span>();
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -2363,7 +2396,7 @@
     <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
       <span class="ident">BoolType</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">256</span>),
       <span class="ident">BoolType</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">257</span>),
-      <span class="ident">BoolType</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">126</span>)
+      <span class="ident">BoolType</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">126</span>),
     ];
     <span class="ident">test_rle_value_decode</span>::<span class="op">&lt;</span><span class="ident">BoolType</span><span class="op">&gt;</span>(<span class="ident">data</span>);
   }
@@ -2394,10 +2427,8 @@
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_delta_bit_packed_int32_repeat</span>() {
     <span class="kw">let</span> <span class="ident">block_data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>,
-      <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>,
-      <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>,
-      <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>
+      <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>,
+      <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>,
     ];
     <span class="ident">test_delta_bit_packed_decode</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">block_data</span>]);
   }
@@ -2411,14 +2442,13 @@
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_delta_bit_packed_int32_same_values</span>() {
     <span class="kw">let</span> <span class="ident">block_data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>,
-      <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>
+      <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>, <span class="number">127</span>,
     ];
     <span class="ident">test_delta_bit_packed_decode</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">block_data</span>]);
 
     <span class="kw">let</span> <span class="ident">block_data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>,
-      <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>
+      <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>,
+      <span class="op">-</span><span class="number">127</span>, <span class="op">-</span><span class="number">127</span>,
     ];
     <span class="ident">test_delta_bit_packed_decode</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">block_data</span>]);
   }
@@ -2426,10 +2456,14 @@
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_delta_bit_packed_int32_min_max</span>() {
     <span class="kw">let</span> <span class="ident">block_data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="ident">i32</span>::<span class="ident">min_value</span>(), <span class="ident">i32</span>::<span class="ident">max_value</span>(),
-      <span class="ident">i32</span>::<span class="ident">min_value</span>(), <span class="ident">i32</span>::<span class="ident">max_value</span>(),
-      <span class="ident">i32</span>::<span class="ident">min_value</span>(), <span class="ident">i32</span>::<span class="ident">max_value</span>(),
-      <span class="ident">i32</span>::<span class="ident">min_value</span>(), <span class="ident">i32</span>::<span class="ident">max_value</span>()
+      <span class="ident">i32</span>::<span class="ident">min_value</span>(),
+      <span class="ident">i32</span>::<span class="ident">max_value</span>(),
+      <span class="ident">i32</span>::<span class="ident">min_value</span>(),
+      <span class="ident">i32</span>::<span class="ident">max_value</span>(),
+      <span class="ident">i32</span>::<span class="ident">min_value</span>(),
+      <span class="ident">i32</span>::<span class="ident">max_value</span>(),
+      <span class="ident">i32</span>::<span class="ident">min_value</span>(),
+      <span class="ident">i32</span>::<span class="ident">max_value</span>(),
     ];
     <span class="ident">test_delta_bit_packed_decode</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">block_data</span>]);
   }
@@ -2440,7 +2474,7 @@
     <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
       <span class="ident">Int32Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">64</span>),
       <span class="ident">Int32Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">128</span>),
-      <span class="ident">Int32Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">64</span>)
+      <span class="ident">Int32Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">64</span>),
     ];
     <span class="ident">test_delta_bit_packed_decode</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(<span class="ident">data</span>);
   }
@@ -2448,10 +2482,7 @@
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_delta_bit_packed_int32_data_across_blocks</span>() {
     <span class="comment">// Test multiple &#39;put&#39; calls on the same encoder</span>
-    <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="ident">Int32Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">256</span>),
-      <span class="ident">Int32Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">257</span>)
-    ];
+    <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Int32Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">256</span>), <span class="ident">Int32Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">257</span>)];
     <span class="ident">test_delta_bit_packed_decode</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(<span class="ident">data</span>);
   }
 
@@ -2460,7 +2491,7 @@
     <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
       <span class="ident">Int32Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">128</span>),
       <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="number">0</span>],
-      <span class="ident">Int32Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">64</span>)
+      <span class="ident">Int32Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">64</span>),
     ];
     <span class="ident">test_delta_bit_packed_decode</span>::<span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span>(<span class="ident">data</span>);
   }
@@ -2474,10 +2505,14 @@
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_delta_bit_packed_int64_min_max</span>() {
     <span class="kw">let</span> <span class="ident">block_data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="ident">i64</span>::<span class="ident">min_value</span>(), <span class="ident">i64</span>::<span class="ident">max_value</span>(),
-      <span class="ident">i64</span>::<span class="ident">min_value</span>(), <span class="ident">i64</span>::<span class="ident">max_value</span>(),
-      <span class="ident">i64</span>::<span class="ident">min_value</span>(), <span class="ident">i64</span>::<span class="ident">max_value</span>(),
-      <span class="ident">i64</span>::<span class="ident">min_value</span>(), <span class="ident">i64</span>::<span class="ident">max_value</span>()
+      <span class="ident">i64</span>::<span class="ident">min_value</span>(),
+      <span class="ident">i64</span>::<span class="ident">max_value</span>(),
+      <span class="ident">i64</span>::<span class="ident">min_value</span>(),
+      <span class="ident">i64</span>::<span class="ident">max_value</span>(),
+      <span class="ident">i64</span>::<span class="ident">min_value</span>(),
+      <span class="ident">i64</span>::<span class="ident">max_value</span>(),
+      <span class="ident">i64</span>::<span class="ident">min_value</span>(),
+      <span class="ident">i64</span>::<span class="ident">max_value</span>(),
     ];
     <span class="ident">test_delta_bit_packed_decode</span>::<span class="op">&lt;</span><span class="ident">Int64Type</span><span class="op">&gt;</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">block_data</span>]);
   }
@@ -2488,7 +2523,7 @@
     <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
       <span class="ident">Int64Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">64</span>),
       <span class="ident">Int64Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">128</span>),
-      <span class="ident">Int64Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">64</span>)
+      <span class="ident">Int64Type</span>::<span class="ident">gen_vec</span>(<span class="op">-</span><span class="number">1</span>, <span class="number">64</span>),
     ];
     <span class="ident">test_delta_bit_packed_decode</span>::<span class="op">&lt;</span><span class="ident">Int64Type</span><span class="op">&gt;</span>(<span class="ident">data</span>);
   }
@@ -2496,11 +2531,8 @@
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_delta_bit_packed_decoder_sample</span>() {
     <span class="kw">let</span> <span class="ident">data_bytes</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="number">128</span>, <span class="number">1</span>, <span class="number">4</span>, <span class="number">3</span>, <span class="number">58</span>, <span class="number">28</span>, <span class="number">6</span>, <span class="number">0</span>,
-      <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">8</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>,
+      <span class="number">128</span>, <span class="number">1</span>, <span class="number">4</span>, <span class="number">3</span>, <span class="number">58</span>, <span class="number">28</span>, <span class="number">6</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">8</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>,
       <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>,
-      <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>,
-      <span class="number">0</span>, <span class="number">0</span>
     ];
     <span class="kw">let</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">ByteBufferPtr</span>::<span class="ident">new</span>(<span class="ident">data_bytes</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>: <span class="ident">DeltaBitPackDecoder</span><span class="op">&lt;</span><span class="ident">Int32Type</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">DeltaBitPackDecoder</span>::<span class="ident">new</span>();
@@ -2520,12 +2552,12 @@
       <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>])],
       <span class="macro">vec</span><span class="macro">!</span>[
         <span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>]),
-        <span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>])
+        <span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>]),
       ],
       <span class="macro">vec</span><span class="macro">!</span>[
         <span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>]),
-        <span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>])
-      ]
+        <span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>]),
+      ],
     ];
     <span class="ident">test_delta_byte_array_decode</span>(<span class="ident">data</span>);
   }
@@ -2535,16 +2567,17 @@
     <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
       <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>])],
       <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">2</span>, <span class="number">3</span>]), <span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>])],
-      <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">7</span>, <span class="number">8</span>]), <span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">9</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>])]
+      <span class="macro">vec</span><span class="macro">!</span>[
+        <span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">7</span>, <span class="number">8</span>]),
+        <span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">9</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>]),
+      ],
     ];
     <span class="ident">test_delta_byte_array_decode</span>(<span class="ident">data</span>);
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_delta_byte_array_single_array</span>() {
-    <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>])]
-    ];
+    <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">ByteArray</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>])]];
     <span class="ident">test_delta_byte_array_decode</span>(<span class="ident">data</span>);
   }
 
@@ -2553,8 +2586,9 @@
     <span class="ident">num_values</span>: <span class="ident">usize</span>,
     <span class="ident">type_length</span>: <span class="ident">i32</span>,
     <span class="ident">buffer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">T</span>::<span class="ident">T</span>],
-    <span class="ident">expected</span>: <span class="kw-2">&amp;</span>[<span class="ident">T</span>::<span class="ident">T</span>]
-  ) {
+    <span class="ident">expected</span>: <span class="kw-2">&amp;</span>[<span class="ident">T</span>::<span class="ident">T</span>],
+  )
+  {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span>: <span class="ident">PlainDecoder</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">PlainDecoder</span>::<span class="ident">new</span>(<span class="ident">type_length</span>);
     <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">data</span>, <span class="ident">num_values</span>);
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">result</span>.<span class="ident">is_ok</span>());
@@ -2580,17 +2614,15 @@
   <span class="comment">// For example,</span>
   <span class="comment">//   vec![vec![1, 2, 3]] invokes `put()` once and writes {1, 2, 3}</span>
   <span class="comment">//   vec![vec![1, 2], vec![3]] invokes `put()` twice and writes {1, 2, 3}</span>
-  <span class="kw">fn</span> <span class="ident">test_encode_decode</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
-    <span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;&gt;</span>,
-    <span class="ident">encoding</span>: <span class="ident">Encoding</span>
-  ) {
+  <span class="kw">fn</span> <span class="ident">test_encode_decode</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(<span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;&gt;</span>, <span class="ident">encoding</span>: <span class="ident">Encoding</span>) {
     <span class="comment">// Type length should not really matter for encode/decode test,</span>
     <span class="comment">// otherwise change it based on type</span>
     <span class="kw">let</span> <span class="ident">col_descr</span> <span class="op">=</span> <span class="ident">create_test_col_desc_ptr</span>(<span class="op">-</span><span class="number">1</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
 
     <span class="comment">// Encode data</span>
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">get_encoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">col_descr</span>.<span class="ident">clone</span>(), <span class="ident">encoding</span>,
-      <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">MemTracker</span>::<span class="ident">new</span>())).<span class="ident">expect</span>(<span class="string">&quot;get encoder&quot;</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span>
+      <span class="ident">get_encoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">col_descr</span>.<span class="ident">clone</span>(), <span class="ident">encoding</span>, <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">MemTracker</span>::<span class="ident">new</span>()))
+        .<span class="ident">expect</span>(<span class="string">&quot;get encoder&quot;</span>);
 
     <span class="kw">for</span> <span class="ident">v</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">data</span>[..] {
       <span class="ident">encoder</span>.<span class="ident">put</span>(<span class="kw-2">&amp;</span><span class="ident">v</span>[..]).<span class="ident">expect</span>(<span class="string">&quot;ok to encode&quot;</span>);
@@ -2601,14 +2633,16 @@
     <span class="kw">let</span> <span class="ident">expected</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">iter</span>().<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">clone</span>()).<span class="ident">collect</span>();
 
     <span class="comment">// Decode data and compare with original</span>
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">get_decoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">col_descr</span>.<span class="ident">clone</span>(), <span class="ident">encoding</span>)
-      .<span class="ident">expect</span>(<span class="string">&quot;get decoder&quot;</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">get_decoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">col_descr</span>.<span class="ident">clone</span>(), <span class="ident">encoding</span>).<span class="ident">expect</span>(<span class="string">&quot;get decoder&quot;</span>);
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">T</span>::<span class="ident">T</span>::<span class="ident">default</span>(); <span class="ident">expected</span>.<span class="ident">len</span>()];
-    <span class="ident">decoder</span>.<span class="ident">set_data</span>(<span class="ident">bytes</span>, <span class="ident">expected</span>.<span class="ident">len</span>()).<span class="ident">expect</span>(<span class="string">&quot;ok to set data&quot;</span>);
+    <span class="ident">decoder</span>
+      .<span class="ident">set_data</span>(<span class="ident">bytes</span>, <span class="ident">expected</span>.<span class="ident">len</span>())
+      .<span class="ident">expect</span>(<span class="string">&quot;ok to set data&quot;</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">result_num_values</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="kw">while</span> <span class="ident">decoder</span>.<span class="ident">values_left</span>() <span class="op">&gt;</span> <span class="number">0</span> {
-      <span class="ident">result_num_values</span> <span class="op">+=</span> <span class="ident">decoder</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">result</span>[<span class="ident">result_num_values</span>..])
+      <span class="ident">result_num_values</span> <span class="op">+=</span> <span class="ident">decoder</span>
+        .<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">result</span>[<span class="ident">result_num_values</span>..])
         .<span class="ident">expect</span>(<span class="string">&quot;ok to decode&quot;</span>);
     }
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">result_num_values</span>, <span class="ident">expected</span>.<span class="ident">len</span>());
@@ -2616,8 +2650,10 @@
   }
 
   <span class="kw">fn</span> <span class="ident">create_and_check_decoder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span>(
-    <span class="ident">encoding</span>: <span class="ident">Encoding</span>, <span class="ident">err</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ParquetError</span><span class="op">&gt;</span>
-  ) {
+    <span class="ident">encoding</span>: <span class="ident">Encoding</span>,
+    <span class="ident">err</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ParquetError</span><span class="op">&gt;</span>,
+  )
+  {
     <span class="kw">let</span> <span class="ident">descr</span> <span class="op">=</span> <span class="ident">create_test_col_desc_ptr</span>(<span class="op">-</span><span class="number">1</span>, <span class="ident">T</span>::<span class="ident">get_physical_type</span>());
     <span class="kw">let</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">get_decoder</span>::<span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">descr</span>, <span class="ident">encoding</span>);
     <span class="kw">match</span> <span class="ident">err</span> {
@@ -2628,7 +2664,7 @@
       <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">decoder</span>.<span class="ident">is_ok</span>());
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">decoder</span>.<span class="ident">unwrap</span>().<span class="ident">encoding</span>(), <span class="ident">encoding</span>);
-      }
+      },
     }
   }
 
@@ -2638,7 +2674,13 @@
       .<span class="ident">with_length</span>(<span class="ident">type_len</span>)
       .<span class="ident">build</span>()
       .<span class="ident">unwrap</span>();
-    <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">ColumnDescriptor</span>::<span class="ident">new</span>(<span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">ty</span>), <span class="prelude-val">None</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="ident">ColumnPath</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[])))
+    <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">ColumnDescriptor</span>::<span class="ident">new</span>(
+      <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">ty</span>),
+      <span class="prelude-val">None</span>,
+      <span class="number">0</span>,
+      <span class="number">0</span>,
+      <span class="ident">ColumnPath</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[]),
+    ))
   }
 
   <span class="kw">fn</span> <span class="ident">usize_to_bytes</span>(<span class="ident">v</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> [<span class="ident">u8</span>; <span class="number">4</span>] {
@@ -2650,15 +2692,15 @@
     <span class="kw">fn</span> <span class="ident">to_byte_array</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">T</span>::<span class="ident">T</span>]) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>;
   }
 
-  <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">ToByteArray</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">T</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">DataType</span> {
+  <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">ToByteArray</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">T</span>
+  <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">DataType</span>
+  {
     <span class="ident">default</span> <span class="kw">fn</span> <span class="ident">to_byte_array</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">T</span>::<span class="ident">T</span>]) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
       <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
       <span class="kw">let</span> <span class="ident">type_len</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">T</span><span class="op">&gt;</span>();
-      <span class="ident">v</span>.<span class="ident">extend_from_slice</span>(
-        <span class="kw">unsafe</span> {
-          ::<span class="ident">std</span>::<span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">data</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>, <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">*</span> <span class="ident">type_len</span>)
-        }
-      );
+      <span class="ident">v</span>.<span class="ident">extend_from_slice</span>(<span class="kw">unsafe</span> {
+        ::<span class="ident">std</span>::<span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">data</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>, <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">*</span> <span class="ident">type_len</span>)
+      });
       <span class="ident">v</span>
     }
   }

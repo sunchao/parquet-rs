@@ -209,14 +209,6 @@
 <span id="209">209</span>
 <span id="210">210</span>
 <span id="211">211</span>
-<span id="212">212</span>
-<span id="213">213</span>
-<span id="214">214</span>
-<span id="215">215</span>
-<span id="216">216</span>
-<span id="217">217</span>
-<span id="218">218</span>
-<span id="219">219</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -236,10 +228,7 @@
 <span class="comment">// under the License.</span>
 
 <span class="kw">use</span> <span class="ident">file</span>::<span class="ident">reader</span>::<span class="ident">ParquetReader</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">File</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Mutex</span>;
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">cmp</span>, <span class="ident">fs</span>::<span class="ident">File</span>, <span class="ident">io</span>::<span class="kw-2">*</span>, <span class="ident">sync</span>::<span class="ident">Mutex</span>};
 
 <span class="comment">// ----------------------------------------------------------------------</span>
 <span class="comment">// Read/Write wrappers for `File`.</span>
@@ -263,7 +252,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FileSource</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">ParquetReader</span><span class="op">&gt;</span> {
   <span class="ident">reader</span>: <span class="ident">Mutex</span><span class="op">&lt;</span><span class="ident">BufReader</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;&gt;</span>,
   <span class="ident">start</span>: <span class="ident">u64</span>, <span class="comment">// start position in a file</span>
-  <span class="ident">end</span>: <span class="ident">u64</span> <span class="comment">// end position in a file</span>
+  <span class="ident">end</span>: <span class="ident">u64</span>,   <span class="comment">// end position in a file</span>
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">ParquetReader</span><span class="op">&gt;</span> <span class="ident">FileSource</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span> {
@@ -271,15 +260,17 @@
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">fd</span>: <span class="kw-2">&amp;</span><span class="ident">R</span>, <span class="ident">start</span>: <span class="ident">u64</span>, <span class="ident">length</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
     <span class="self">Self</span> {
       <span class="ident">reader</span>: <span class="ident">Mutex</span>::<span class="ident">new</span>(<span class="ident">BufReader</span>::<span class="ident">new</span>(<span class="ident">fd</span>.<span class="ident">try_clone</span>().<span class="ident">unwrap</span>())),
-      <span class="ident">start</span>: <span class="ident">start</span>,
-      <span class="ident">end</span>: <span class="ident">start</span> <span class="op">+</span> <span class="ident">length</span> <span class="kw">as</span> <span class="ident">u64</span>
+      <span class="ident">start</span>,
+      <span class="ident">end</span>: <span class="ident">start</span> <span class="op">+</span> <span class="ident">length</span> <span class="kw">as</span> <span class="ident">u64</span>,
     }
   }
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">ParquetReader</span><span class="op">&gt;</span> <span class="ident">Read</span> <span class="kw">for</span> <span class="ident">FileSource</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span> {
   <span class="kw">fn</span> <span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader</span>.<span class="ident">lock</span>()
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>
+      .<span class="ident">reader</span>
+      .<span class="ident">lock</span>()
       .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">Error</span>::<span class="ident">new</span>(<span class="ident">ErrorKind</span>::<span class="ident">Other</span>, <span class="ident">err</span>.<span class="ident">to_string</span>()))<span class="question-mark">?</span>;
 
     <span class="kw">let</span> <span class="ident">bytes_to_read</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">buf</span>.<span class="ident">len</span>(), (<span class="self">self</span>.<span class="ident">end</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">start</span>) <span class="kw">as</span> <span class="ident">usize</span>);
@@ -296,9 +287,7 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">ParquetReader</span><span class="op">&gt;</span> <span class="ident">Position</span> <span class="kw">for</span> <span class="ident">FileSource</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span> {
-  <span class="kw">fn</span> <span class="ident">pos</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
-    <span class="self">self</span>.<span class="ident">start</span>
-  }
+  <span class="kw">fn</span> <span class="ident">pos</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> { <span class="self">self</span>.<span class="ident">start</span> }
 }
 
 <span class="doccomment">/// Struct that represents `File` output stream with position tracking.</span>
@@ -307,7 +296,7 @@
   <span class="ident">buf</span>: <span class="ident">BufWriter</span><span class="op">&lt;</span><span class="ident">File</span><span class="op">&gt;</span>,
   <span class="comment">// This is not necessarily position in the underlying file,</span>
   <span class="comment">// but rather current position in the sink.</span>
-  <span class="ident">pos</span>: <span class="ident">u64</span>
+  <span class="ident">pos</span>: <span class="ident">u64</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">FileSink</span> {
@@ -318,7 +307,7 @@
     <span class="kw">let</span> <span class="ident">pos</span> <span class="op">=</span> <span class="ident">owned_file</span>.<span class="ident">seek</span>(<span class="ident">SeekFrom</span>::<span class="ident">Current</span>(<span class="number">0</span>)).<span class="ident">unwrap</span>();
     <span class="self">Self</span> {
       <span class="ident">buf</span>: <span class="ident">BufWriter</span>::<span class="ident">new</span>(<span class="ident">owned_file</span>),
-      <span class="ident">pos</span>: <span class="ident">pos</span>
+      <span class="ident">pos</span>,
     }
   }
 }
@@ -330,24 +319,17 @@
     <span class="prelude-val">Ok</span>(<span class="ident">num_bytes</span>)
   }
 
-  <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-    <span class="self">self</span>.<span class="ident">buf</span>.<span class="ident">flush</span>()
-  }
+  <span class="kw">fn</span> <span class="ident">flush</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> { <span class="self">self</span>.<span class="ident">buf</span>.<span class="ident">flush</span>() }
 }
 
 <span class="kw">impl</span> <span class="ident">Position</span> <span class="kw">for</span> <span class="ident">FileSink</span> {
-  <span class="kw">fn</span> <span class="ident">pos</span>(<span class="op">&amp;</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
-    <span class="self">self</span>.<span class="ident">pos</span>
-  }
+  <span class="kw">fn</span> <span class="ident">pos</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> { <span class="self">self</span>.<span class="ident">pos</span> }
 }
 
 <span class="comment">// Position implementation for Cursor to use in various tests.</span>
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Position</span> <span class="kw">for</span> <span class="ident">Cursor</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span> {
-  <span class="kw">fn</span> <span class="ident">pos</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
-    <span class="self">self</span>.<span class="ident">position</span>()
-  }
+  <span class="kw">fn</span> <span class="ident">pos</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> { <span class="self">self</span>.<span class="ident">position</span>() }
 }
-
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
@@ -407,7 +389,9 @@
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">file</span> <span class="op">=</span> <span class="ident">get_test_file</span>(<span class="string">&quot;alltypes_plain.parquet&quot;</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">src</span> <span class="op">=</span> <span class="ident">FileSource</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">file</span>, <span class="number">0</span>, <span class="number">4</span>);
 
-    <span class="ident">file</span>.<span class="ident">seek</span>(<span class="ident">SeekFrom</span>::<span class="ident">Start</span>(<span class="number">5</span> <span class="kw">as</span> <span class="ident">u64</span>)).<span class="ident">expect</span>(<span class="string">&quot;File seek to a position&quot;</span>);
+    <span class="ident">file</span>
+      .<span class="ident">seek</span>(<span class="ident">SeekFrom</span>::<span class="ident">Start</span>(<span class="number">5</span> <span class="kw">as</span> <span class="ident">u64</span>))
+      .<span class="ident">expect</span>(<span class="string">&quot;File seek to a position&quot;</span>);
 
     <span class="kw">let</span> <span class="ident">bytes_read</span> <span class="op">=</span> <span class="ident">src</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>[..]).<span class="ident">unwrap</span>();
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">bytes_read</span>, <span class="number">4</span>);

@@ -526,6 +526,30 @@
 <span id="526">526</span>
 <span id="527">527</span>
 <span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -544,7 +568,7 @@
 <span class="comment">// specific language governing permissions and limitations</span>
 <span class="comment">// under the License.</span>
 
-<span class="kw">use</span> <span class="ident">basic</span>::{<span class="ident">Type</span> <span class="kw">as</span> <span class="ident">PhysicalType</span>};
+<span class="kw">use</span> <span class="ident">basic</span>::<span class="ident">Type</span> <span class="kw">as</span> <span class="ident">PhysicalType</span>;
 <span class="kw">use</span> <span class="ident">column</span>::<span class="ident">reader</span>::{<span class="ident">get_typed_column_reader</span>, <span class="ident">ColumnReader</span>, <span class="ident">ColumnReaderImpl</span>};
 <span class="kw">use</span> <span class="ident">data_type</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">errors</span>::{<span class="ident">ParquetError</span>, <span class="prelude-ty">Result</span>};
@@ -579,7 +603,7 @@
   <span class="ident">FloatTripletIter</span>(<span class="ident">TypedTripletIter</span><span class="op">&lt;</span><span class="ident">FloatType</span><span class="op">&gt;</span>),
   <span class="ident">DoubleTripletIter</span>(<span class="ident">TypedTripletIter</span><span class="op">&lt;</span><span class="ident">DoubleType</span><span class="op">&gt;</span>),
   <span class="ident">ByteArrayTripletIter</span>(<span class="ident">TypedTripletIter</span><span class="op">&lt;</span><span class="ident">ByteArrayType</span><span class="op">&gt;</span>),
-  <span class="ident">FixedLenByteArrayTripletIter</span>(<span class="ident">TypedTripletIter</span><span class="op">&lt;</span><span class="ident">FixedLenByteArrayType</span><span class="op">&gt;</span>)
+  <span class="ident">FixedLenByteArrayTripletIter</span>(<span class="ident">TypedTripletIter</span><span class="op">&lt;</span><span class="ident">FixedLenByteArrayType</span><span class="op">&gt;</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">TripletIter</span> {
@@ -587,37 +611,29 @@
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">descr</span>: <span class="ident">ColumnDescPtr</span>, <span class="ident">reader</span>: <span class="ident">ColumnReader</span>, <span class="ident">batch_size</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
     <span class="kw">match</span> <span class="ident">descr</span>.<span class="ident">physical_type</span>() {
       <span class="ident">PhysicalType</span>::<span class="ident">BOOLEAN</span> <span class="op">=&gt;</span> {
-        <span class="ident">TripletIter</span>::<span class="ident">BoolTripletIter</span>(
-          <span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
+        <span class="ident">TripletIter</span>::<span class="ident">BoolTripletIter</span>(<span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
       },
       <span class="ident">PhysicalType</span>::<span class="ident">INT32</span> <span class="op">=&gt;</span> {
-        <span class="ident">TripletIter</span>::<span class="ident">Int32TripletIter</span>(
-          <span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
+        <span class="ident">TripletIter</span>::<span class="ident">Int32TripletIter</span>(<span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
       },
       <span class="ident">PhysicalType</span>::<span class="ident">INT64</span> <span class="op">=&gt;</span> {
-        <span class="ident">TripletIter</span>::<span class="ident">Int64TripletIter</span>(
-          <span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
+        <span class="ident">TripletIter</span>::<span class="ident">Int64TripletIter</span>(<span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
       },
       <span class="ident">PhysicalType</span>::<span class="ident">INT96</span> <span class="op">=&gt;</span> {
-        <span class="ident">TripletIter</span>::<span class="ident">Int96TripletIter</span>(
-          <span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
+        <span class="ident">TripletIter</span>::<span class="ident">Int96TripletIter</span>(<span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
       },
       <span class="ident">PhysicalType</span>::<span class="ident">FLOAT</span> <span class="op">=&gt;</span> {
-        <span class="ident">TripletIter</span>::<span class="ident">FloatTripletIter</span>(
-          <span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
+        <span class="ident">TripletIter</span>::<span class="ident">FloatTripletIter</span>(<span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
       },
       <span class="ident">PhysicalType</span>::<span class="ident">DOUBLE</span> <span class="op">=&gt;</span> {
-        <span class="ident">TripletIter</span>::<span class="ident">DoubleTripletIter</span>(
-          <span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
+        <span class="ident">TripletIter</span>::<span class="ident">DoubleTripletIter</span>(<span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
       },
-      <span class="ident">PhysicalType</span>::<span class="ident">BYTE_ARRAY</span> <span class="op">=&gt;</span> {
-        <span class="ident">TripletIter</span>::<span class="ident">ByteArrayTripletIter</span>(
-          <span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
-      },
-      <span class="ident">PhysicalType</span>::<span class="ident">FIXED_LEN_BYTE_ARRAY</span> <span class="op">=&gt;</span> {
-        <span class="ident">TripletIter</span>::<span class="ident">FixedLenByteArrayTripletIter</span>(
-          <span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>))
-      }
+      <span class="ident">PhysicalType</span>::<span class="ident">BYTE_ARRAY</span> <span class="op">=&gt;</span> <span class="ident">TripletIter</span>::<span class="ident">ByteArrayTripletIter</span>(
+        <span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>),
+      ),
+      <span class="ident">PhysicalType</span>::<span class="ident">FIXED_LEN_BYTE_ARRAY</span> <span class="op">=&gt;</span> <span class="ident">TripletIter</span>::<span class="ident">FixedLenByteArrayTripletIter</span>(
+        <span class="ident">TypedTripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>, <span class="ident">batch_size</span>, <span class="ident">reader</span>),
+      ),
     }
   }
 
@@ -633,9 +649,7 @@
   <span class="doccomment">/// Returns true if more values/levels exist, false otherwise.</span>
   <span class="doccomment">/// It is always in sync with `read_next` method.</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_next</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-    <span class="macro">triplet_enum_func</span><span class="macro">!</span>(<span class="self">self</span>, <span class="ident">has_next</span>, <span class="kw-2">ref</span>)
-  }
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_next</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="macro">triplet_enum_func</span><span class="macro">!</span>(<span class="self">self</span>, <span class="ident">has_next</span>, <span class="kw-2">ref</span>) }
 
   <span class="doccomment">/// Returns current definition level for a leaf triplet iterator</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -645,9 +659,7 @@
 
   <span class="doccomment">/// Returns max definition level for a leaf triplet iterator</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_def_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">i16</span> {
-    <span class="macro">triplet_enum_func</span><span class="macro">!</span>(<span class="self">self</span>, <span class="ident">max_def_level</span>, <span class="kw-2">ref</span>)
-  }
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_def_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">i16</span> { <span class="macro">triplet_enum_func</span><span class="macro">!</span>(<span class="self">self</span>, <span class="ident">max_def_level</span>, <span class="kw-2">ref</span>) }
 
   <span class="doccomment">/// Returns current repetition level for a leaf triplet iterator</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -657,17 +669,13 @@
 
   <span class="doccomment">/// Returns max repetition level for a leaf triplet iterator</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_rep_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">i16</span> {
-    <span class="macro">triplet_enum_func</span><span class="macro">!</span>(<span class="self">self</span>, <span class="ident">max_rep_level</span>, <span class="kw-2">ref</span>)
-  }
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">max_rep_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">i16</span> { <span class="macro">triplet_enum_func</span><span class="macro">!</span>(<span class="self">self</span>, <span class="ident">max_rep_level</span>, <span class="kw-2">ref</span>) }
 
   <span class="doccomment">/// Returns true, if current value is null.</span>
   <span class="doccomment">/// Based on the fact that for non-null value current definition level</span>
   <span class="doccomment">/// equals to max definition level.</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_null</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-    <span class="self">self</span>.<span class="ident">current_def_level</span>() <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">max_def_level</span>()
-  }
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_null</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="self">self</span>.<span class="ident">current_def_level</span>() <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">max_def_level</span>() }
 
   <span class="doccomment">/// Updates non-null value for current row.</span>
   <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">current_value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Field</span> {
@@ -696,7 +704,7 @@
       },
       <span class="ident">TripletIter</span>::<span class="ident">FixedLenByteArrayTripletIter</span>(<span class="kw-2">ref</span> <span class="ident">typed</span>) <span class="op">=&gt;</span> {
         <span class="ident">Field</span>::<span class="ident">convert_byte_array</span>(<span class="ident">typed</span>.<span class="ident">column_descr</span>(), <span class="ident">typed</span>.<span class="ident">current_value</span>().<span class="ident">clone</span>())
-      }
+      },
     }
   }
 }
@@ -719,57 +727,59 @@
   <span class="comment">// how many triplets are left before we need to buffer</span>
   <span class="ident">triplets_left</span>: <span class="ident">usize</span>,
   <span class="comment">// helper flag to quickly check if we have more values/levels to read</span>
-  <span class="ident">has_next</span>: <span class="ident">bool</span>
+  <span class="ident">has_next</span>: <span class="ident">bool</span>,
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">DataType</span><span class="op">&gt;</span> <span class="ident">TypedTripletIter</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
   <span class="doccomment">/// Creates new typed triplet iterator based on provided column reader.</span>
   <span class="doccomment">/// Use batch size to specify the amount of values to buffer from column reader.</span>
-  <span class="kw">fn</span> <span class="ident">new</span>(
-    <span class="ident">descr</span>: <span class="ident">ColumnDescPtr</span>,
-    <span class="ident">batch_size</span>: <span class="ident">usize</span>,
-    <span class="ident">column_reader</span>: <span class="ident">ColumnReader</span>
-  ) <span class="op">-&gt;</span> <span class="self">Self</span> {
-    <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">batch_size</span> <span class="op">&gt;</span> <span class="number">0</span>, <span class="string">&quot;Expected positive batch size, found: {}&quot;</span>, <span class="ident">batch_size</span>);
+  <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">descr</span>: <span class="ident">ColumnDescPtr</span>, <span class="ident">batch_size</span>: <span class="ident">usize</span>, <span class="ident">column_reader</span>: <span class="ident">ColumnReader</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+    <span class="macro">assert</span><span class="macro">!</span>(
+      <span class="ident">batch_size</span> <span class="op">&gt;</span> <span class="number">0</span>,
+      <span class="string">&quot;Expected positive batch size, found: {}&quot;</span>,
+      <span class="ident">batch_size</span>
+    );
 
     <span class="kw">let</span> <span class="ident">max_def_level</span> <span class="op">=</span> <span class="ident">descr</span>.<span class="ident">max_def_level</span>();
     <span class="kw">let</span> <span class="ident">max_rep_level</span> <span class="op">=</span> <span class="ident">descr</span>.<span class="ident">max_rep_level</span>();
 
-    <span class="kw">let</span> <span class="ident">def_levels</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">max_def_level</span> <span class="op">==</span> <span class="number">0</span> { <span class="prelude-val">None</span> } <span class="kw">else</span> { <span class="prelude-val">Some</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">batch_size</span>]) };
-    <span class="kw">let</span> <span class="ident">rep_levels</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">max_rep_level</span> <span class="op">==</span> <span class="number">0</span> { <span class="prelude-val">None</span> } <span class="kw">else</span> { <span class="prelude-val">Some</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">batch_size</span>]) };
+    <span class="kw">let</span> <span class="ident">def_levels</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">max_def_level</span> <span class="op">==</span> <span class="number">0</span> {
+      <span class="prelude-val">None</span>
+    } <span class="kw">else</span> {
+      <span class="prelude-val">Some</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">batch_size</span>])
+    };
+    <span class="kw">let</span> <span class="ident">rep_levels</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">max_rep_level</span> <span class="op">==</span> <span class="number">0</span> {
+      <span class="prelude-val">None</span>
+    } <span class="kw">else</span> {
+      <span class="prelude-val">Some</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">batch_size</span>])
+    };
 
     <span class="self">Self</span> {
       <span class="ident">reader</span>: <span class="ident">get_typed_column_reader</span>(<span class="ident">column_reader</span>),
       <span class="ident">column_descr</span>: <span class="ident">descr</span>,
-      <span class="ident">batch_size</span>: <span class="ident">batch_size</span>,
-      <span class="ident">max_def_level</span>: <span class="ident">max_def_level</span>,
-      <span class="ident">max_rep_level</span>: <span class="ident">max_rep_level</span>,
+      <span class="ident">batch_size</span>,
+      <span class="ident">max_def_level</span>,
+      <span class="ident">max_rep_level</span>,
       <span class="ident">values</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">T</span>::<span class="ident">T</span>::<span class="ident">default</span>(); <span class="ident">batch_size</span>],
-      <span class="ident">def_levels</span>: <span class="ident">def_levels</span>,
-      <span class="ident">rep_levels</span>: <span class="ident">rep_levels</span>,
+      <span class="ident">def_levels</span>,
+      <span class="ident">rep_levels</span>,
       <span class="ident">curr_triplet_index</span>: <span class="number">0</span>,
       <span class="ident">triplets_left</span>: <span class="number">0</span>,
-      <span class="ident">has_next</span>: <span class="bool-val">false</span>
+      <span class="ident">has_next</span>: <span class="bool-val">false</span>,
     }
   }
 
   <span class="doccomment">/// Returns column descriptor reference for the current typed triplet iterator.</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">column_descr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">ColumnDescPtr</span> {
-    <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">column_descr</span>
-  }
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">column_descr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">ColumnDescPtr</span> { <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">column_descr</span> }
 
   <span class="doccomment">/// Returns maximum definition level for the triplet iterator (leaf column).</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">fn</span> <span class="ident">max_def_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">i16</span> {
-    <span class="self">self</span>.<span class="ident">max_def_level</span>
-  }
+  <span class="kw">fn</span> <span class="ident">max_def_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">i16</span> { <span class="self">self</span>.<span class="ident">max_def_level</span> }
 
   <span class="doccomment">/// Returns maximum repetition level for the triplet iterator (leaf column).</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">fn</span> <span class="ident">max_rep_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">i16</span> {
-    <span class="self">self</span>.<span class="ident">max_rep_level</span>
-  }
+  <span class="kw">fn</span> <span class="ident">max_rep_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">i16</span> { <span class="self">self</span>.<span class="ident">max_rep_level</span> }
 
   <span class="doccomment">/// Returns current value.</span>
   <span class="doccomment">/// Method does not advance the iterator, therefore can be called multiple times.</span>
@@ -790,7 +800,7 @@
   <span class="kw">fn</span> <span class="ident">current_def_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">i16</span> {
     <span class="kw">match</span> <span class="self">self</span>.<span class="ident">def_levels</span> {
       <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">vec</span>) <span class="op">=&gt;</span> <span class="ident">vec</span>[<span class="self">self</span>.<span class="ident">curr_triplet_index</span>],
-      <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">max_def_level</span>
+      <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">max_def_level</span>,
     }
   }
 
@@ -800,16 +810,14 @@
   <span class="kw">fn</span> <span class="ident">current_rep_level</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">i16</span> {
     <span class="kw">match</span> <span class="self">self</span>.<span class="ident">rep_levels</span> {
       <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">vec</span>) <span class="op">=&gt;</span> <span class="ident">vec</span>[<span class="self">self</span>.<span class="ident">curr_triplet_index</span>],
-      <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">max_rep_level</span>
+      <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">max_rep_level</span>,
     }
   }
 
   <span class="doccomment">/// Quick check if iterator has more values/levels to read.</span>
   <span class="doccomment">/// It is updated as a result of `read_next` method, so they are synchronized.</span>
   <span class="attribute">#[<span class="ident">inline</span>]</span>
-  <span class="kw">fn</span> <span class="ident">has_next</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-    <span class="self">self</span>.<span class="ident">has_next</span>
-  }
+  <span class="kw">fn</span> <span class="ident">has_next</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="self">self</span>.<span class="ident">has_next</span> }
 
   <span class="doccomment">/// Advances to the next triplet.</span>
   <span class="doccomment">/// Returns true, if there are more records to read, false there are no records left.</span>
@@ -821,13 +829,13 @@
         <span class="comment">// Get slice of definition levels, if available</span>
         <span class="kw">let</span> <span class="ident">def_levels</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">def_levels</span> {
           <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">vec</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vec</span>[..]),
-          <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>
+          <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         };
 
         <span class="comment">// Get slice of repetition levels, if available</span>
         <span class="kw">let</span> <span class="ident">rep_levels</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">rep_levels</span> {
           <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">vec</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vec</span>[..]),
-          <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>
+          <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         };
 
         <span class="comment">// Buffer triplets</span>
@@ -835,7 +843,7 @@
           <span class="self">self</span>.<span class="ident">batch_size</span>,
           <span class="ident">def_levels</span>,
           <span class="ident">rep_levels</span>,
-          <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">values</span>
+          <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">values</span>,
         )<span class="question-mark">?</span>
       };
 
@@ -882,7 +890,6 @@
   }
 }
 
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
   <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
@@ -895,8 +902,14 @@
   <span class="kw">fn</span> <span class="ident">test_triplet_zero_batch_size</span>() {
     <span class="kw">let</span> <span class="ident">column_path</span> <span class="op">=</span>
       <span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;b_struct&quot;</span>.<span class="ident">to_string</span>(), <span class="string">&quot;b_c_int&quot;</span>.<span class="ident">to_string</span>()]);
-    <span class="ident">test_column_in_file</span>(<span class="string">&quot;nulls.snappy.parquet&quot;</span>, <span class="number">0</span>, <span class="kw-2">&amp;</span><span class="ident">column_path</span>,
-      <span class="kw-2">&amp;</span><span class="macro">vec</span><span class="macro">!</span>[], <span class="kw-2">&amp;</span><span class="macro">vec</span><span class="macro">!</span>[], <span class="kw-2">&amp;</span><span class="macro">vec</span><span class="macro">!</span>[]);
+    <span class="ident">test_column_in_file</span>(
+      <span class="string">&quot;nulls.snappy.parquet&quot;</span>,
+      <span class="number">0</span>,
+      <span class="kw-2">&amp;</span><span class="ident">column_path</span>,
+      <span class="kw-2">&amp;</span><span class="macro">vec</span><span class="macro">!</span>[],
+      <span class="kw-2">&amp;</span><span class="macro">vec</span><span class="macro">!</span>[],
+      <span class="kw-2">&amp;</span><span class="macro">vec</span><span class="macro">!</span>[],
+    );
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -905,33 +918,43 @@
     <span class="kw">let</span> <span class="ident">values</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
     <span class="kw">let</span> <span class="ident">def_levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
     <span class="kw">let</span> <span class="ident">rep_levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>];
-    <span class="ident">test_triplet_iter</span>(<span class="string">&quot;nulls.snappy.parquet&quot;</span>, <span class="ident">path</span>,
-      <span class="kw-2">&amp;</span><span class="ident">values</span>, <span class="kw-2">&amp;</span><span class="ident">def_levels</span>, <span class="kw-2">&amp;</span><span class="ident">rep_levels</span>);
+    <span class="ident">test_triplet_iter</span>(
+      <span class="string">&quot;nulls.snappy.parquet&quot;</span>,
+      <span class="ident">path</span>,
+      <span class="kw-2">&amp;</span><span class="ident">values</span>,
+      <span class="kw-2">&amp;</span><span class="ident">def_levels</span>,
+      <span class="kw-2">&amp;</span><span class="ident">rep_levels</span>,
+    );
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_triplet_required_column</span>() {
     <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;ID&quot;</span>];
-    <span class="kw">let</span> <span class="ident">values</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">8</span>)
-    ];
+    <span class="kw">let</span> <span class="ident">values</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Long</span>(<span class="number">8</span>)];
     <span class="kw">let</span> <span class="ident">def_levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>];
     <span class="kw">let</span> <span class="ident">rep_levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>];
-    <span class="ident">test_triplet_iter</span>(<span class="string">&quot;nonnullable.impala.parquet&quot;</span>, <span class="ident">path</span>,
-      <span class="kw-2">&amp;</span><span class="ident">values</span>, <span class="kw-2">&amp;</span><span class="ident">def_levels</span>, <span class="kw-2">&amp;</span><span class="ident">rep_levels</span>);
+    <span class="ident">test_triplet_iter</span>(
+      <span class="string">&quot;nonnullable.impala.parquet&quot;</span>,
+      <span class="ident">path</span>,
+      <span class="kw-2">&amp;</span><span class="ident">values</span>,
+      <span class="kw-2">&amp;</span><span class="ident">def_levels</span>,
+      <span class="kw-2">&amp;</span><span class="ident">rep_levels</span>,
+    );
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
   <span class="kw">fn</span> <span class="ident">test_triplet_optional_column</span>() {
     <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;nested_struct&quot;</span>, <span class="string">&quot;A&quot;</span>];
-    <span class="kw">let</span> <span class="ident">values</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-      <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>),
-      <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">7</span>)
-    ];
+    <span class="kw">let</span> <span class="ident">values</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>), <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">7</span>)];
     <span class="kw">let</span> <span class="ident">def_levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">2</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">2</span>];
     <span class="kw">let</span> <span class="ident">rep_levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>];
-    <span class="ident">test_triplet_iter</span>(<span class="string">&quot;nullable.impala.parquet&quot;</span>, <span class="ident">path</span>,
-      <span class="kw-2">&amp;</span><span class="ident">values</span>, <span class="kw-2">&amp;</span><span class="ident">def_levels</span>, <span class="kw-2">&amp;</span><span class="ident">rep_levels</span>);
+    <span class="ident">test_triplet_iter</span>(
+      <span class="string">&quot;nullable.impala.parquet&quot;</span>,
+      <span class="ident">path</span>,
+      <span class="kw-2">&amp;</span><span class="ident">values</span>,
+      <span class="kw-2">&amp;</span><span class="ident">def_levels</span>,
+      <span class="kw-2">&amp;</span><span class="ident">rep_levels</span>,
+    );
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -952,12 +975,17 @@
       <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;c&quot;</span>.<span class="ident">to_string</span>()),
       <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;d&quot;</span>.<span class="ident">to_string</span>()),
       <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;e&quot;</span>.<span class="ident">to_string</span>()),
-      <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;f&quot;</span>.<span class="ident">to_string</span>())
+      <span class="ident">Field</span>::<span class="ident">Str</span>(<span class="string">&quot;f&quot;</span>.<span class="ident">to_string</span>()),
     ];
     <span class="kw">let</span> <span class="ident">def_levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">7</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">4</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">4</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">4</span>, <span class="number">7</span>];
     <span class="kw">let</span> <span class="ident">rep_levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">3</span>, <span class="number">2</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">3</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">2</span>, <span class="number">1</span>, <span class="number">2</span>];
-    <span class="ident">test_triplet_iter</span>(<span class="string">&quot;nested_lists.snappy.parquet&quot;</span>, <span class="ident">path</span>,
-      <span class="kw-2">&amp;</span><span class="ident">values</span>, <span class="kw-2">&amp;</span><span class="ident">def_levels</span>, <span class="kw-2">&amp;</span><span class="ident">rep_levels</span>);
+    <span class="ident">test_triplet_iter</span>(
+      <span class="string">&quot;nested_lists.snappy.parquet&quot;</span>,
+      <span class="ident">path</span>,
+      <span class="kw-2">&amp;</span><span class="ident">values</span>,
+      <span class="kw-2">&amp;</span><span class="ident">def_levels</span>,
+      <span class="kw-2">&amp;</span><span class="ident">rep_levels</span>,
+    );
   }
 
   <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -970,12 +998,17 @@
       <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">1</span>),
       <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">3</span>),
       <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">4</span>),
-      <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">5</span>)
+      <span class="ident">Field</span>::<span class="ident">Int</span>(<span class="number">5</span>),
     ];
     <span class="kw">let</span> <span class="ident">def_levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">4</span>, <span class="number">4</span>, <span class="number">4</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">4</span>, <span class="number">4</span>, <span class="number">4</span>];
     <span class="kw">let</span> <span class="ident">rep_levels</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">2</span>];
-    <span class="ident">test_triplet_iter</span>(<span class="string">&quot;nested_maps.snappy.parquet&quot;</span>, <span class="ident">path</span>,
-      <span class="kw-2">&amp;</span><span class="ident">values</span>, <span class="kw-2">&amp;</span><span class="ident">def_levels</span>, <span class="kw-2">&amp;</span><span class="ident">rep_levels</span>);
+    <span class="ident">test_triplet_iter</span>(
+      <span class="string">&quot;nested_maps.snappy.parquet&quot;</span>,
+      <span class="ident">path</span>,
+      <span class="kw-2">&amp;</span><span class="ident">values</span>,
+      <span class="kw-2">&amp;</span><span class="ident">def_levels</span>,
+      <span class="kw-2">&amp;</span><span class="ident">rep_levels</span>,
+    );
   }
 
   <span class="comment">// Check triplet iterator across different batch sizes</span>
@@ -984,16 +1017,23 @@
     <span class="ident">column_path</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span>,
     <span class="ident">expected_values</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">expected_def_levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>],
-    <span class="ident">expected_rep_levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>]
-  ) {
+    <span class="ident">expected_rep_levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>],
+  )
+  {
     <span class="comment">// Convert path into column path</span>
     <span class="kw">let</span> <span class="ident">path</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">column_path</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">to_string</span>()).<span class="ident">collect</span>();
     <span class="kw">let</span> <span class="ident">column_path</span> <span class="op">=</span> <span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="ident">path</span>);
 
     <span class="kw">let</span> <span class="ident">batch_sizes</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">128</span>, <span class="number">256</span>];
     <span class="kw">for</span> <span class="ident">batch_size</span> <span class="kw">in</span> <span class="ident">batch_sizes</span> {
-      <span class="ident">test_column_in_file</span>(<span class="ident">file_name</span>, <span class="ident">batch_size</span>, <span class="kw-2">&amp;</span><span class="ident">column_path</span>,
-        <span class="ident">expected_values</span>, <span class="ident">expected_def_levels</span>, <span class="ident">expected_rep_levels</span>);
+      <span class="ident">test_column_in_file</span>(
+        <span class="ident">file_name</span>,
+        <span class="ident">batch_size</span>,
+        <span class="kw-2">&amp;</span><span class="ident">column_path</span>,
+        <span class="ident">expected_values</span>,
+        <span class="ident">expected_def_levels</span>,
+        <span class="ident">expected_rep_levels</span>,
+      );
     }
   }
 
@@ -1004,8 +1044,9 @@
     <span class="ident">column_path</span>: <span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>,
     <span class="ident">expected_values</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">expected_def_levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>],
-    <span class="ident">expected_rep_levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>]
-  ) {
+    <span class="ident">expected_rep_levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>],
+  )
+  {
     <span class="kw">let</span> <span class="ident">file</span> <span class="op">=</span> <span class="ident">get_test_file</span>(<span class="ident">file_name</span>);
     <span class="kw">let</span> <span class="ident">file_reader</span> <span class="op">=</span> <span class="ident">SerializedFileReader</span>::<span class="ident">new</span>(<span class="ident">file</span>).<span class="ident">unwrap</span>();
     <span class="comment">// Get schema descriptor</span>
@@ -1018,8 +1059,14 @@
       <span class="kw">let</span> <span class="ident">descr</span> <span class="op">=</span> <span class="ident">schema</span>.<span class="ident">column</span>(<span class="ident">i</span>);
       <span class="kw">if</span> <span class="ident">descr</span>.<span class="ident">path</span>() <span class="op">==</span> <span class="ident">column_path</span> {
         <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">row_group_reader</span>.<span class="ident">get_column_reader</span>(<span class="ident">i</span>).<span class="ident">unwrap</span>();
-        <span class="ident">test_triplet_column</span>(<span class="ident">descr</span>, <span class="ident">reader</span>, <span class="ident">batch_size</span>,
-          <span class="ident">expected_values</span>, <span class="ident">expected_def_levels</span>, <span class="ident">expected_rep_levels</span>);
+        <span class="ident">test_triplet_column</span>(
+          <span class="ident">descr</span>,
+          <span class="ident">reader</span>,
+          <span class="ident">batch_size</span>,
+          <span class="ident">expected_values</span>,
+          <span class="ident">expected_def_levels</span>,
+          <span class="ident">expected_rep_levels</span>,
+        );
       }
     }
   }
@@ -1031,8 +1078,9 @@
     <span class="ident">batch_size</span>: <span class="ident">usize</span>,
     <span class="ident">expected_values</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">expected_def_levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>],
-    <span class="ident">expected_rep_levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>]
-  ) {
+    <span class="ident">expected_rep_levels</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>],
+  )
+  {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter</span> <span class="op">=</span> <span class="ident">TripletIter</span>::<span class="ident">new</span>(<span class="ident">descr</span>.<span class="ident">clone</span>(), <span class="ident">reader</span>, <span class="ident">batch_size</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">values</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">def_levels</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">i16</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
