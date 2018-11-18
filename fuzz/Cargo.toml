@@ -1,0 +1,8 @@
+[package]
+name = "parquet-fuzz"
+version = "0.1.0"
+authors = ["Guillem Nieto <gnieto.talo@gmail.com>"]
+
+[dependencies]
+afl = "*"
+parquet = {path = ".."}
