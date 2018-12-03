@@ -30,7 +30,7 @@ use encodings::{
 use errors::{ParquetError, Result};
 use file::{
   metadata::ColumnChunkMetaData,
-  properties::{WriterPropertiesPtr, WriterVersion},
+  properties::{WriterProperties, WriterPropertiesPtr, WriterVersion},
 };
 use schema::types::ColumnDescPtr;
 use util::memory::{ByteBufferPtr, MemTracker};
@@ -144,11 +144,12 @@ impl<T: DataType> ColumnWriterImpl<T> {
     let compressor = create_codec(codec).unwrap();
 
     // Optionally set dictionary encoder.
-    let dict_encoder = if props.dictionary_enabled(descr.path()) {
-      Some(DictEncoder::new(descr.clone(), Rc::new(MemTracker::new())))
-    } else {
-      None
-    };
+    let dict_encoder =
+      if props.dictionary_enabled(descr.path()) && Self::has_dictionary_support(&props) {
+        Some(DictEncoder::new(descr.clone(), Rc::new(MemTracker::new())))
+      } else {
+        None
+      };
 
     // Whether or not this column writer has a dictionary encoding.
     let has_dictionary = dict_encoder.is_some();
@@ -156,7 +157,9 @@ impl<T: DataType> ColumnWriterImpl<T> {
     // Set either main encoder or fallback encoder.
     let fallback_encoder = get_encoder(
       descr.clone(),
-      props.encoding(descr.path()),
+      props
+        .encoding(descr.path())
+        .unwrap_or(Self::fallback_encoding(&props)),
       Rc::new(MemTracker::new()),
     )
     .unwrap();
@@ -707,6 +710,87 @@ impl<T: DataType> ColumnWriterImpl<T> {
   fn get_page_writer_ref(&self) -> &Box<PageWriter> { &self.page_writer }
 }
 
+// ----------------------------------------------------------------------
+// Encoding support for column writer.
+// This mirrors parquet-mr default encodings for writes. See:
+// https://github.com/apache/parquet-mr/blob/master/parquet-column/src/main/java/org/apache/parquet/column/values/factory/DefaultV1ValuesWriterFactory.java
+// https://github.com/apache/parquet-mr/blob/master/parquet-column/src/main/java/org/apache/parquet/column/values/factory/DefaultV2ValuesWriterFactory.java
+
+/// Trait to define default encoding for types, including whether or not the type
+/// supports dictionary encoding.
+trait EncodingWriteSupport {
+  /// Returns encoding for a column when no other encoding is provided in writer
+  /// properties.
+  fn fallback_encoding(props: &WriterProperties) -> Encoding;
+
+  /// Returns true if dictionary is supported for column writer, false otherwise.
+  fn has_dictionary_support(props: &WriterProperties) -> bool;
+}
+
+// Basic implementation, always falls back to PLAIN and supports dictionary.
+impl<T: DataType> EncodingWriteSupport for ColumnWriterImpl<T> {
+  default fn fallback_encoding(_props: &WriterProperties) -> Encoding { Encoding::PLAIN }
+
+  default fn has_dictionary_support(_props: &WriterProperties) -> bool { true }
+}
+
+impl EncodingWriteSupport for ColumnWriterImpl<BoolType> {
+  fn fallback_encoding(props: &WriterProperties) -> Encoding {
+    match props.writer_version() {
+      WriterVersion::PARQUET_1_0 => Encoding::PLAIN,
+      WriterVersion::PARQUET_2_0 => Encoding::RLE,
+    }
+  }
+
+  // Boolean column does not support dictionary encoding and should fall back to
+  // whatever fallback encoding is defined.
+  fn has_dictionary_support(_props: &WriterProperties) -> bool { false }
+}
+
+impl EncodingWriteSupport for ColumnWriterImpl<Int32Type> {
+  fn fallback_encoding(props: &WriterProperties) -> Encoding {
+    match props.writer_version() {
+      WriterVersion::PARQUET_1_0 => Encoding::PLAIN,
+      WriterVersion::PARQUET_2_0 => Encoding::DELTA_BINARY_PACKED,
+    }
+  }
+}
+
+impl EncodingWriteSupport for ColumnWriterImpl<Int64Type> {
+  fn fallback_encoding(props: &WriterProperties) -> Encoding {
+    match props.writer_version() {
+      WriterVersion::PARQUET_1_0 => Encoding::PLAIN,
+      WriterVersion::PARQUET_2_0 => Encoding::DELTA_BINARY_PACKED,
+    }
+  }
+}
+
+impl EncodingWriteSupport for ColumnWriterImpl<ByteArrayType> {
+  fn fallback_encoding(props: &WriterProperties) -> Encoding {
+    match props.writer_version() {
+      WriterVersion::PARQUET_1_0 => Encoding::PLAIN,
+      WriterVersion::PARQUET_2_0 => Encoding::DELTA_BYTE_ARRAY,
+    }
+  }
+}
+
+impl EncodingWriteSupport for ColumnWriterImpl<FixedLenByteArrayType> {
+  fn fallback_encoding(props: &WriterProperties) -> Encoding {
+    match props.writer_version() {
+      WriterVersion::PARQUET_1_0 => Encoding::PLAIN,
+      WriterVersion::PARQUET_2_0 => Encoding::DELTA_BYTE_ARRAY,
+    }
+  }
+
+  fn has_dictionary_support(props: &WriterProperties) -> bool {
+    match props.writer_version() {
+      // Dictionary encoding was not enabled in PARQUET 1.0
+      WriterVersion::PARQUET_1_0 => false,
+      WriterVersion::PARQUET_2_0 => true,
+    }
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -815,6 +899,284 @@ mod tests {
     if let Err(err) = res {
       assert_eq!(err.description(), "Dictionary encoder is not set");
     }
+  }
+
+  #[test]
+  fn test_column_writer_boolean_type_does_not_support_dictionary() {
+    let page_writer = get_test_page_writer();
+    let props = Rc::new(
+      WriterProperties::builder()
+        .set_dictionary_enabled(true)
+        .build(),
+    );
+    let mut writer = get_test_column_writer::<BoolType>(page_writer, 0, 0, props);
+    writer
+      .write_batch(&[true, false, true, false], None, None)
+      .unwrap();
+
+    let (bytes_written, rows_written, metadata) = writer.close().unwrap();
+    // PlainEncoder uses bit writer to write boolean values, which all fit into 1 byte.
+    assert_eq!(bytes_written, 1);
+    assert_eq!(rows_written, 4);
+    assert_eq!(metadata.encodings(), &vec![Encoding::PLAIN, Encoding::RLE]);
+    assert_eq!(metadata.num_values(), 4); // just values
+    assert_eq!(metadata.dictionary_page_offset(), None);
+  }
+
+  #[test]
+  fn test_column_writer_default_encoding_support_bool() {
+    check_encoding_write_support::<BoolType>(
+      WriterVersion::PARQUET_1_0,
+      true,
+      &[true, false],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+    check_encoding_write_support::<BoolType>(
+      WriterVersion::PARQUET_1_0,
+      false,
+      &[true, false],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+    check_encoding_write_support::<BoolType>(
+      WriterVersion::PARQUET_2_0,
+      true,
+      &[true, false],
+      None,
+      &[Encoding::RLE, Encoding::RLE],
+    );
+    check_encoding_write_support::<BoolType>(
+      WriterVersion::PARQUET_2_0,
+      false,
+      &[true, false],
+      None,
+      &[Encoding::RLE, Encoding::RLE],
+    );
+  }
+
+  #[test]
+  fn test_column_writer_default_encoding_support_int32() {
+    check_encoding_write_support::<Int32Type>(
+      WriterVersion::PARQUET_1_0,
+      true,
+      &[1, 2],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<Int32Type>(
+      WriterVersion::PARQUET_1_0,
+      false,
+      &[1, 2],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+    check_encoding_write_support::<Int32Type>(
+      WriterVersion::PARQUET_2_0,
+      true,
+      &[1, 2],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<Int32Type>(
+      WriterVersion::PARQUET_2_0,
+      false,
+      &[1, 2],
+      None,
+      &[Encoding::DELTA_BINARY_PACKED, Encoding::RLE],
+    );
+  }
+
+  #[test]
+  fn test_column_writer_default_encoding_support_int64() {
+    check_encoding_write_support::<Int64Type>(
+      WriterVersion::PARQUET_1_0,
+      true,
+      &[1, 2],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<Int64Type>(
+      WriterVersion::PARQUET_1_0,
+      false,
+      &[1, 2],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+    check_encoding_write_support::<Int64Type>(
+      WriterVersion::PARQUET_2_0,
+      true,
+      &[1, 2],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<Int64Type>(
+      WriterVersion::PARQUET_2_0,
+      false,
+      &[1, 2],
+      None,
+      &[Encoding::DELTA_BINARY_PACKED, Encoding::RLE],
+    );
+  }
+
+  #[test]
+  fn test_column_writer_default_encoding_support_int96() {
+    check_encoding_write_support::<Int96Type>(
+      WriterVersion::PARQUET_1_0,
+      true,
+      &[Int96::from(vec![1, 2, 3])],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<Int96Type>(
+      WriterVersion::PARQUET_1_0,
+      false,
+      &[Int96::from(vec![1, 2, 3])],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+    check_encoding_write_support::<Int96Type>(
+      WriterVersion::PARQUET_2_0,
+      true,
+      &[Int96::from(vec![1, 2, 3])],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<Int96Type>(
+      WriterVersion::PARQUET_2_0,
+      false,
+      &[Int96::from(vec![1, 2, 3])],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+  }
+
+  #[test]
+  fn test_column_writer_default_encoding_support_float() {
+    check_encoding_write_support::<FloatType>(
+      WriterVersion::PARQUET_1_0,
+      true,
+      &[1.0, 2.0],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<FloatType>(
+      WriterVersion::PARQUET_1_0,
+      false,
+      &[1.0, 2.0],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+    check_encoding_write_support::<FloatType>(
+      WriterVersion::PARQUET_2_0,
+      true,
+      &[1.0, 2.0],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<FloatType>(
+      WriterVersion::PARQUET_2_0,
+      false,
+      &[1.0, 2.0],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+  }
+
+  #[test]
+  fn test_column_writer_default_encoding_support_double() {
+    check_encoding_write_support::<DoubleType>(
+      WriterVersion::PARQUET_1_0,
+      true,
+      &[1.0, 2.0],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<DoubleType>(
+      WriterVersion::PARQUET_1_0,
+      false,
+      &[1.0, 2.0],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+    check_encoding_write_support::<DoubleType>(
+      WriterVersion::PARQUET_2_0,
+      true,
+      &[1.0, 2.0],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<DoubleType>(
+      WriterVersion::PARQUET_2_0,
+      false,
+      &[1.0, 2.0],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+  }
+
+  #[test]
+  fn test_column_writer_default_encoding_support_byte_array() {
+    check_encoding_write_support::<ByteArrayType>(
+      WriterVersion::PARQUET_1_0,
+      true,
+      &[ByteArray::from(vec![1u8])],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<ByteArrayType>(
+      WriterVersion::PARQUET_1_0,
+      false,
+      &[ByteArray::from(vec![1u8])],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+    check_encoding_write_support::<ByteArrayType>(
+      WriterVersion::PARQUET_2_0,
+      true,
+      &[ByteArray::from(vec![1u8])],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<ByteArrayType>(
+      WriterVersion::PARQUET_2_0,
+      false,
+      &[ByteArray::from(vec![1u8])],
+      None,
+      &[Encoding::DELTA_BYTE_ARRAY, Encoding::RLE],
+    );
+  }
+
+  #[test]
+  fn test_column_writer_default_encoding_support_fixed_len_byte_array() {
+    check_encoding_write_support::<FixedLenByteArrayType>(
+      WriterVersion::PARQUET_1_0,
+      true,
+      &[ByteArray::from(vec![1u8])],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+    check_encoding_write_support::<FixedLenByteArrayType>(
+      WriterVersion::PARQUET_1_0,
+      false,
+      &[ByteArray::from(vec![1u8])],
+      None,
+      &[Encoding::PLAIN, Encoding::RLE],
+    );
+    check_encoding_write_support::<FixedLenByteArrayType>(
+      WriterVersion::PARQUET_2_0,
+      true,
+      &[ByteArray::from(vec![1u8])],
+      Some(0),
+      &[Encoding::PLAIN, Encoding::RLE_DICTIONARY, Encoding::RLE],
+    );
+    check_encoding_write_support::<FixedLenByteArrayType>(
+      WriterVersion::PARQUET_2_0,
+      false,
+      &[ByteArray::from(vec![1u8])],
+      None,
+      &[Encoding::DELTA_BYTE_ARRAY, Encoding::RLE],
+    );
   }
 
   #[test]
@@ -1133,6 +1495,41 @@ mod tests {
     }
   }
 
+  /// Performs write of provided values and returns column metadata of those values.
+  /// Used to test encoding support for column writer.
+  fn column_write_and_get_metadata<T: DataType>(
+    props: WriterProperties,
+    values: &[T::T],
+  ) -> ColumnChunkMetaData
+  {
+    let page_writer = get_test_page_writer();
+    let props = Rc::new(props);
+    let mut writer = get_test_column_writer::<T>(page_writer, 0, 0, props);
+    writer.write_batch(values, None, None).unwrap();
+    let (_, _, metadata) = writer.close().unwrap();
+    metadata
+  }
+
+  // Function to use in tests for EncodingWriteSupport. This checks that dictionary
+  // offset and encodings to make sure that column writer uses provided by trait
+  // encodings.
+  fn check_encoding_write_support<T: DataType>(
+    version: WriterVersion,
+    dict_enabled: bool,
+    data: &[T::T],
+    dictionary_page_offset: Option<i64>,
+    encodings: &[Encoding],
+  )
+  {
+    let props = WriterProperties::builder()
+      .set_writer_version(version)
+      .set_dictionary_enabled(dict_enabled)
+      .build();
+    let meta = column_write_and_get_metadata::<T>(props, data);
+    assert_eq!(meta.dictionary_page_offset(), dictionary_page_offset);
+    assert_eq!(meta.encodings(), &encodings);
+  }
+
   /// Reads one batch of data, considering that batch is large enough to capture all of
   /// the values and levels.
   fn read_fully<T: DataType>(
@@ -1189,6 +1586,9 @@ mod tests {
   {
     let path = ColumnPath::from("col");
     let tpe = SchemaType::primitive_type_builder("col", T::get_physical_type())
+      // length is set for "encoding support" tests for FIXED_LEN_BYTE_ARRAY type,
+      // it should be no-op for other types
+      .with_length(1)
       .build()
       .unwrap();
     ColumnDescriptor::new(Rc::new(tpe), None, max_def_level, max_rep_level, path)

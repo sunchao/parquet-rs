@@ -40,9 +40,12 @@
 //! assert_eq!(props.writer_version(), WriterVersion::PARQUET_1_0);
 //! assert_eq!(
 //!   props.encoding(&ColumnPath::from("col1")),
-//!   Encoding::DELTA_BINARY_PACKED
+//!   Some(Encoding::DELTA_BINARY_PACKED)
 //! );
-//! assert_eq!(props.encoding(&ColumnPath::from("col2")), Encoding::PLAIN);
+//! assert_eq!(
+//!   props.encoding(&ColumnPath::from("col2")),
+//!   Some(Encoding::PLAIN)
+//! );
 //! ```
 
 use std::{collections::HashMap, rc::Rc};
@@ -53,7 +56,6 @@ use schema::types::ColumnPath;
 const DEFAULT_PAGE_SIZE: usize = 1024 * 1024;
 const DEFAULT_WRITE_BATCH_SIZE: usize = 1024;
 const DEFAULT_WRITER_VERSION: WriterVersion = WriterVersion::PARQUET_1_0;
-const DEFAULT_ENCODING: Encoding = Encoding::PLAIN;
 const DEFAULT_COMPRESSION: Compression = Compression::UNCOMPRESSED;
 const DEFAULT_DICTIONARY_ENABLED: bool = true;
 const DEFAULT_DICTIONARY_PAGE_SIZE_LIMIT: usize = DEFAULT_PAGE_SIZE;
@@ -144,15 +146,17 @@ impl WriterProperties {
     Encoding::PLAIN
   }
 
-  /// Returns encoding for a column.
+  /// Returns encoding for a column, if set.
   /// In case when dictionary is enabled, returns fallback encoding.
-  pub fn encoding(&self, col: &ColumnPath) -> Encoding {
+  ///
+  /// If encoding is not set, then column writer will choose the best encoding
+  /// based on the column type.
+  pub fn encoding(&self, col: &ColumnPath) -> Option<Encoding> {
     self
       .column_properties
       .get(col)
       .and_then(|c| c.encoding())
       .or_else(|| self.default_column_properties.encoding())
-      .unwrap_or(DEFAULT_ENCODING)
   }
 
   /// Returns compression codec for a column.
@@ -477,7 +481,7 @@ mod tests {
     assert_eq!(props.max_row_group_size(), DEFAULT_MAX_ROW_GROUP_SIZE);
     assert_eq!(props.writer_version(), DEFAULT_WRITER_VERSION);
     assert_eq!(props.created_by(), DEFAULT_CREATED_BY);
-    assert_eq!(props.encoding(&ColumnPath::from("col")), DEFAULT_ENCODING);
+    assert_eq!(props.encoding(&ColumnPath::from("col")), None);
     assert_eq!(
       props.compression(&ColumnPath::from("col")),
       DEFAULT_COMPRESSION
@@ -581,14 +585,17 @@ mod tests {
 
     assert_eq!(
       props.encoding(&ColumnPath::from("a")),
-      Encoding::DELTA_BINARY_PACKED
+      Some(Encoding::DELTA_BINARY_PACKED)
     );
     assert_eq!(props.compression(&ColumnPath::from("a")), Compression::GZIP);
     assert_eq!(props.dictionary_enabled(&ColumnPath::from("a")), false);
     assert_eq!(props.statistics_enabled(&ColumnPath::from("a")), false);
     assert_eq!(props.max_statistics_size(&ColumnPath::from("a")), 50);
 
-    assert_eq!(props.encoding(&ColumnPath::from("col")), Encoding::RLE);
+    assert_eq!(
+      props.encoding(&ColumnPath::from("col")),
+      Some(Encoding::RLE)
+    );
     assert_eq!(
       props.compression(&ColumnPath::from("col")),
       Compression::SNAPPY
@@ -606,7 +613,10 @@ mod tests {
       .set_column_encoding(ColumnPath::from("col"), Encoding::RLE)
       .build();
 
-    assert_eq!(props.encoding(&ColumnPath::from("col")), Encoding::RLE);
+    assert_eq!(
+      props.encoding(&ColumnPath::from("col")),
+      Some(Encoding::RLE)
+    );
     assert_eq!(
       props.compression(&ColumnPath::from("col")),
       Compression::GZIP
