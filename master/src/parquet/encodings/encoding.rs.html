@@ -1400,7 +1400,7 @@
     <span class="ident">Encoding</span>::<span class="ident">RLE_DICTIONARY</span> <span class="op">|</span> <span class="ident">Encoding</span>::<span class="ident">PLAIN_DICTIONARY</span> <span class="op">=&gt;</span> {
       <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="macro">general_err</span><span class="macro">!</span>(
         <span class="string">&quot;Cannot initialize this encoding through this function&quot;</span>
-      ))
+      ));
     },
     <span class="ident">Encoding</span>::<span class="ident">RLE</span> <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">RleValueEncoder</span>::<span class="ident">new</span>()),
     <span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span> <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DeltaBitPackEncoder</span>::<span class="ident">new</span>()),

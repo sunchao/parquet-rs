@@ -617,6 +617,16 @@
 <span id="617">617</span>
 <span id="618">618</span>
 <span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -660,9 +670,12 @@
 <span class="doccomment">//! assert_eq!(props.writer_version(), WriterVersion::PARQUET_1_0);</span>
 <span class="doccomment">//! assert_eq!(</span>
 <span class="doccomment">//!   props.encoding(&amp;ColumnPath::from(&quot;col1&quot;)),</span>
-<span class="doccomment">//!   Encoding::DELTA_BINARY_PACKED</span>
+<span class="doccomment">//!   Some(Encoding::DELTA_BINARY_PACKED)</span>
 <span class="doccomment">//! );</span>
-<span class="doccomment">//! assert_eq!(props.encoding(&amp;ColumnPath::from(&quot;col2&quot;)), Encoding::PLAIN);</span>
+<span class="doccomment">//! assert_eq!(</span>
+<span class="doccomment">//!   props.encoding(&amp;ColumnPath::from(&quot;col2&quot;)),</span>
+<span class="doccomment">//!   Some(Encoding::PLAIN)</span>
+<span class="doccomment">//! );</span>
 <span class="doccomment">//! ```</span>
 
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">collections</span>::<span class="ident">HashMap</span>, <span class="ident">rc</span>::<span class="ident">Rc</span>};
@@ -673,7 +686,6 @@
 <span class="kw">const</span> <span class="ident">DEFAULT_PAGE_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">1024</span> <span class="op">*</span> <span class="number">1024</span>;
 <span class="kw">const</span> <span class="ident">DEFAULT_WRITE_BATCH_SIZE</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">1024</span>;
 <span class="kw">const</span> <span class="ident">DEFAULT_WRITER_VERSION</span>: <span class="ident">WriterVersion</span> <span class="op">=</span> <span class="ident">WriterVersion</span>::<span class="ident">PARQUET_1_0</span>;
-<span class="kw">const</span> <span class="ident">DEFAULT_ENCODING</span>: <span class="ident">Encoding</span> <span class="op">=</span> <span class="ident">Encoding</span>::<span class="ident">PLAIN</span>;
 <span class="kw">const</span> <span class="ident">DEFAULT_COMPRESSION</span>: <span class="ident">Compression</span> <span class="op">=</span> <span class="ident">Compression</span>::<span class="ident">UNCOMPRESSED</span>;
 <span class="kw">const</span> <span class="ident">DEFAULT_DICTIONARY_ENABLED</span>: <span class="ident">bool</span> <span class="op">=</span> <span class="bool-val">true</span>;
 <span class="kw">const</span> <span class="ident">DEFAULT_DICTIONARY_PAGE_SIZE_LIMIT</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">DEFAULT_PAGE_SIZE</span>;
@@ -764,15 +776,17 @@
     <span class="ident">Encoding</span>::<span class="ident">PLAIN</span>
   }
 
-  <span class="doccomment">/// Returns encoding for a column.</span>
+  <span class="doccomment">/// Returns encoding for a column, if set.</span>
   <span class="doccomment">/// In case when dictionary is enabled, returns fallback encoding.</span>
-  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">col</span>: <span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>) <span class="op">-&gt;</span> <span class="ident">Encoding</span> {
+  <span class="doccomment">///</span>
+  <span class="doccomment">/// If encoding is not set, then column writer will choose the best encoding</span>
+  <span class="doccomment">/// based on the column type.</span>
+  <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">col</span>: <span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Encoding</span><span class="op">&gt;</span> {
     <span class="self">self</span>
       .<span class="ident">column_properties</span>
       .<span class="ident">get</span>(<span class="ident">col</span>)
       .<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">encoding</span>())
       .<span class="ident">or_else</span>(<span class="op">||</span> <span class="self">self</span>.<span class="ident">default_column_properties</span>.<span class="ident">encoding</span>())
-      .<span class="ident">unwrap_or</span>(<span class="ident">DEFAULT_ENCODING</span>)
   }
 
   <span class="doccomment">/// Returns compression codec for a column.</span>
@@ -1097,7 +1111,7 @@
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">props</span>.<span class="ident">max_row_group_size</span>(), <span class="ident">DEFAULT_MAX_ROW_GROUP_SIZE</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">props</span>.<span class="ident">writer_version</span>(), <span class="ident">DEFAULT_WRITER_VERSION</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">props</span>.<span class="ident">created_by</span>(), <span class="ident">DEFAULT_CREATED_BY</span>);
-    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">props</span>.<span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;col&quot;</span>)), <span class="ident">DEFAULT_ENCODING</span>);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">props</span>.<span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;col&quot;</span>)), <span class="prelude-val">None</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(
       <span class="ident">props</span>.<span class="ident">compression</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;col&quot;</span>)),
       <span class="ident">DEFAULT_COMPRESSION</span>
@@ -1201,14 +1215,17 @@
 
     <span class="macro">assert_eq</span><span class="macro">!</span>(
       <span class="ident">props</span>.<span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;a&quot;</span>)),
-      <span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span>
+      <span class="prelude-val">Some</span>(<span class="ident">Encoding</span>::<span class="ident">DELTA_BINARY_PACKED</span>)
     );
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">props</span>.<span class="ident">compression</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;a&quot;</span>)), <span class="ident">Compression</span>::<span class="ident">GZIP</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">props</span>.<span class="ident">dictionary_enabled</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;a&quot;</span>)), <span class="bool-val">false</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">props</span>.<span class="ident">statistics_enabled</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;a&quot;</span>)), <span class="bool-val">false</span>);
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">props</span>.<span class="ident">max_statistics_size</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;a&quot;</span>)), <span class="number">50</span>);
 
-    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">props</span>.<span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;col&quot;</span>)), <span class="ident">Encoding</span>::<span class="ident">RLE</span>);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(
+      <span class="ident">props</span>.<span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;col&quot;</span>)),
+      <span class="prelude-val">Some</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>)
+    );
     <span class="macro">assert_eq</span><span class="macro">!</span>(
       <span class="ident">props</span>.<span class="ident">compression</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;col&quot;</span>)),
       <span class="ident">Compression</span>::<span class="ident">SNAPPY</span>
@@ -1226,7 +1243,10 @@
       .<span class="ident">set_column_encoding</span>(<span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;col&quot;</span>), <span class="ident">Encoding</span>::<span class="ident">RLE</span>)
       .<span class="ident">build</span>();
 
-    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">props</span>.<span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;col&quot;</span>)), <span class="ident">Encoding</span>::<span class="ident">RLE</span>);
+    <span class="macro">assert_eq</span><span class="macro">!</span>(
+      <span class="ident">props</span>.<span class="ident">encoding</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;col&quot;</span>)),
+      <span class="prelude-val">Some</span>(<span class="ident">Encoding</span>::<span class="ident">RLE</span>)
+    );
     <span class="macro">assert_eq</span><span class="macro">!</span>(
       <span class="ident">props</span>.<span class="ident">compression</span>(<span class="kw-2">&amp;</span><span class="ident">ColumnPath</span>::<span class="ident">from</span>(<span class="string">&quot;col&quot;</span>)),
       <span class="ident">Compression</span>::<span class="ident">GZIP</span>
