@@ -67,7 +67,7 @@ pub fn get_decoder<T: DataType>(
     Encoding::RLE_DICTIONARY | Encoding::PLAIN_DICTIONARY => {
       return Err(general_err!(
         "Cannot initialize this encoding through this function"
-      ))
+      ));
     },
     Encoding::RLE => Box::new(RleValueDecoder::new()),
     Encoding::DELTA_BINARY_PACKED => Box::new(DeltaBitPackDecoder::new()),
