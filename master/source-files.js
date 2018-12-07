@@ -1,0 +1,4 @@
+var N = null;var sourcesIndex = {};
+sourcesIndex['parquet'] = {"name":"","dirs":[{"name":"column","dirs":[],"files":["mod.rs","page.rs","reader.rs","writer.rs"]},{"name":"encodings","dirs":[],"files":["decoding.rs","encoding.rs","levels.rs","mod.rs","rle.rs"]},{"name":"file","dirs":[],"files":["metadata.rs","mod.rs","properties.rs","reader.rs","statistics.rs","writer.rs"]},{"name":"record","dirs":[],"files":["api.rs","mod.rs","reader.rs","triplet.rs"]},{"name":"schema","dirs":[],"files":["mod.rs","parser.rs","printer.rs","types.rs"]},{"name":"util","dirs":[],"files":["bit_packing.rs","bit_util.rs","hash_util.rs","io.rs","memory.rs","mod.rs"]}],"files":["basic.rs","compression.rs","data_type.rs","errors.rs","lib.rs"]};
+sourcesIndex['parquet_read'] = {"name":"","dirs":[],"files":["parquet-read.rs"]};
+sourcesIndex['parquet_schema'] = {"name":"","dirs":[],"files":["parquet-schema.rs"]};
