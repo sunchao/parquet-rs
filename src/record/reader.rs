@@ -67,11 +67,13 @@ impl TreeBuilder {
       paths.insert(col_path, col_index);
     }
 
+    let fields = descr.root_schema().get_fields();
+
     // Build child readers for the message type
-    let mut readers = Vec::new();
+    let mut readers = Vec::with_capacity(fields.len());
     let mut path = Vec::new();
 
-    for field in descr.root_schema().get_fields() {
+    for field in fields {
       let reader =
         self.reader_tree(field.clone(), &mut path, 0, 0, &paths, row_group_reader);
       readers.push(reader);
@@ -275,7 +277,7 @@ impl TreeBuilder {
         },
         // Group types (structs)
         _ => {
-          let mut readers = Vec::new();
+          let mut readers = Vec::with_capacity(field.get_fields().len());
           for child in field.get_fields() {
             let reader = self.reader_tree(
               child.clone(),
@@ -380,7 +382,7 @@ impl Reader {
   fn read(&mut self) -> Row {
     match *self {
       Reader::GroupReader(_, _, ref mut readers) => {
-        let mut fields = Vec::new();
+        let mut fields = Vec::with_capacity(readers.len());
         for reader in readers {
           fields.push((String::from(reader.field_name()), reader.read_field()));
         }
@@ -408,7 +410,7 @@ impl Reader {
         }
       },
       Reader::GroupReader(_, def_level, ref mut readers) => {
-        let mut fields = Vec::new();
+        let mut fields = Vec::with_capacity(readers.len());
         for reader in readers {
           if reader.repetition() != Repetition::OPTIONAL
             || reader.current_def_level() > def_level
