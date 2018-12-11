@@ -1447,6 +1447,8 @@
 <span id="1447">1447</span>
 <span id="1448">1448</span>
 <span id="1449">1449</span>
+<span id="1450">1450</span>
+<span id="1451">1451</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Licensed to the Apache Software Foundation (ASF) under one</span>
 <span class="comment">// or more contributor license agreements.  See the NOTICE file</span>
@@ -1517,11 +1519,13 @@
       <span class="ident">paths</span>.<span class="ident">insert</span>(<span class="ident">col_path</span>, <span class="ident">col_index</span>);
     }
 
+    <span class="kw">let</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">descr</span>.<span class="ident">root_schema</span>().<span class="ident">get_fields</span>();
+
     <span class="comment">// Build child readers for the message type</span>
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">readers</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">readers</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">fields</span>.<span class="ident">len</span>());
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
 
-    <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">descr</span>.<span class="ident">root_schema</span>().<span class="ident">get_fields</span>() {
+    <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">fields</span> {
       <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span>
         <span class="self">self</span>.<span class="ident">reader_tree</span>(<span class="ident">field</span>.<span class="ident">clone</span>(), <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">path</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="kw-2">&amp;</span><span class="ident">paths</span>, <span class="ident">row_group_reader</span>);
       <span class="ident">readers</span>.<span class="ident">push</span>(<span class="ident">reader</span>);
@@ -1725,7 +1729,7 @@
         },
         <span class="comment">// Group types (structs)</span>
         <span class="kw">_</span> <span class="op">=&gt;</span> {
-          <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">readers</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+          <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">readers</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">field</span>.<span class="ident">get_fields</span>().<span class="ident">len</span>());
           <span class="kw">for</span> <span class="ident">child</span> <span class="kw">in</span> <span class="ident">field</span>.<span class="ident">get_fields</span>() {
             <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">reader_tree</span>(
               <span class="ident">child</span>.<span class="ident">clone</span>(),
@@ -1830,7 +1834,7 @@
   <span class="kw">fn</span> <span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Row</span> {
     <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
       <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">readers</span>) <span class="op">=&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">readers</span>.<span class="ident">len</span>());
         <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="ident">readers</span> {
           <span class="ident">fields</span>.<span class="ident">push</span>((<span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">reader</span>.<span class="ident">field_name</span>()), <span class="ident">reader</span>.<span class="ident">read_field</span>()));
         }
@@ -1858,7 +1862,7 @@
         }
       },
       <span class="ident">Reader</span>::<span class="ident">GroupReader</span>(<span class="kw">_</span>, <span class="ident">def_level</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">readers</span>) <span class="op">=&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">readers</span>.<span class="ident">len</span>());
         <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="ident">readers</span> {
           <span class="kw">if</span> <span class="ident">reader</span>.<span class="ident">repetition</span>() <span class="op">!=</span> <span class="ident">Repetition</span>::<span class="ident">OPTIONAL</span>
             <span class="op">||</span> <span class="ident">reader</span>.<span class="ident">current_def_level</span>() <span class="op">&gt;</span> <span class="ident">def_level</span>
