@@ -27,7 +27,9 @@
 [![Master API docs](https://img.shields.io/badge/docs-master-green.svg)](https://sunchao.github.io/parquet-rs/master/parquet/)
 
 
-An [Apache Parquet](https://parquet.apache.org/) implementation in Rust (work in progress)
+An [Apache Parquet](https://parquet.apache.org/) implementation in Rust.
+
+**NOTE: this project has merged into [Apache Arrow](https://arrow.apache.org/), and development will continue there.** **To file an issue or pull request, please file a [JIRA](https://issues.apache.org/jira/projects/ARROW/issues) in the Arrow project.**
 
 ## Usage
 Add this to your Cargo.toml:
